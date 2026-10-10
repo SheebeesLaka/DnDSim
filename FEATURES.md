@@ -679,3 +679,13 @@ Each row states what the code **does**. Intent is not guessed. Fill in *Decision
 **Spells** (16): Fire Bolt (L0 ATTACK rng8 d4/d6/d10, Burning at T3+), Ray of Frost (L0 ATTACK rng5 d8/d6/d8, Chilled), Sacred Flame (L0 SAVE DEX rng6 d8/d6/d8), Thunderclap (L0 SAVE CON burst1 self, d6/d4/d6), Bless (L1 BUFF ALLY rng4, Blessed +2 ATK 10t), Burning Hands (L1 SAVE DEX/HALF cone3 self d6/d6/d8 ff, upcast d6), Cure Wounds (L1 HEAL touch d8 +casting mod, upcast d8), Guiding Bolt (L1 ATTACK rng8 d12/d8/d10, Illuminated AC−2, upcast d6), Magic Missile (L1 AUTO rng8 d4/d4/d4 +3 flat, upcast d4), Shield of Faith (L1 BUFF rng4, AC+2 10t), Thunderwave (L1 SAVE CON/HALF burst1 self d8/d6/d8 ff, upcast d8), Hold Person (L2 SAVE WIS rng6, no dice, Held MOVE−99 2t), Shatter (L2 SAVE CON/HALF rng6 d8/d8/d8, upcast d8), Fireball (L3 SAVE DEX/HALF rng8 burst2 d10/d10/d12 ff, Burning at T3, upcast d6), Lightning Bolt (L3 SAVE DEX/HALF line10 self d10/d10/d10 ff, upcast d6), Mass Healing Word (L3 HEAL burst2 rng8 d4 +casting mod, upcast d4).
 
 **Terrain**: Acid (HP 1, walkable, entity above, `terrain/acid.png` 42×19), Red Flower (HP 1, walkable, entity below, 16×16), Rock (HP 20, collides, no sprite → extruded block), Tree (HP 5, collides, `color: 8` legacy index, 327×368 sprite). Sources in `resources/sprites/terrain/_source/`.
+
+---
+
+## 19. Port map (added at the Phase 2 checkpoint)
+
+Each rule area above has a test file in `tests/rules/` that quotes the formulas and cites the Java
+lines; the engine lives in `src/engine/` and the §17 decisions are `rules.compat` flags
+(`src/engine/compat.ts`). See `docs/CHECKPOINT-2.md` for the area → test map, the compat decision
+table and the list of items fixed without a flag. Paths cited in this document now live under
+`legacy-java/`.
