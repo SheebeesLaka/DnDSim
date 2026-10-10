@@ -129,6 +129,11 @@ export interface BoardVM {
   strip: StripEntry[];
   showStrip: boolean;
   view: 'dm' | 'player';
+  turnOrder: UnitId[];
+  started: boolean;
+  round: number;
+  /** pending DM input, for the player strip's inline initiative state */
+  pendingKind: string | null;
 }
 
 const initialsOf = (name: string): string => {
@@ -338,6 +343,10 @@ export function buildBoardViewModel(
     strip: buildStrip(state),
     showStrip: true,
     view: 'dm',
+    turnOrder: [...state.turn.order],
+    started: state.turn.started,
+    round: state.turn.round,
+    pendingKind: state.pending?.kind ?? null,
   };
 }
 

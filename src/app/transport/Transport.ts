@@ -1,9 +1,14 @@
 /** One-way DM → player channel now; the same interface will carry the WebSocket relay later. */
-import type { BattleEvent, BattleState } from '../../engine/types.ts';
-import type { ViewSession } from '../../engine/view/boardViewModel.ts';
+import type { BattleEvent } from '../../engine/types.ts';
+import type { BoardVM } from '../../engine/view/boardViewModel.ts';
 
 export type WireMessage =
-  | { t: 'snapshot'; battle: BattleState; session: ViewSession; events: BattleEvent[]; seq: number }
+  | { t: 'snapshot'; vm: BoardVM; events: BattleEvent[]; seq: number }
+  | {
+      t: 'victory';
+      party: { name: string; hp: number; maxHp: number; statuses: string[] }[] | null;
+      seq: number;
+    }
   | { t: 'hello'; seq: number }
   | { t: 'prefs'; prefs: Record<string, string>; seq: number };
 

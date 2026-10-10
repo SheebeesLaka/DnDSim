@@ -3,24 +3,19 @@
  * It never reduces commands; it only holds the latest document and replays
  * the events that came with it (floating text) to its subscribers.
  */
-import type { BattleEvent, BattleState } from '../engine/types.ts';
-import type { ViewSession } from '../engine/view/boardViewModel.ts';
+import type { BattleEvent } from '../engine/types.ts';
+import type { BoardVM } from '../engine/view/boardViewModel.ts';
 import type { Transport, WireMessage } from './transport/Transport.ts';
 
 export interface ReplicaDoc {
-  battle: BattleState | null;
-  session: ViewSession;
+  vm: BoardVM | null;
   prefs: Record<string, string>;
+  victory: { name: string; hp: number; maxHp: number; statuses: string[] }[] | null;
   seq: number;
 }
 
 export class ReplicaStore {
-  private doc: ReplicaDoc = {
-    battle: null,
-    session: { selectedId: null, mode: { kind: 'none' }, hover: null },
-    prefs: {},
-    seq: -1,
-  };
+  private doc: ReplicaDoc = { vm: null, prefs: {}, victory: null, seq: -1 };
   private listeners = new Set<(doc: ReplicaDoc, events: BattleEvent[]) => void>();
   private unsub: () => void;
 
@@ -42,8 +37,11 @@ export class ReplicaStore {
     if (m.t === 'snapshot') {
       // ignore stale, out-of-order snapshots from a previous DM session
       if (m.seq < this.doc.seq && this.doc.seq - m.seq < 1_000_000) return;
-      this.doc = { ...this.doc, battle: m.battle, session: m.session, seq: m.seq };
+      this.doc = { ...this.doc, vm: m.vm, seq: m.seq };
       for (const l of [...this.listeners]) l(this.doc, m.events);
+    } else if (m.t === 'victory') {
+      this.doc = { ...this.doc, victory: m.party, seq: m.seq };
+      for (const l of [...this.listeners]) l(this.doc, []);
     } else if (m.t === 'prefs') {
       this.doc = { ...this.doc, prefs: m.prefs };
       for (const l of [...this.listeners]) l(this.doc, []);
@@ -59,20 +57,25 @@ export class ReplicaStore {
 /** DM side: publish every store change as a snapshot; answer `hello` with the current one. */
 export function publishStore(
   transport: Transport,
-  getSnapshot: () => { battle: BattleState; session: ViewSession },
+  getSnapshot: () => BoardVM,
   getPrefs: () => Record<string, string>,
-): { publish: (events: BattleEvent[]) => void; publishPrefs: () => void; stop: () => void } {
+): {
+  publish: (events: BattleEvent[]) => void;
+  publishPrefs: () => void;
+  publishVictory: (party: ReplicaDoc['victory']) => void;
+  stop: () => void;
+} {
   let seq = 0;
-  const publish = (events: BattleEvent[]) => {
-    const snap = getSnapshot();
-    transport.send({ t: 'snapshot', battle: snap.battle, session: snap.session, events, seq: seq++ });
-  };
+  const publish = (events: BattleEvent[]) =>
+    transport.send({ t: 'snapshot', vm: getSnapshot(), events, seq: seq++ });
   const publishPrefs = () => transport.send({ t: 'prefs', prefs: getPrefs(), seq: seq++ });
+  const publishVictory = (party: ReplicaDoc['victory']) =>
+    transport.send({ t: 'victory', party, seq: seq++ });
   const unsub = transport.onMessage((m) => {
     if (m.t === 'hello') {
       publishPrefs();
       publish([]);
     }
   });
-  return { publish, publishPrefs, stop: unsub };
+  return { publish, publishPrefs, publishVictory, stop: unsub };
 }

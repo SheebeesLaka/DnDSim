@@ -18,7 +18,7 @@ export function anonymousEnemyNames(orderedEnemyIds: readonly string[]): Map<str
 export function projectForPlayer(
   vm: BoardVM,
   opts: PlayerDisplayOptions,
-  turnOrder: readonly string[],
+  turnOrder: readonly string[] = vm.turnOrder,
 ): BoardVM {
   const enemyIdsInOrder = turnOrder.filter((id) => vm.units.some((u) => u.id === id && u.side === 'enemy'));
   // enemies not (yet) in the order get numbered after the ordered ones so names stay unique
