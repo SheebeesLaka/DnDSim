@@ -20,6 +20,7 @@ import type { CompatFlags } from './compat.ts';
 import type { Rng } from './rng.ts';
 
 export const BATTLE_STATE_VERSION = 1;
+export type CompatLike = CompatFlags;
 
 export type UnitId = string;
 export interface Cell {

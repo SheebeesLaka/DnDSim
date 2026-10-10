@@ -8,6 +8,10 @@ import { produce } from 'immer';
 import { boardHandlers } from './commands/board.ts';
 import { visualHandlers } from './commands/visual.ts';
 import { lifecycleHandlers } from './commands/lifecycle.ts';
+import { adjustHandlers } from './commands/adjust.ts';
+import { actionHandlers } from './commands/actions.ts';
+import { spellHandlers } from './commands/spells.ts';
+import { pendingHandlers } from './commands/pending.ts';
 import { err } from './errors.ts';
 import type { BattleEvent, BattleState, Command, EngineContext, EngineError, ReduceResult } from './types.ts';
 import type { Handler, HandlerMap } from './commands/_shared.ts';
@@ -39,7 +43,15 @@ const ALWAYS_ALLOWED = new Set<Command['type']>([
   'DISMISS_TIES',
 ]);
 
-const registry: HandlerMap = { ...boardHandlers, ...visualHandlers, ...lifecycleHandlers };
+const registry: HandlerMap = {
+  ...boardHandlers,
+  ...visualHandlers,
+  ...lifecycleHandlers,
+  ...adjustHandlers,
+  ...actionHandlers,
+  ...spellHandlers,
+  ...pendingHandlers,
+};
 
 /** Later milestones register their handlers here (lifecycle, actions, spells…). */
 export function registerHandlers(handlers: HandlerMap): void {

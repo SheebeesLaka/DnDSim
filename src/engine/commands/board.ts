@@ -1,11 +1,7 @@
 /** Board setup, placement and removal (FEATURES.md §4.2, §4.3, R4.3, R9.8). */
 import { err } from '../errors.ts';
-import {
-  initiativeFloat,
-  removeFromOrder,
-  rollAndInsert,
-  sortOrderByInitiative,
-} from '../rules/turnOrder.ts';
+import { initiativeFloat, rollAndInsert, sortOrderByInitiative } from '../rules/turnOrder.ts';
+import { removeCombatant } from '../rules/apply.ts';
 import {
   canUnitStand,
   entities,
@@ -212,12 +208,14 @@ export const boardHandlers: HandlerMap = {
     return undefined;
   },
 
-  REMOVE_UNIT(draft, cmd, _ctx, emit) {
+  REMOVE_UNIT(draft, cmd, ctx, emit) {
     const unit = unitById(draft, cmd.unitId);
     if (!unit) return err('unknownUnit', 'no such unit');
+    if (unit.kind === 'entity' || unit.kind === 'enemy') {
+      removeCombatant(draft, unit.id, 'deleted', ctx, emit);
+      return undefined;
+    }
     draft.units = draft.units.filter((u) => u.id !== cmd.unitId);
-    if (unit.kind === 'entity' || unit.kind === 'enemy') removeFromOrder(draft, unit.id);
-    if (unit.kind === 'entity' && unit.sheet.isParty) draft.graveyard.push(unit);
     emit({ type: 'unitRemoved', unitId: unit.id, reason: 'deleted' });
     log(draft, `${unitName(unit)} removed`);
     return undefined;
