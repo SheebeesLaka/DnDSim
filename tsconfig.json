@@ -9,6 +9,7 @@
     "tests",
     "e2e",
     "scenarios",
+    "scripts",
     "vite.config.ts",
     "vitest.config.ts",
     "playwright.config.ts"
