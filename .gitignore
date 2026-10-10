@@ -1,3 +1,18 @@
-# Compiled bytecode - never commit build output
+# Java build output (legacy project)
 *.class
 /bin/
+legacy-java/bin/
+
+# Node / web app
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+
+# Local scratch
+.DS_Store
+Thumbs.db
