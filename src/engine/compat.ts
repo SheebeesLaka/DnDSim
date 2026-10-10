@@ -1,7 +1,8 @@
 /**
- * Legacy-behaviour flags (FEATURES.md §17). Every flag defaults to what the
- * Java app does today; flipping one is a one-line decision at the checkpoint.
- * Flags are stored in the battle state so a saved battle replays identically.
+ * Legacy-behaviour flags (FEATURES.md §17). LEGACY_COMPAT is exactly what the
+ * Java app does; RECOMMENDED_COMPAT fixes the items the DM approved after
+ * Phase 4 and is what new battles use. Flags are stored in the battle state,
+ * so a saved battle replays with the rules it was created under.
  */
 export interface CompatFlags {
   /** F-1: ON_TURN_START abilities fire twice when the entity has ≥1 status. */
@@ -47,6 +48,23 @@ export const LEGACY_COMPAT: Readonly<CompatFlags> = Object.freeze({
   rangeZeroResolvesOnCaster: true,
   preBattleEnemyPlacementResorts: true,
 });
+
+/**
+ * Applied after Phase 4: F-1, F-3, both F-5 flags, F-18 and F-16 fixed. The rest keep the Java
+ * behaviour (F-8, F-7, F-13, R8.2 by recommendation; F-2, F-15, F-14 are still the DM's call).
+ */
+export const RECOMMENDED_COMPAT: Readonly<CompatFlags> = Object.freeze({
+  ...LEGACY_COMPAT,
+  turnStartAbilitiesDoubleFire: false,
+  beginSkipsFirstStatusTick: false,
+  removeCurrentSkipsNext: false,
+  removalWrapNoRoundIncrement: false,
+  halfRequiresTier1Die: false,
+  ammoCompatIgnoresLegacyField: false,
+});
+
+/** What a new battle starts with. */
+export const DEFAULT_COMPAT: Readonly<CompatFlags> = RECOMMENDED_COMPAT;
 
 export const COMPAT_FLAG_INFO: Record<keyof CompatFlags, { ref: string; legacy: string; fixed: string }> = {
   turnStartAbilitiesDoubleFire: {
@@ -116,6 +134,7 @@ export const COMPAT_FLAG_INFO: Record<keyof CompatFlags, { ref: string; legacy: 
   },
 };
 
+/** The Java behaviour with some flags overridden (rule tests check each flag both ways from here). */
 export function withCompat(overrides: Partial<CompatFlags> = {}): CompatFlags {
   return { ...LEGACY_COMPAT, ...overrides };
 }

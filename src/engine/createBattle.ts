@@ -1,4 +1,4 @@
-import { LEGACY_COMPAT, type CompatFlags } from './compat.ts';
+import { DEFAULT_COMPAT, type CompatFlags } from './compat.ts';
 import { BATTLE_STATE_VERSION, type BattleState, type EngineAssets, type GridSetup } from './types.ts';
 
 export interface CreateBattleOptions {
@@ -18,7 +18,7 @@ export function createBattle(
   const queue = (opts.partyList ?? []).filter((name) => name in assets.party);
   return {
     version: BATTLE_STATE_VERSION,
-    rules: { compat: { ...LEGACY_COMPAT, ...opts.compat } },
+    rules: { compat: { ...DEFAULT_COMPAT, ...opts.compat } },
     nextId: 1,
     board: {
       rows,

@@ -1,6 +1,7 @@
 /** Test helpers: a seeded engine context over the real saves/ assets, plus a command runner. */
 import { normalizeBundle } from '../../src/assets/bundle.ts';
 import type { AssetBundle } from '../../src/assets/types.ts';
+import { LEGACY_COMPAT } from '../../src/engine/compat.ts';
 import { createBattle, type CreateBattleOptions } from '../../src/engine/createBattle.ts';
 import { reduce, reduceAll } from '../../src/engine/reduce.ts';
 import { seededRng } from '../../src/engine/rng.ts';
@@ -41,7 +42,11 @@ export function fresh(
   setup = grid(),
   c: EngineContext = ctx(),
 ): { state: BattleState; ctx: EngineContext } {
-  return { state: createBattle(setup, c.assets, opts), ctx: c };
+  // Rule tests are written against the Java behaviour and flip single flags to test the fixes.
+  return {
+    state: createBattle(setup, c.assets, { ...opts, compat: { ...LEGACY_COMPAT, ...opts.compat } }),
+    ctx: c,
+  };
 }
 
 /** Apply commands, throwing on the first error (for setup steps that must succeed). */

@@ -1277,16 +1277,16 @@
     "version": 1,
     "rules": {
       "compat": {
-        "turnStartAbilitiesDoubleFire": true,
-        "beginSkipsFirstStatusTick": true,
+        "turnStartAbilitiesDoubleFire": false,
+        "beginSkipsFirstStatusTick": false,
         "durationZeroNeverExpires": true,
         "npcEntitiesLegacySide": true,
         "victoryOnAnyDefeat": true,
-        "removeCurrentSkipsNext": true,
-        "removalWrapNoRoundIncrement": true,
+        "removeCurrentSkipsNext": false,
+        "removalWrapNoRoundIncrement": false,
         "pickupsBlockStanding": true,
-        "halfRequiresTier1Die": true,
-        "ammoCompatIgnoresLegacyField": true,
+        "halfRequiresTier1Die": false,
+        "ammoCompatIgnoresLegacyField": false,
         "entityNegativeHpPersists": true,
         "rangeZeroResolvesOnCaster": true,
         "preBattleEnemyPlacementResorts": true

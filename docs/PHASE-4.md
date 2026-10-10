@@ -91,23 +91,12 @@ static and refresh only near what moved.
 - **Fixture change:** the test scenario gives Henry, Dan, the Snake and the Puppet sheet rows, and
   NMB-15 moved from (8,4) to (7,4) to stand beside them. The real files in `saves/` are untouched.
 
-## Reminder: recommended compat fixes (still open)
+## Compat fixes: applied after Phase 4
 
-You asked to be reminded to fix the recommended flags. All of them still default to the legacy
-behaviour. Each is one line in the compat defaults and is already tested both ways
-(`docs/CHECKPOINT-2.md` has the full table).
+The recommended fixes are now the default for new battles (`RECOMMENDED_COMPAT` in
+`src/engine/compat.ts`): F-1, F-3, both F-5 flags, F-18 and F-16. A battle stores its flags, so one
+saved before this change still replays under the Java rules. Still open, your call: `victoryOnAnyDefeat`
+(F-2), `pickupsBlockStanding` (F-15), `entityNegativeHpPersists` (F-14). Kept on purpose: F-8, F-7,
+F-13, R8.2. The debug panel (`` ` ``) toggles any flag for the current battle.
 
-| Flag | Ref | Recommendation |
-| --- | --- | --- |
-| `turnStartAbilitiesDoubleFire` | F-1 | fix |
-| `beginSkipsFirstStatusTick` | F-3 | fix |
-| `removeCurrentSkipsNext` | F-5 | fix |
-| `removalWrapNoRoundIncrement` | F-5 | fix |
-| `halfRequiresTier1Die` | F-18 | fix |
-| `ammoCompatIgnoresLegacyField` | F-16 | fix |
-| `victoryOnAnyDefeat` | F-2 | your call |
-| `pickupsBlockStanding` | F-15 | your call |
-| `entityNegativeHpPersists` | F-14 | your call |
-| `durationZeroNeverExpires`, `npcEntitiesLegacySide`, `rangeZeroResolvesOnCaster`, `preBattleEnemyPlacementResorts` | F-8, F-7, F-13, R8.2 | keep |
-
-Still to come after Phase 4: the editors (character sheets, assets, spells).
+After Phase 4: the editors (character sheets, assets, spells), see `docs/EDITORS.md`.

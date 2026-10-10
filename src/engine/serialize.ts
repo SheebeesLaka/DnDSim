@@ -26,6 +26,7 @@ export function parseBattle(input: unknown): BattleState {
     throw new BattleParseError('board needs rows and cols');
   const rules = raw.rules as Record<string, unknown>;
   const state = raw as unknown as BattleState;
+  // a flag missing from a file predates that flag, so the file was made under the Java behaviour
   state.rules = { compat: { ...LEGACY_COMPAT, ...(isObj(rules.compat) ? rules.compat : {}) } };
   state.graveyard ??= [];
   state.enemyInstanceCounts ??= {};

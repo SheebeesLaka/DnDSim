@@ -85,6 +85,9 @@ per battle in the debug panel; each is tested both ways.
 | `rangeZeroResolvesOnCaster` | F-13 | range-0 single-target spells always hit the caster | only SELF spells | keep |
 | `preBattleEnemyPlacementResorts` | R8.2 | preview d20 at enemy placement | no roll until Begin | keep |
 
+**Applied after Phase 4:** every row marked **fix** is now the default for new battles
+(`RECOMMENDED_COMPAT`); saved battles keep the flags they were created with.
+
 Fixed without a flag, because a value-based port cannot reproduce them: shared mutable template
 instances (F-17), enemy template id = file stem (`???` loads as `___` and is named `???`), stale
 sidebar on terrain/pickup selection (F-37), preset aliasing (F-35), timer leak (F-40), Gson
