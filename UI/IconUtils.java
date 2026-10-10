@@ -34,7 +34,7 @@ public class IconUtils {
         SWORDS, PERSON, GEAR, PLUS, MINUS, TARGET, MOVE, FLAG, HEART, SHIELD, SKULL,
         DICE, PLAY, STOP, UNDO, SAVE, DELETE, EDIT, VIEW, LIGHTNING, POTION,
         CHEST, MAP, PARTY, CLOCK, INFO, WARNING, CHECK, CLOSE, BACK, MENU, FAST_FORWARD,
-        SCRIPT, WRENCH, HAND, STAR, SORT_ASCENDING, SORT_DESCENDING, SPELL, REST
+        SCRIPT, WRENCH, HAND, STAR, SORT_ASCENDING, SORT_DESCENDING, SPELL, REST, DISPLAYS
     }
 
     /**
@@ -122,6 +122,7 @@ public class IconUtils {
             case SORT_DESCENDING -> MaterialDesignS.SORT_DESCENDING;
             case SPELL -> MaterialDesignA.AUTO_FIX;
             case REST -> MaterialDesignW.WEATHER_NIGHT;
+            case DISPLAYS -> MaterialDesignM.MONITOR_MULTIPLE;
         };
     }
 

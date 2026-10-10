@@ -129,7 +129,36 @@ private final VBox infoPopup;
     private final PauseTransition hoverDelay;
     private GridObject pendingHoverTarget;
 
+    // Two Display Mode. A player-view canvas is a read-only twin of the DM canvas: same grid and
+    // turn order, no input, no DM overlays. The DM canvas keeps a reference to its twin (mirror)
+    // and nudges it whenever something changes; the twin animates on its own render loop.
+    private final boolean playerView;
+    private final UI.PlayerDisplayOptions playerOpts;
+    private final BattleGridCanvas source;   // player view: the DM canvas being mirrored
+    private BattleGridCanvas mirror;         // DM view: the attached player canvas, if any
+    private boolean dirty;                   // player view: redraw on the next frame
+    private final AnimationTimer renderLoop;
+
     public BattleGridCanvas(BattleGrid grid, TurnManager tm, BattleView battleView) {
+        this(grid, tm, battleView, null, null);
+    }
+
+    /**
+     * Read-only player-view twin of a DM canvas, for the Two Display Mode window. Shares the
+     * DM canvas's grid, turn order and theme; takes no input and stays fit-to-view. Call
+     * {@link #attachMirror} on the DM canvas to keep it in sync.
+     */
+    public BattleGridCanvas(BattleGridCanvas source, UI.PlayerDisplayOptions opts) {
+        this(source.grid, source.turnManager, source.battleView, source, opts);
+        this.theme = source.theme;
+        this.battleStarted = source.battleStarted;
+    }
+
+    private BattleGridCanvas(BattleGrid grid, TurnManager tm, BattleView battleView,
+                             BattleGridCanvas source, UI.PlayerDisplayOptions opts) {
+        this.playerView = source != null;
+        this.source = source;
+        this.playerOpts = opts;
         this.canvas = new Canvas();
         this.grid = grid;
         this.turnManager = tm;
@@ -158,7 +187,9 @@ private final VBox infoPopup;
         infoPopup.setPrefWidth(160);
         infoPopup.setVisible(false);
         infoPopup.setManaged(false);
-        getChildren().add(infoPopup);
+        if (!playerView) {
+            getChildren().add(infoPopup);
+        }
 
         // Bind canvas size to pane size
         canvas.widthProperty().bind(widthProperty());
@@ -168,31 +199,39 @@ private final VBox infoPopup;
         widthProperty().addListener((obs, oldVal, newVal) -> { hideInfoPopup(); clampPan(); redraw(); });
         heightProperty().addListener((obs, oldVal, newVal) -> { hideInfoPopup(); clampPan(); redraw(); });
 
-        // Keyboard shortcuts for menu
-        setFocusTraversable(true);
-        setOnKeyPressed(this::handleKeyPressed);
+        if (playerView) {
+            // Players look, they don't touch: no selection, panning, zooming or hotkeys
+            setFocusTraversable(false);
+            setMouseTransparent(true);
+        } else {
+            // Keyboard shortcuts for menu
+            setFocusTraversable(true);
+            setOnKeyPressed(this::handleKeyPressed);
 
-        // Mouse handlers
-        canvas.setOnMousePressed(this::handleMousePressed);
-        canvas.setOnMouseDragged(this::handleMouseDragged);
-        canvas.setOnMouseReleased(this::handleMouseReleased);
-        canvas.setOnScroll(this::handleScroll);
-        canvas.setOnMouseMoved(this::handleMouseMoved);
-        canvas.setOnMouseExited(e -> {
-            hoverDelay.stop();
-            pendingHoverTarget = null;
-            hoverRow = -1;
-            hoverCol = -1;
-            hideInfoPopupIfNotPinned();
-        });
+            // Mouse handlers
+            canvas.setOnMousePressed(this::handleMousePressed);
+            canvas.setOnMouseDragged(this::handleMouseDragged);
+            canvas.setOnMouseReleased(this::handleMouseReleased);
+            canvas.setOnScroll(this::handleScroll);
+            canvas.setOnMouseMoved(this::handleMouseMoved);
+            canvas.setOnMouseExited(e -> {
+                hoverDelay.stop();
+                pendingHoverTarget = null;
+                hoverRow = -1;
+                hoverCol = -1;
+                hideInfoPopupIfNotPinned();
+            });
+        }
 
         // Render loop: full frame rate while movement tweens or floating
         // combat text are active, a slow tick for idle sprite animation,
-        // and completely passive (event-driven redraws only) otherwise
-        AnimationTimer renderLoop = new AnimationTimer() {
+        // and completely passive (event-driven redraws only) otherwise.
+        // A player view also redraws once whenever its DM canvas marked it dirty.
+        renderLoop = new AnimationTimer() {
             @Override
             public void handle(long now) {
-                if (!moveTweens.isEmpty() || !floatingTexts.isEmpty()) {
+                if (!moveTweens.isEmpty() || !floatingTexts.isEmpty() || dirty) {
+                    dirty = false;
                     redraw();
                 } else if (currentUnitTick > 0 && now - lastIdleAnimRedraw >= currentUnitTick) {
                     lastIdleAnimRedraw = now;
@@ -205,11 +244,41 @@ private final VBox infoPopup;
 
     public void setBattleStarted(boolean started) {
         this.battleStarted = started;
+        if (mirror != null) mirror.setBattleStarted(started);
     }
 
     public void setTheme(GridTheme theme) {
         this.theme = theme;
         redraw();
+        if (mirror != null) mirror.setTheme(theme);
+    }
+
+    /** DM canvas: start (or with null, stop) keeping a player-view twin in sync. */
+    public void attachMirror(BattleGridCanvas playerCanvas) {
+        this.mirror = playerCanvas;
+        if (playerCanvas != null) {
+            playerCanvas.theme = theme;
+            playerCanvas.battleStarted = battleStarted;
+            playerCanvas.markDirty();
+        }
+    }
+
+    public BattleGridCanvas getMirror() {
+        return mirror;
+    }
+
+    public boolean isPlayerView() {
+        return playerView;
+    }
+
+    /** Ask for a redraw on the next animation frame (coalesces bursts of DM-side redraws). */
+    public void markDirty() {
+        dirty = true;
+    }
+
+    /** Player view: stop the render loop once the window lets go of this canvas. */
+    public void dispose() {
+        renderLoop.stop();
     }
 
     public GridTheme getTheme() {
@@ -778,7 +847,7 @@ private final VBox infoPopup;
         if (consumable.getHealAmount() > 0) {
             int healAmount = (int) Math.ceil(consumable.getHealAmount() * efficacyPercent / 100.0);
             entity.getCharSheet().addCurrentHP(healAmount);
-            spawnFloatingText(entity, "+" + healAmount, Color.web("#4CAF50"));
+            spawnFloatingText(entity, "+" + healAmount, Color.web("#4CAF50"), UI.PlayerDisplayOptions.TextKind.HEAL);
         }
         if (consumable.getEffect() != null) {
             entity.getCharSheet().addStatus(consumable.getEffect());
@@ -960,13 +1029,14 @@ private final VBox infoPopup;
 
         if (EntityRes.Spell.HEAL.equals(spell.getResolution())) {
             int healed = CombatManager.applyHealing(target, outcome.totalDamage);
-            spawnFloatingText(target, "+" + healed, Color.web("#7ee08a"));
+            spawnFloatingText(target, "+" + healed, Color.web("#7ee08a"), UI.PlayerDisplayOptions.TextKind.HEAL);
         } else if (EntityRes.Spell.BUFF.equals(spell.getResolution())) {
             // Floating text comes from the rider below
         } else if (outcome.hit && outcome.totalDamage > 0) {
             CombatManager.applyDamage(target, outcome.totalDamage);
             boolean crit = EntityRes.Spell.ATTACK.equals(spell.getResolution()) && outcome.d20Roll == 20;
-            spawnFloatingText(target, "-" + outcome.totalDamage, crit ? Color.web("#FFD700") : spellColor.brighter());
+            spawnFloatingText(target, "-" + outcome.totalDamage, crit ? Color.web("#FFD700") : spellColor.brighter(),
+                UI.PlayerDisplayOptions.TextKind.DAMAGE);
         } else if (!outcome.hit) {
             spawnFloatingText(target, outcome.saved ? "Saved" : "Miss", Color.web("#b8b8c0"));
         }
@@ -978,10 +1048,13 @@ private final VBox infoPopup;
                 boolean delay = !EntityRes.Spell.BUFF.equals(spell.getResolution());
                 if (delay) {
                     PauseTransition later = new PauseTransition(Duration.millis(450));
-                    later.setOnFinished(ev -> { spawnFloatingText(target, rider.getName(), spellColor); redraw(); });
+                    later.setOnFinished(ev -> {
+                        spawnFloatingText(target, rider.getName(), spellColor, UI.PlayerDisplayOptions.TextKind.STATUS);
+                        redraw();
+                    });
                     later.play();
                 } else {
-                    spawnFloatingText(target, rider.getName(), spellColor);
+                    spawnFloatingText(target, rider.getName(), spellColor, UI.PlayerDisplayOptions.TextKind.STATUS);
                 }
             }
         }
@@ -1053,11 +1126,12 @@ private final VBox infoPopup;
             GridObject target = hit.target;
             if (heal) {
                 int healed = CombatManager.applyHealing(target, hit.damage);
-                spawnFloatingText(target, "+" + healed, Color.web("#7ee08a"));
+                spawnFloatingText(target, "+" + healed, Color.web("#7ee08a"), UI.PlayerDisplayOptions.TextKind.HEAL);
             } else if (!buff) {
                 if (hit.damage > 0) {
                     CombatManager.applyDamage(target, hit.damage);
-                    spawnFloatingText(target, "-" + hit.damage, hit.crit ? Color.web("#FFD700") : spellColor.brighter());
+                    spawnFloatingText(target, "-" + hit.damage, hit.crit ? Color.web("#FFD700") : spellColor.brighter(),
+                        UI.PlayerDisplayOptions.TextKind.DAMAGE);
                 } else if (hit.tier == 0) {
                     spawnFloatingText(target, hit.saved ? "Saved" : "Miss", Color.web("#b8b8c0"));
                 }
@@ -1067,10 +1141,13 @@ private final VBox infoPopup;
                 EntityRes.Status rider = spell.createRiderStatus();
                 if (rider != null && CombatManager.applyStatus(target, rider)) {
                     if (buff) {
-                        spawnFloatingText(target, rider.getName(), spellColor);
+                        spawnFloatingText(target, rider.getName(), spellColor, UI.PlayerDisplayOptions.TextKind.STATUS);
                     } else {
                         PauseTransition later = new PauseTransition(Duration.millis(450));
-                        later.setOnFinished(ev -> { spawnFloatingText(target, rider.getName(), spellColor); redraw(); });
+                        later.setOnFinished(ev -> {
+                            spawnFloatingText(target, rider.getName(), spellColor, UI.PlayerDisplayOptions.TextKind.STATUS);
+                            redraw();
+                        });
                         later.play();
                     }
                 }
@@ -1309,7 +1386,7 @@ private final VBox infoPopup;
 
         SpriteUtils.drawTerrainSpriteOnCanvas(gc, t, x, y, cellSize);
 
-        if (t == selectedObject) {
+        if (!playerView && t == selectedObject) {
             gc.setStroke(Color.ORANGE);
             gc.setLineWidth(2);
             double padding = 2;
@@ -1579,7 +1656,7 @@ private final VBox infoPopup;
             if (isCastTarget(clicked)) {
                 resolveSpellOn(clicked);
             } else if (clicked != null && CombatManager.isValidSpellTarget(castingEntity, clicked, pendingSpell)) {
-                spawnFloatingText(clicked, "Out of range", Color.web("#b8b8c0"));
+                spawnFloatingText(clicked.getRow(), clicked.getCol(), "Out of range", Color.web("#b8b8c0"));
             } else {
                 Entity caster = castingEntity;
                 clearCastMode();
@@ -1669,7 +1746,7 @@ private final VBox infoPopup;
             // Apply damage
             CombatManager.applyDamage(target, outcome.totalDamage);
             spawnFloatingText(target, "-" + outcome.totalDamage,
-                outcome.d20Roll == 20 ? Color.web("#FFD700") : Color.web("#ff7b6b"));
+                outcome.d20Roll == 20 ? Color.web("#FFD700") : Color.web("#ff7b6b"), UI.PlayerDisplayOptions.TextKind.DAMAGE);
 
             // Check for defeat
             if (CombatManager.isTargetDead(target)) {
@@ -1804,7 +1881,7 @@ private final VBox infoPopup;
         }
         
         // Placement mode highlight - show valid placement cells
-        if (battleView.isPlacementMode()) {
+        if (!playerView && battleView.isPlacementMode()) {
             gc.setFill(Color.rgb(90, 170, 230, 0.20));
             for (int r = 0; r < rows; r++) {
                 for (int c = 0; c < cols; c++) {
@@ -1956,9 +2033,16 @@ private final VBox infoPopup;
             gc.setLineWidth(1);
         }
 
-        // Area template: spell-colored cells, with the units it would affect outlined
-        if (castMode && castingEntity != null && pendingSpell != null && pendingSpell.isArea()) {
-            java.util.List<int[]> area = currentAreaCells();
+        // Area template: spell-colored cells, with the units it would affect outlined. A player
+        // view only shows the DM's template when the "spell templates" display setting is on.
+        BattleGridCanvas templateOwner = playerView
+            ? (playerOpts != null && playerOpts.showSpellTemplates() ? source : null)
+            : this;
+        if (templateOwner != null && templateOwner.castMode && templateOwner.castingEntity != null
+                && templateOwner.pendingSpell != null && templateOwner.pendingSpell.isArea()) {
+            EntityRes.Spell pendingSpell = templateOwner.pendingSpell;
+            Entity castingEntity = templateOwner.castingEntity;
+            java.util.List<int[]> area = templateOwner.currentAreaCells();
             if (!area.isEmpty()) {
                 Color base = Color.web(pendingSpell.getColor());
                 gc.setFill(Color.color(base.getRed(), base.getGreen(), base.getBlue(), 0.28));
@@ -2020,10 +2104,13 @@ private final VBox infoPopup;
                 if (en.getRow() != r) continue;
                 double[] pos = currentDrawPosition(en, en.getRow(), en.getCol(), frameNow);
                 double lift = liftFor((int) Math.round(pos[0]), (int) Math.round(pos[1]), cellSize);
+                // Player view with enemy HP hidden: maxHp 0 draws the faction ring without an HP arc
+                boolean hideEnemyHp = playerView && playerOpts != null
+                    && playerOpts.getEnemyHp() == UI.PlayerDisplayOptions.EnemyHp.HIDDEN;
                 drawUnit(gc, offsetX + pos[1] * cellSize, offsetY + pos[0] * cellSize, cellSize, lift,
                     en.getSpritePath(), Color.web(en.getColor()), false,
-                    turnManager.isCurrent(en), en == selectedObject,
-                    en.getHealth(), en.getMaxHealth(), frameNow);
+                    turnManager.isCurrent(en), !playerView && en == selectedObject,
+                    en.getHealth(), hideEnemyHp ? 0 : en.getMaxHealth(), frameNow);
             }
             for (Entity e : grid.getEntities()) {
                 if (e.getRow() != r) continue;
@@ -2033,7 +2120,7 @@ private final VBox infoPopup;
                 drawUnit(gc, offsetX + pos[1] * cellSize, offsetY + pos[0] * cellSize, cellSize, lift,
                     e.getCharSheet().getSpritePath(),
                     Color.rgb(awtColor.getRed(), awtColor.getGreen(), awtColor.getBlue()), true,
-                    turnManager.isCurrent(e), e == selectedObject,
+                    turnManager.isCurrent(e), !playerView && e == selectedObject,
                     e.getCharSheet().getCurrentHP(), e.getCharSheet().getTotalHP(), frameNow);
             }
             // Non-colliding terrain flagged "entity below" draws after the
@@ -2051,9 +2138,14 @@ private final VBox infoPopup;
         drawFloatingTexts(gc, frameNow, cellSize, offsetX, offsetY);
 
         // Placement prompt banner at the top of the board
-        if (battleView.isPlacementMode() && battleView.getCurrentPlacingName() != null) {
+        if (!playerView && battleView.isPlacementMode() && battleView.getCurrentPlacingName() != null) {
             drawPlacementBanner(gc, "Place " + battleView.getCurrentPlacingName() + " - click a tile",
                 offsetX + gridWidth / 2, offsetY + cellSize * 0.4);
+        }
+
+        // Whatever just changed on the DM board, the player screen picks up on its next frame
+        if (mirror != null) {
+            mirror.markDirty();
         }
     }
 
@@ -2135,7 +2227,29 @@ private final VBox infoPopup;
      * Public so callers outside the canvas (e.g. mid-battle initiative rolls) can use it.
      */
     public void spawnFloatingText(GridObject target, String text, Color color) {
+        spawnFloatingText(target, text, color, UI.PlayerDisplayOptions.TextKind.OTHER);
+    }
+
+    /**
+     * Combat text tagged with what it is, so a Two Display Mode player screen can reword
+     * ("Hit!" instead of "-14") or hide it according to the DM's display settings.
+     */
+    public void spawnFloatingText(GridObject target, String text, Color color, UI.PlayerDisplayOptions.TextKind kind) {
         spawnFloatingText(target.getRow(), target.getCol(), text, color);
+        if (mirror != null) {
+            mirror.spawnMirroredText(target.getRow(), target.getCol(), text, color, kind);
+        }
+    }
+
+    /** Player view: show a DM-side combat text after applying the display settings. */
+    private void spawnMirroredText(int row, int col, String text, Color color, UI.PlayerDisplayOptions.TextKind kind) {
+        String shown = playerOpts != null ? playerOpts.playerText(text, kind) : text;
+        if (shown == null) return;
+        if ("Hit!".equals(shown) && Color.web("#FFD700").equals(color)) {
+            shown = "Crit!";
+        }
+        spawnFloatingText(row, col, shown, color);
+        markDirty();
     }
 
     /** Queue floating text on an arbitrary tile (e.g. placement feedback). */

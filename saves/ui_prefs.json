@@ -1,3 +1,7 @@
 {
-  "characterSheets.defaultGroup": "ALPHA"
+  "characterSheets.defaultGroup": "NPC",
+  "display.twoDisplayMode": "false",
+  "display.player.enemyHp": "EXACT",
+  "display.player.enemyInitiativeRolls": "true",
+  "display.player.spellTemplates": "true"
 }

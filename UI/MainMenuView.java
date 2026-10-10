@@ -4,6 +4,8 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.Tooltip;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
@@ -57,7 +59,56 @@ public class MainMenuView {
         grid.add(assetBtn, 0, 1);
         GridPane.setColumnSpan(assetBtn, 2);
 
-        root.getChildren().addAll(titleBox, grid);
+        root.getChildren().addAll(titleBox, grid, createTwoDisplayToggle());
+    }
+
+    /**
+     * Two Display Mode switch: a slim bar under the main grid (same width), with an ON/OFF
+     * badge and a gear for the player-screen settings built into its right end.
+     */
+    private HBox createTwoDisplayToggle() {
+        ToggleButton toggle = new ToggleButton();
+        toggle.getStyleClass().add("two-display-toggle");
+        toggle.setMaxWidth(Double.MAX_VALUE);
+        toggle.setTooltip(new Tooltip("Open a player-facing battle view on your other monitor"));
+
+        Label badge = new Label();
+        badge.getStyleClass().add("two-display-badge");
+        Label text = new Label("Two Display Mode");
+        text.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #dcdcdc;");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox graphic = new HBox(12, IconUtils.createIcon(IconUtils.Icon.DISPLAYS, 26, "#9cdcfe"), text, spacer, badge);
+        graphic.setAlignment(Pos.CENTER_LEFT);
+        toggle.setGraphic(graphic);
+        HBox.setHgrow(toggle, Priority.ALWAYS);
+
+        Button gear = new Button();
+        gear.setGraphic(IconUtils.createIcon(IconUtils.Icon.GEAR, 20, "#dcdcdc"));
+        gear.getStyleClass().add("two-display-gear");
+        gear.setTooltip(new Tooltip("Choose what the player screen shows"));
+        gear.setOnAction(e -> PlayerDisplaySettingsDialog.show(appController.getPrimaryStage()));
+
+        // Toggle -> controller; controller -> toggle (Esc / closing the player window turns it off)
+        Runnable sync = () -> {
+            boolean on = appController.isTwoDisplayMode();
+            toggle.setSelected(on);
+            badge.setText(on ? "ON" : "OFF");
+            badge.getStyleClass().removeAll("two-display-badge-on");
+            if (on) badge.getStyleClass().add("two-display-badge-on");
+        };
+        toggle.setOnAction(e -> appController.setTwoDisplayMode(toggle.isSelected()));
+        appController.twoDisplayModeProperty().addListener((obs, o, n) -> sync.run());
+        sync.run();
+
+        HBox bar = new HBox(0, toggle, gear);
+        bar.getStyleClass().add("two-display-bar");
+        bar.setAlignment(Pos.CENTER_LEFT);
+        // Match the grid above: two 300px menu buttons plus the 20px gap between them
+        bar.setMaxWidth(620);
+        bar.setPrefWidth(620);
+        AnimationUtils.addHoverAnimation(bar, Color.web("#569cd6"));
+        return bar;
     }
 
     private Button createMenuButton(String text, IconUtils.Icon icon, String iconColor) {

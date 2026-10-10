@@ -246,6 +246,21 @@ public class BattleView {
     public StackPane getRoot() {
         return rootWrapper;
     }
+
+    /** The DM board, so the Two Display Mode window can attach a player-view twin to it. */
+    public BattleGridCanvas getGridCanvas() {
+        return gridCanvas;
+    }
+
+    /** Shared turn order, for the Two Display Mode player strip. */
+    public TurnManager getTurnManager() {
+        return turnManager;
+    }
+
+    /** The DM turn strip, so the Two Display Mode window can attach a player-view twin to it. */
+    public TimelinePane getTimelinePane() {
+        return timelinePane;
+    }
     
     // ================== Placement Mode Methods ==================
     
@@ -1645,8 +1660,11 @@ public class BattleView {
 
     /** Floating "d20 N" feedback for a mid-battle initiative roll, gold on a natural 20. */
     private void showInitiativeRoll(GridObject combatant, int d20) {
+        // Enemy rolls are tagged so the player screen can keep them secret (a display setting)
         gridCanvas.spawnFloatingText(combatant, "d20 " + d20,
-            d20 == 20 ? Color.web("#FFD700") : Color.web("#6ec6ff"));
+            d20 == 20 ? Color.web("#FFD700") : Color.web("#6ec6ff"),
+            combatant instanceof Enemy ? UI.PlayerDisplayOptions.TextKind.INITIATIVE
+                : UI.PlayerDisplayOptions.TextKind.OTHER);
     }
 
     public void removeEnemy(Enemy enemy) {
@@ -1711,6 +1729,7 @@ public class BattleView {
         
         rootWrapper.getChildren().add(victoryView);
         victoryView.playEntranceAnimation();
+        appController.getPlayerWindow().showVictory(grid.getEntities());
     }
 
     private List<Node> buildPartyCards() {

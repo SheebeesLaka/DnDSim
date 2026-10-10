@@ -1,12 +1,18 @@
 package UI;
 
+import EntityRes.UiPreferences;
 import UI.Battle.BattleView;
 import javafx.animation.PauseTransition;
+import javafx.application.Platform;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.ReadOnlyBooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
@@ -32,6 +38,11 @@ public class AppController {
     private CharacterSheetView characterSheetView;
     private AssetEditorView assetEditorView;
     private BattleView currentBattleView;
+
+    // Two Display Mode: a player-facing second window (see PlayerWindow), remembered across launches
+    public static final String TWO_DISPLAY_MODE_KEY = "display.twoDisplayMode";
+    private final BooleanProperty twoDisplayMode = new SimpleBooleanProperty(false);
+    private final PlayerWindow playerWindow;
 
     private AppController(Stage primaryStage) {
         this.primaryStage = primaryStage;
@@ -72,6 +83,13 @@ public class AppController {
         primaryStage.outputScaleYProperty().addListener((obs, o, n) -> {
             if (primaryStage.isMaximized()) screenRefit.playFromStart();
         });
+
+        // The player window has no owner (so it gets its own taskbar entry), which also means
+        // JavaFX wouldn't exit while it's still up. Close it with the DM window - without
+        // touching the saved setting, so Two Display Mode is still on next launch.
+        playerWindow = new PlayerWindow(primaryStage, () -> setTwoDisplayMode(false, false));
+        twoDisplayMode.set("true".equals(UiPreferences.get(TWO_DISPLAY_MODE_KEY)));
+        primaryStage.setOnHidden(e -> playerWindow.close());
     }
 
     /** Re-fits the stage to the visual bounds of whichever screen it's currently on. */
@@ -103,8 +121,13 @@ public class AppController {
 
     /** The screen containing most of the stage, falling back to the primary screen. */
     private Screen currentScreen() {
-        Rectangle2D stageRect = new Rectangle2D(primaryStage.getX(), primaryStage.getY(),
-                Math.max(1, primaryStage.getWidth()), Math.max(1, primaryStage.getHeight()));
+        return screenContaining(primaryStage);
+    }
+
+    /** The screen containing most of the given stage, falling back to the primary screen. */
+    static Screen screenContaining(Stage stage) {
+        Rectangle2D stageRect = new Rectangle2D(stage.getX(), stage.getY(),
+                Math.max(1, stage.getWidth()), Math.max(1, stage.getHeight()));
         Screen best = Screen.getPrimary();
         double bestArea = 0;
         for (Screen s : Screen.getScreens()) {
@@ -135,6 +158,52 @@ public class AppController {
     public void show() {
         navigateToMainMenu();
         primaryStage.show();
+        // Remembered from last time: reopen the player window once the DM window is placed
+        if (twoDisplayMode.get()) {
+            Platform.runLater(playerWindow::open);
+        }
+    }
+
+    // ================== Two Display Mode ==================
+
+    /** Whether Two Display Mode is on (the main menu toggle mirrors this). */
+    public ReadOnlyBooleanProperty twoDisplayModeProperty() {
+        return twoDisplayMode;
+    }
+
+    public boolean isTwoDisplayMode() {
+        return twoDisplayMode.get();
+    }
+
+    /** Turn Two Display Mode on/off from the menu: saves the choice and opens/closes the window. */
+    public void setTwoDisplayMode(boolean on) {
+        setTwoDisplayMode(on, true);
+    }
+
+    /**
+     * @param warnSingleScreen show the "only one screen" note when turning on with one monitor
+     */
+    public void setTwoDisplayMode(boolean on, boolean warnSingleScreen) {
+        UiPreferences.set(TWO_DISPLAY_MODE_KEY, String.valueOf(on));
+        twoDisplayMode.set(on);
+        if (on) {
+            if (warnSingleScreen && PlayerWindow.isSingleScreen()) {
+                DialogUtils.showAlert(Alert.AlertType.INFORMATION, "Two Display Mode",
+                    "Only one screen is connected, so the player view will open as a normal window "
+                    + "on this screen. Connect a second display and it moves there automatically.");
+            }
+            playerWindow.open();
+        } else {
+            playerWindow.close();
+        }
+    }
+
+    public PlayerWindow getPlayerWindow() {
+        return playerWindow;
+    }
+
+    public boolean isPlayerWindowOpen() {
+        return playerWindow.isOpen();
     }
 
     public void navigateToMainMenu() {
@@ -177,6 +246,7 @@ public class AppController {
             characterSheetView.setBattleView(currentBattleView);
             setContent(currentBattleView.getRoot());
             primaryStage.setTitle("Battle - Cassandralis");
+            playerWindow.showBattle(currentBattleView);  // no-op unless Two Display Mode is on
 
             // Auto-start party placement phase
             currentBattleView.startPlacementPhase();
@@ -210,6 +280,9 @@ public class AppController {
             characterSheetView.endBattle();
         }
         currentBattleView = null;
+        if (playerWindow.isOpen()) {
+            playerWindow.showIdle();
+        }
         navigateToMainMenu();
     }
 

@@ -42,6 +42,7 @@ public class VictoryView extends StackPane {
     };
 
     private final Runnable onContinue;
+    private final boolean showContinue;
     private final VBox contentBox;
 
     /**
@@ -51,8 +52,17 @@ public class VictoryView extends StackPane {
      * @param onContinue Callback when the continue button is pressed
      */
     public VictoryView(List<Entity> partyMembers, Runnable onContinue) {
+        this(partyMembers, onContinue, true);
+    }
+
+    /**
+     * @param showContinue false for the Two Display Mode player screen, which only watches -
+     *                     the DM's own victory screen decides when the battle is over
+     */
+    public VictoryView(List<Entity> partyMembers, Runnable onContinue, boolean showContinue) {
         this.onContinue = onContinue;
-        
+        this.showContinue = showContinue;
+
         // Semi-transparent dark overlay
         getStyleClass().add("victory-overlay");
         
@@ -306,6 +316,9 @@ public class VictoryView extends StackPane {
     }
 
     private void createContinueButton() {
+        if (!showContinue) {
+            return;
+        }
         Button continueBtn = new Button("Continue");
         continueBtn.getStyleClass().add("button-primary");
         continueBtn.setStyle("-fx-font-size: 16px; -fx-padding: 12 40;");

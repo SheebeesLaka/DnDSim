@@ -50,9 +50,20 @@ public class TimelinePane extends HBox {
     private boolean setupMode = false;
     private List<Entity> rosterParty = java.util.Collections.emptyList();
 
+    // Two Display Mode: a player-view strip is a read-only twin (no tooltips, no controls) that
+    // hides whatever the DM's display settings say to. The DM strip forwards updates to it.
+    private final UI.PlayerDisplayOptions playerOpts;  // null = the DM's own strip
+    private TimelinePane mirror;
+
     public TimelinePane(TurnManager turnManager) {
+        this(turnManager, null);
+    }
+
+    /** Read-only player-view strip for the Two Display Mode window. */
+    public TimelinePane(TurnManager turnManager, UI.PlayerDisplayOptions playerOpts) {
         this.turnManager = turnManager;
-        
+        this.playerOpts = playerOpts;
+
         getStyleClass().add("timeline-pane");
         setSpacing(15);
         setPadding(new Insets(10));
@@ -103,6 +114,41 @@ public class TimelinePane extends HBox {
         refresh();
     }
 
+    /** DM strip: start (or with null, stop) forwarding every update to a player-view strip. */
+    public void attachMirror(TimelinePane playerStrip) {
+        this.mirror = playerStrip;
+        if (playerStrip != null) {
+            playerStrip.rosterParty = rosterParty;
+            playerStrip.initialBuild = true;
+            if (setupMode) {
+                playerStrip.showRollingInitiative(rosterParty);
+            } else {
+                playerStrip.refresh();
+            }
+        }
+    }
+
+    public TimelinePane getMirror() {
+        return mirror;
+    }
+
+    /** Player view: rebuild every card, e.g. after the DM changed a display setting. */
+    public void rebuild() {
+        combatantBoxes.clear();
+        if (!turnManager.isBattleStarted() || turnManager.getTurnOrder().isEmpty()) {
+            rebuildRoster();
+        } else {
+            refresh();
+        }
+    }
+
+    /** Player view stand-in for the DM's initiative entry: the roster under an "Initiative" heading. */
+    private void showRollingInitiative(List<Entity> partyMembers) {
+        rosterParty = partyMembers;
+        rebuildRoster();
+        roundLabel.setText("Initiative");
+    }
+
     /** A portrait centered inside a colored faction ring (green party / red enemy). */
     private StackPane wrapPortrait(Node portrait, String ringColorHex) {
         Circle ring = new Circle(RING_SIZE / 2.0);
@@ -143,6 +189,9 @@ public class TimelinePane extends HBox {
         combatantBoxes.clear();
         currentHighlightedBox = null;
         roundLabel.setText("Initiative");
+        if (mirror != null) {
+            mirror.showRollingInitiative(partyMembers);
+        }
 
         Map<Entity, TextField> fields = new LinkedHashMap<>();
 
@@ -250,6 +299,9 @@ public class TimelinePane extends HBox {
         if (!setupMode) return;
         setupMode = false;
         initialBuild = true; // replay the slide-in when the real order appears
+        if (mirror != null) {
+            mirror.initialBuild = true;
+        }
         refresh();
     }
 
@@ -261,6 +313,9 @@ public class TimelinePane extends HBox {
         rosterParty = partyOnField;
         if (!setupMode) {
             rebuildRoster();
+        }
+        if (mirror != null) {
+            mirror.showRoster(partyOnField);
         }
     }
 
@@ -289,6 +344,9 @@ public class TimelinePane extends HBox {
 
     /** Update every visible HP bar/label from the combatants' current HP. */
     public void refreshHp() {
+        if (mirror != null) {
+            mirror.refreshHp();
+        }
         for (Map.Entry<GridObject, javafx.scene.control.ProgressBar> entry : hpBars.entrySet()) {
             GridObject combatant = entry.getKey();
             int hp;
@@ -318,6 +376,9 @@ public class TimelinePane extends HBox {
 
     public void refresh() {
         if (setupMode) return; // don't wipe the initiative fields
+        if (mirror != null) {
+            mirror.refresh();
+        }
 
         List<GridObject> turnOrder = turnManager.getTurnOrder();
 
@@ -472,7 +533,7 @@ public class TimelinePane extends HBox {
             portrait = SpriteUtils.createCharacterSprite(e.getCharSheet(), PORTRAIT_SIZE);
             ringColor = "#4CAF50";
         } else if (combatant instanceof Enemy en) {
-            name = en.getName();
+            name = playerOpts != null && !playerOpts.showEnemyNames() ? anonymousEnemyName(en) : en.getName();
             portrait = SpriteUtils.createEnemySprite(en, PORTRAIT_SIZE);
             ringColor = "#d75f5f";
         } else {
@@ -488,18 +549,37 @@ public class TimelinePane extends HBox {
 
         box.getChildren().add(nameLabel);
 
-        // Mini HP readout, values filled in by refreshHp()
-        if (hasHp) {
+        // Mini HP readout, values filled in by refreshHp(). The player view trims it per the
+        // DM's display settings: enemy HP exact / vague (bar only) / hidden, party numbers on/off.
+        boolean showBar = hasHp;
+        boolean showNumbers = hasHp;
+        if (playerOpts != null && hasHp) {
+            if (combatant instanceof Enemy) {
+                UI.PlayerDisplayOptions.EnemyHp mode = playerOpts.getEnemyHp();
+                showBar = mode != UI.PlayerDisplayOptions.EnemyHp.HIDDEN;
+                showNumbers = mode == UI.PlayerDisplayOptions.EnemyHp.EXACT;
+            } else {
+                showNumbers = playerOpts.showPartyHpNumbers();
+            }
+        }
+        if (showBar) {
             javafx.scene.control.ProgressBar hpBar = new javafx.scene.control.ProgressBar(1);
             hpBar.setPrefSize(70, 7);
             hpBar.setMinHeight(7);
             hpBar.setMaxHeight(7);
             hpBar.getStyleClass().add("hp-bar");
-            Label hpText = new Label();
-            hpText.getStyleClass().addAll("label-muted", "label-caption");
-            box.getChildren().addAll(hpBar, hpText);
+            box.getChildren().add(hpBar);
             hpBars.put(combatant, hpBar);
-            hpLabels.put(combatant, hpText);
+            if (showNumbers) {
+                Label hpText = new Label();
+                hpText.getStyleClass().addAll("label-muted", "label-caption");
+                box.getChildren().add(hpText);
+                hpLabels.put(combatant, hpText);
+            }
+        }
+
+        if (playerOpts != null) {
+            return box; // no initiative tooltip on the player screen - nothing there is hoverable
         }
         
         // Add tooltip with initiative info
@@ -516,6 +596,19 @@ public class TimelinePane extends HBox {
         // Hover feedback is handled by .timeline-entity:hover in the stylesheet
 
         return box;
+    }
+
+    /** "Enemy", or "Enemy 2", "Enemy 3"... numbered by position in the turn order. */
+    private String anonymousEnemyName(Enemy enemy) {
+        int index = 0;
+        int count = 0;
+        for (GridObject g : turnManager.getTurnOrder()) {
+            if (g instanceof Enemy) {
+                count++;
+                if (g == enemy) index = count;
+            }
+        }
+        return count <= 1 ? "Enemy" : "Enemy " + Math.max(1, index);
     }
 
 }
