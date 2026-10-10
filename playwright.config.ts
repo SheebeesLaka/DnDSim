@@ -23,5 +23,16 @@ export default defineConfig({
     stdout: 'ignore',
     stderr: 'pipe',
   },
-  projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        browserName: 'chromium',
+        // WebGL in headless Chromium needs ANGLE's software path (SwiftShader).
+        launchOptions: {
+          args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+        },
+      },
+    },
+  ],
 });

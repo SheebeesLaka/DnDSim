@@ -37,6 +37,7 @@ import {
 } from './panels/dialogs.ts';
 import { mountDebugPanel } from './panels/debugPanel.ts';
 import type { BoardRenderer } from './renderer/BoardRenderer.ts';
+import { mountBoardToolbar } from './panels/boardToolbar.ts';
 
 export interface BattleScreenDeps {
   store: Store;
@@ -71,6 +72,7 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
     onHover: (cell) => store.dispatchSession({ type: 'hover', cell }),
     onContextMenu: (e) => onRightClick(e.cell, e.clientX, e.clientY),
   });
+  const toolbar = mountBoardToolbar(boardWrap, renderer, prefs);
   let popup: HTMLElement | null = null;
   let victoryEl: HTMLElement | null = null;
   let tieOpen = false;
@@ -1330,6 +1332,7 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
     unsub();
     document.removeEventListener('keydown', onKey);
     debug.destroy();
+    toolbar.destroy();
     victoryEl?.remove();
     renderer.destroy();
   };

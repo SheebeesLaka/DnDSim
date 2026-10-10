@@ -5,6 +5,9 @@
  */
 import type { Cell } from '../../engine/types.ts';
 import type { BoardVM } from '../../engine/view/boardViewModel.ts';
+import type { ViewOptions } from './three/constants.ts';
+
+export type { ViewOptions };
 
 export interface FloatingText {
   text: string;
@@ -36,4 +39,7 @@ export interface BoardRenderer {
   addFloatingText(ft: FloatingText): void;
   resetCamera(): void;
   destroy(): void;
+  /** Camera mode and post-processing toggles (renderers without them ignore the call). */
+  getViewOptions?(): ViewOptions;
+  setViewOptions?(patch: Partial<ViewOptions>): void;
 }

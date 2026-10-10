@@ -5,6 +5,7 @@ import { projectForPlayer } from '../engine/view/playerProjection.ts';
 import { h, replaceChildren } from './dom.ts';
 import { victoryOverlay } from './panels/dialogs.ts';
 import type { BoardRenderer } from './renderer/BoardRenderer.ts';
+import { viewOptionsFromPrefs } from './viewPrefs.ts';
 
 export function mountPlayerScreen(
   root: HTMLElement,
@@ -34,6 +35,7 @@ export function mountPlayerScreen(
     }
     const opts = displayOptionsFromPrefs(doc.prefs);
     const vm = projectForPlayer(doc.vm, opts);
+    renderer.setViewOptions?.(viewOptionsFromPrefs(doc.prefs, 'player'));
     renderer.render(vm);
     topEl.style.display = vm.showStrip ? '' : 'none';
     replaceChildren(

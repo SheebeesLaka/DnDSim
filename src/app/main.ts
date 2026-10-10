@@ -8,7 +8,8 @@ import type { BattleState, GridSetup } from '../engine/types.ts';
 import { buildBoardViewModel } from '../engine/view/boardViewModel.ts';
 import { mountBattleScreen } from '../ui/battleScreen.ts';
 import { alertDialog } from '../ui/panels/dialogs.ts';
-import { Canvas2DRenderer } from '../ui/renderer/canvas2d.ts';
+import { pickRenderer } from '../ui/renderer/pickRenderer.ts';
+import { viewOptionsFromPrefs } from '../ui/viewPrefs.ts';
 import { mountSetupScreen } from '../ui/setupScreen.ts';
 import { fetchAssets, getBattle, getScenario, listBattles, putBattle, putFile } from '../assets/client.ts';
 import { createSheetPersister, renderUiPrefs, uiPrefsPath } from './persistence.ts';
@@ -25,7 +26,11 @@ async function boot(): Promise<void> {
   const loaded = await fetchAssets();
   let bundle = loaded.bundle;
   if (bundle.problems.length) console.warn('asset problems', bundle.problems);
-  const prefs = new PrefsStore(bundle.uiPrefs, (p) => putFile(uiPrefsPath, renderUiPrefs(p)));
+  // Fixture scenarios and ?readonly=1 keep prefs in memory only, like party sheets.
+  let prefsReadOnly = params.get('readonly') === '1';
+  const prefs = new PrefsStore(bundle.uiPrefs, (p) =>
+    prefsReadOnly ? Promise.resolve() : putFile(uiPrefsPath, renderUiPrefs(p)),
+  );
   const rng = rngFromParams(params);
 
   const scenarioName = params.get('scenario');
@@ -40,6 +45,7 @@ async function boot(): Promise<void> {
       bundle = applied.bundle;
       initial = applied.battle;
       fixtureAssets = sc.assets !== undefined; // inline fixture sheets must never overwrite saves/entities/party
+      if (fixtureAssets) prefsReadOnly = true;
     }
   } else if (battleName) {
     const saved = await getBattle(battleName);
@@ -69,7 +75,7 @@ async function boot(): Promise<void> {
     });
     window.addEventListener('beforeunload', () => void persister.flush());
     pub.publish([]);
-    const renderer = new Canvas2DRenderer();
+    const renderer = pickRenderer(params, { view: viewOptionsFromPrefs(prefs.all, 'dm') });
     const unmount = mountBattleScreen(root, {
       store,
       bundle,

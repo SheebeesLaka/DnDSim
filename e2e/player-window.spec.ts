@@ -2,11 +2,15 @@ import { expect, test } from '@playwright/test';
 import { beginTestBattle, clickCell } from './helpers.ts';
 
 test('the player window mirrors the DM board and honours display options', async ({ context }) => {
+  // two WebGL pages on software rendering (SwiftShader) in one browser
+  test.setTimeout(90_000);
   const dm = await context.newPage();
   await beginTestBattle(dm);
   const player = await context.newPage();
   await player.goto('/player.html');
   await expect(player.locator('[data-testid=player-strip] .card')).toHaveCount(8);
+  // background pages skip animation frames, which Playwright's actionability checks wait on
+  await dm.bringToFront();
   // Enemy HP exact by default (scenario prefs come from the repo's ui_prefs: EXACT)
   await expect(player.locator('[data-testid=php-u6]')).toHaveText('14/14');
   // flip to HIDDEN via the debug panel and the player strip loses the numbers

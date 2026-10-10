@@ -1,7 +1,15 @@
 import { Hono } from 'hono';
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import { BATTLES_DIR, PathError, SAVES_DIR, SCENARIOS_DIR, resolveSavesPath, safeName } from './paths.ts';
+import {
+  BATTLES_DIR,
+  PathError,
+  SAVES_DIR,
+  SCENARIOS_DIR,
+  resolveSavesPath,
+  resolveSpritePaths,
+  safeName,
+} from './paths.ts';
 import { listJsonStems, readJsonFolder, readText, writeJsonAtomic } from './files.ts';
 
 /**
@@ -95,6 +103,32 @@ export function createApp(): Hono {
     const text = await readText(join(SCENARIOS_DIR, safeName(c.req.param('name')) + '.json'));
     if (text === null) return c.json({ error: 'not found' }, 404);
     return c.body(text, 200, { 'content-type': 'application/json; charset=utf-8' });
+  });
+
+  /** Read-only sprite art (sheets and single images). Immutable-cached: art changes come with a reload. */
+  app.get('/api/sprites/*', async (c) => {
+    const rel = c.req.path.slice('/api/sprites/'.length);
+    const candidates = resolveSpritePaths(decodeURIComponent(rel));
+    for (const abs of candidates) {
+      let bytes: Buffer;
+      try {
+        bytes = await fs.readFile(abs);
+      } catch (err) {
+        if (
+          (err as NodeJS.ErrnoException).code === 'ENOENT' ||
+          (err as NodeJS.ErrnoException).code === 'EISDIR'
+        )
+          continue;
+        throw err;
+      }
+      const ext = abs.slice(abs.lastIndexOf('.') + 1).toLowerCase();
+      const type = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
+      return c.body(new Uint8Array(bytes), 200, {
+        'content-type': type,
+        'cache-control': 'public, max-age=3600',
+      });
+    }
+    return c.json({ error: 'not found' }, 404);
   });
 
   // Reserved for the player-window relay (Phase 2 uses BroadcastChannel in-browser).

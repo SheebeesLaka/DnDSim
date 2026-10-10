@@ -1,4 +1,5 @@
-// Dev smoke run of the real UI: node scripts/smoke-ui.mjs (starts the dev servers itself).
+// Dev smoke run of the real UI on the Phase 2 Canvas2D board (?renderer=2d): node scripts/smoke-ui.mjs.
+// The HD-2D board has its own script: node scripts/hd2d-shots.mjs.
 /* global window */
 import { spawn } from 'node:child_process';
 import { chromium } from '@playwright/test';
@@ -26,7 +27,7 @@ try {
     if (m.type() === 'error') errors.push('console: ' + m.text());
     else if (m.text().startsWith('DM saw')) console.log(m.text());
   });
-  await page.goto('http://127.0.0.1:5173/?scenario=test&seed=1', { waitUntil: 'networkidle' });
+  await page.goto('http://127.0.0.1:5173/?scenario=test&seed=1&renderer=2d', { waitUntil: 'networkidle' });
   await page.waitForSelector('[data-testid=phase]');
   console.log('phase:', await page.textContent('[data-testid=phase]'));
   await page.screenshot({ path: 'docs/progress/phase2-board-setup.png' }).catch(() => {});
@@ -98,7 +99,7 @@ try {
   // player window
   const p2 = await context.newPage();
   p2.on('pageerror', (e) => errors.push('player pageerror: ' + e.message));
-  await p2.goto('http://127.0.0.1:5173/player.html', { waitUntil: 'networkidle' });
+  await p2.goto('http://127.0.0.1:5173/player.html?renderer=2d', { waitUntil: 'networkidle' });
   await p2
     .waitForSelector('[data-testid=player-strip]', { timeout: 5000 })
     .catch(() => errors.push('player strip missing'));

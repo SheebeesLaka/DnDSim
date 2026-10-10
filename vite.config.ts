@@ -7,10 +7,15 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    // three.js alone is ~600 kB minified (~150 kB gzipped); it gets its own long-lived chunk
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
         player: resolve(__dirname, 'player.html'),
+      },
+      output: {
+        manualChunks: (id) => (id.includes('node_modules/three/') ? 'three' : undefined),
       },
     },
   },

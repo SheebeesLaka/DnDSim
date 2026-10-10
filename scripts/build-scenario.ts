@@ -44,13 +44,28 @@ dan.inventory = [
 ];
 dan.currentHP = 18;
 
+// Fixture-only sprites (HD-2D check: sprite units next to token-fallback units).
+const withSprite = (sheet: Record<string, unknown> | undefined, spritePath: string) => ({
+  ...(sheet ?? {}),
+  spritePath,
+});
+dan.spritePath = 'party/testsprites.png#4';
+const henry = withSprite(party.Henry_Keaton as Record<string, unknown>, 'party/testsprites.png#0');
+const puppet = withSprite(enemies['Human Puppet'] as Record<string, unknown>, 'party/testsprites.png#11');
+const snake = withSprite(enemies.Snake as Record<string, unknown>, 'party/testsprites.png#9');
+
 const assets = {
   party: {
-    ...pick(party, ['Henry_Keaton', 'Grand_Wizard_Man', 'NMB_15', 'Magnolia_Grandiflora']),
+    ...pick(party, ['Grand_Wizard_Man', 'NMB_15', 'Magnolia_Grandiflora']),
+    Henry_Keaton: henry,
     Dan_Dixon: dan,
   },
   nonparty: {},
-  enemies: pick(enemies, ['Spider', 'Snake', 'Overgrown Hornet', 'Human Puppet', 'Legendary Broodmother']),
+  enemies: {
+    ...pick(enemies, ['Spider', 'Overgrown Hornet', 'Legendary Broodmother']),
+    Snake: snake,
+    'Human Puppet': puppet,
+  },
   weapons: { ...weapons, Shortbarrel_Shotgun: shotgun },
   accessories: folder('items/accessories'),
   consumables: folder('items/consumables'),
@@ -165,3 +180,63 @@ const scenario = {
 };
 writeFileSync('scenarios/test.json', JSON.stringify(scenario, null, 2) + '\n');
 console.log(`wrote scenarios/test.json (${state.units.length} units, ${state.board.lights.length} lights)`);
+
+// ---- perf scenario: 25x25, 40 units, 20 lights (8 shadowed) ----
+{
+  let perf = createBattle({ rows: 25, cols: 25, mask: null, theme: 'grass' }, engineAssets, {
+    partyList: bundle.partyList,
+  });
+  const pc: Command[] = [
+    { type: 'PLACE_ENTITY', name: 'Henry Keaton', r: 12, c: 10 },
+    { type: 'PLACE_ENTITY', name: 'Dan Dixon', r: 13, c: 11 },
+    { type: 'PLACE_ENTITY', name: 'Grand Wizard Man', r: 12, c: 13 },
+    { type: 'PLACE_ENTITY', name: 'NMB-15', r: 14, c: 12 },
+  ];
+  const stems = ['Spider', 'Snake', 'Overgrown Hornet', 'Human Puppet'];
+  let placed = 0;
+  for (let r = 1; r < 24 && placed < 36; r += 3)
+    for (let c = 1; c < 24 && placed < 36; c += 4) {
+      if (Math.abs(r - 13) <= 2 && Math.abs(c - 11) <= 3) continue;
+      pc.push({ type: 'PLACE_ENEMY', templateStem: stems[placed % 4] as string, r, c });
+      placed++;
+    }
+  for (let r = 3; r <= 8; r++)
+    for (let c = 15; c <= 22; c++) pc.push({ type: 'SET_ELEVATION', r, c, level: 2 });
+  for (let r = 16; r <= 22; r++)
+    for (let c = 2; c <= 7; c++) pc.push({ type: 'SET_ELEVATION', r, c, level: -1 });
+  for (let c = 15; c <= 22; c++) pc.push({ type: 'SET_ELEVATION', r: 9, c, level: 1 });
+  pc.push({ type: 'SET_AMBIENT', level: 'dark' });
+  for (let i = 0; i < 20; i++) {
+    const r = 2 + ((i * 7) % 22),
+      c = 2 + ((i * 11) % 22);
+    pc.push({
+      type: 'ADD_LIGHT',
+      light: {
+        id: `l${i}`,
+        name: `Light ${i}`,
+        brightRadius: 2 + (i % 3),
+        dimRadius: 4 + (i % 3),
+        color: ['#ffe3b0', '#bfe3ff', '#ffb366', '#c8ffc8'][i % 4] as string,
+        at: { r, c },
+        on: true,
+      },
+    });
+  }
+  const pr = reduceAll(perf, pc, { rng: seededRng(1), assets: engineAssets });
+  if (!pr.ok) throw new Error(`${pr.error.code}: ${pr.error.message}`);
+  perf = pr.state;
+  writeFileSync(
+    'scenarios/perf.json',
+    JSON.stringify(
+      {
+        name: 'perf',
+        description: 'Performance scene: 25x25 board, 40 units, 20 lights.',
+        assets,
+        battle: perf,
+      },
+      null,
+      2,
+    ) + '\n',
+  );
+  console.log(`wrote scenarios/perf.json (${perf.units.length} units, ${perf.board.lights.length} lights)`);
+}
