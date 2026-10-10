@@ -6,6 +6,15 @@ export const SAVES_DIR = resolve(ROOT, 'saves');
 export const SCENARIOS_DIR = resolve(ROOT, 'scenarios');
 export const BATTLES_DIR = resolve(SAVES_DIR, 'battles');
 export const DIST_DIR = resolve(ROOT, 'dist');
+/**
+ * Sprite folders, searched in order: new art goes in resources/sprites/ at the
+ * repo root; the legacy sheets stay with the Java app and are still served.
+ */
+export const SPRITES_DIRS = [
+  resolve(ROOT, 'resources', 'sprites'),
+  resolve(ROOT, 'legacy-java', 'resources', 'sprites'),
+];
+export const SPRITE_EXTENSIONS = ['.png', '.gif', '.webp', '.jpg', '.jpeg'] as const;
 
 /**
  * Sub-folders of saves/ the file API may touch. Anything else is refused, and
@@ -60,4 +69,25 @@ export function safeName(name: string): string {
   const n = name.trim();
   if (!/^[A-Za-z0-9 _.()-]{1,80}$/.test(n) || n.includes('..')) throw new PathError('invalid name');
   return n;
+}
+
+/**
+ * Resolve a sprites-relative path (e.g. `party/testsprites.png`) against the
+ * sprite folders, refusing traversal, hidden folders and non-image extensions.
+ * Returns every candidate absolute path in search order.
+ */
+export function resolveSpritePaths(rel: string): string[] {
+  const clean = rel.replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!clean || clean.includes('\0')) throw new PathError('empty path');
+  const lower = clean.toLowerCase();
+  if (!SPRITE_EXTENSIONS.some((ext) => lower.endsWith(ext)))
+    throw new PathError('only image files are served');
+  if (clean.split('/').some((seg) => seg === '' || seg === '.' || seg === '..' || seg.startsWith('_')))
+    throw new PathError('path escapes sprites/', 403);
+  return SPRITES_DIRS.map((dir) => {
+    const abs = resolve(dir, clean);
+    const relBack = relative(dir, abs);
+    if (relBack.startsWith('..') || isAbsolute(relBack)) throw new PathError('path escapes sprites/', 403);
+    return abs;
+  });
 }

@@ -3,89 +3,6 @@
   "description": "Shared test scene: platform with ledge and ramp, pit, bulkhead wall, flying hornet, lamp + torch, dark hangar group.",
   "assets": {
     "party": {
-      "Henry_Keaton": {
-        "name": "Henry Keaton",
-        "characterClass": "Warrior Survivalist ",
-        "color": "#8B0000",
-        "isParty": true,
-        "level": 1,
-        "group": "OMEGA",
-        "totalHP": 36,
-        "currentHP": 20,
-        "armorClass": 14,
-        "status": [],
-        "baseAttributes": [
-          6,
-          2,
-          7,
-          2,
-          7,
-          3
-        ],
-        "tempAttributes": [
-          0,
-          0,
-          0,
-          0,
-          0,
-          0
-        ],
-        "totalAttributes": [
-          6,
-          2,
-          7,
-          2,
-          7,
-          3
-        ],
-        "weapons": [
-          null,
-          {
-            "damageDice": [
-              "d6",
-              "d6",
-              "d10"
-            ],
-            "statType": "STRENGTH",
-            "modifiedAttributes": [
-              1,
-              0,
-              1,
-              0,
-              0,
-              0
-            ],
-            "abilities": [],
-            "damage": 0,
-            "name": "Sledgehammer",
-            "type": "Weapon",
-            "color": "#808080",
-            "quantity": 1
-          }
-        ],
-        "PRIMARY": 0,
-        "SECONDARY": 1,
-        "accessories": [
-          null,
-          null,
-          null
-        ],
-        "inventory": [],
-        "wallet": 0,
-        "abilities": [],
-        "knownSpells": [],
-        "spellSlotsUsed": [
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0
-        ]
-      },
       "Grand_Wizard_Man": {
         "name": "Grand Wizard Man",
         "characterClass": "None",
@@ -377,6 +294,90 @@
           0
         ]
       },
+      "Henry_Keaton": {
+        "name": "Henry Keaton",
+        "characterClass": "Warrior Survivalist ",
+        "color": "#8B0000",
+        "isParty": true,
+        "level": 1,
+        "group": "OMEGA",
+        "totalHP": 36,
+        "currentHP": 20,
+        "armorClass": 14,
+        "status": [],
+        "baseAttributes": [
+          6,
+          2,
+          7,
+          2,
+          7,
+          3
+        ],
+        "tempAttributes": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "totalAttributes": [
+          6,
+          2,
+          7,
+          2,
+          7,
+          3
+        ],
+        "weapons": [
+          null,
+          {
+            "damageDice": [
+              "d6",
+              "d6",
+              "d10"
+            ],
+            "statType": "STRENGTH",
+            "modifiedAttributes": [
+              1,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            "abilities": [],
+            "damage": 0,
+            "name": "Sledgehammer",
+            "type": "Weapon",
+            "color": "#808080",
+            "quantity": 1
+          }
+        ],
+        "PRIMARY": 0,
+        "SECONDARY": 1,
+        "accessories": [
+          null,
+          null,
+          null
+        ],
+        "inventory": [],
+        "wallet": 0,
+        "abilities": [],
+        "knownSpells": [],
+        "spellSlotsUsed": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "spritePath": "party/testsprites.png#0"
+      },
       "Dan_Dixon": {
         "name": "Dan Dixon",
         "characterClass": "Strategist Striker",
@@ -474,7 +475,8 @@
           0,
           0,
           0
-        ]
+        ],
+        "spritePath": "party/testsprites.png#4"
       }
     },
     "nonparty": {},
@@ -498,36 +500,6 @@
         "baseName": "Spider",
         "tags": [
           "Beast"
-        ],
-        "attackDamage": 0,
-        "row": 0,
-        "col": 0
-      },
-      "Snake": {
-        "name": "Snake",
-        "health": 14,
-        "maxHealth": 14,
-        "mobility": 5,
-        "armorClass": 12,
-        "damageDice": [
-          "d4",
-          "d4",
-          "d4"
-        ],
-        "dexterity": 7,
-        "color": "#008000",
-        "instanceNumber": 0,
-        "baseName": "Snake",
-        "tags": [
-          "Beast"
-        ],
-        "attributes": [
-          7,
-          7,
-          7,
-          7,
-          7,
-          7
         ],
         "attackDamage": 0,
         "row": 0,
@@ -563,31 +535,6 @@
         "row": 0,
         "col": 0
       },
-      "Human Puppet": {
-        "name": "Human Puppet",
-        "health": 18,
-        "maxHealth": 18,
-        "mobility": 3,
-        "armorClass": 11,
-        "attackModifier": 0,
-        "damageDice": [
-          "d6",
-          "d6",
-          "d8"
-        ],
-        "initiative": 2,
-        "dexterity": 2,
-        "color": "#993300",
-        "instanceNumber": 0,
-        "baseName": "Human Puppet",
-        "tags": [
-          "Humanoid",
-          "Optimized"
-        ],
-        "attackDamage": 0,
-        "row": 0,
-        "col": 0
-      },
       "Legendary Broodmother": {
         "name": "Legendary Broodmother",
         "health": 55,
@@ -612,6 +559,63 @@
         "attackDamage": 0,
         "row": 0,
         "col": 0
+      },
+      "Snake": {
+        "name": "Snake",
+        "health": 14,
+        "maxHealth": 14,
+        "mobility": 5,
+        "armorClass": 12,
+        "damageDice": [
+          "d4",
+          "d4",
+          "d4"
+        ],
+        "dexterity": 7,
+        "color": "#008000",
+        "instanceNumber": 0,
+        "baseName": "Snake",
+        "tags": [
+          "Beast"
+        ],
+        "attributes": [
+          7,
+          7,
+          7,
+          7,
+          7,
+          7
+        ],
+        "attackDamage": 0,
+        "row": 0,
+        "col": 0,
+        "spritePath": "party/testsprites.png#9"
+      },
+      "Human Puppet": {
+        "name": "Human Puppet",
+        "health": 18,
+        "maxHealth": 18,
+        "mobility": 3,
+        "armorClass": 11,
+        "attackModifier": 0,
+        "damageDice": [
+          "d6",
+          "d6",
+          "d8"
+        ],
+        "initiative": 2,
+        "dexterity": 2,
+        "color": "#993300",
+        "instanceNumber": 0,
+        "baseName": "Human Puppet",
+        "tags": [
+          "Humanoid",
+          "Optimized"
+        ],
+        "attackDamage": 0,
+        "row": 0,
+        "col": 0,
+        "spritePath": "party/testsprites.png#11"
       }
     },
     "weapons": {
@@ -1569,7 +1573,7 @@
           "characterClass": "Warrior Survivalist ",
           "color": "#8B0000",
           "isParty": true,
-          "spritePath": null,
+          "spritePath": "party/testsprites.png#0",
           "level": 1,
           "group": "OMEGA",
           "totalHP": 36,
@@ -1680,7 +1684,7 @@
           "characterClass": "Strategist Striker",
           "color": "#000000",
           "isParty": true,
-          "spritePath": null,
+          "spritePath": "party/testsprites.png#4",
           "level": 1,
           "group": "OMEGA",
           "totalHP": 30,
@@ -2132,7 +2136,7 @@
         ],
         "dexterity": 7,
         "color": "#008000",
-        "spritePath": null,
+        "spritePath": "party/testsprites.png#9",
         "tags": [
           "Beast"
         ],
@@ -2216,7 +2220,7 @@
         ],
         "dexterity": 2,
         "color": "#993300",
-        "spritePath": null,
+        "spritePath": "party/testsprites.png#11",
         "tags": [
           "Humanoid",
           "Optimized"

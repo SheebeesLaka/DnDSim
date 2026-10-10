@@ -454,3 +454,31 @@ input[type='number'] {
   color: var(--blue);
   text-shadow: 0 0 16px #569cd680;
 }
+
+/* HD-2D board: WebGL canvas + 2D text overlay + floating view toolbar */
+.boardwrap canvas.board-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.board-toolbar {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: rgba(14, 16, 20, 0.78);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  backdrop-filter: blur(4px);
+}
+.board-toolbar button {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.board-toolbar button.on {
+  border-color: var(--blue);
+  color: var(--blue);
+}

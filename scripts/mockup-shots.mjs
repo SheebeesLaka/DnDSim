@@ -3,13 +3,17 @@
 import { spawn } from 'node:child_process';
 import { chromium } from '@playwright/test';
 import { mkdirSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
-const isWin = process.platform === 'win32';
 const port = 5181;
+// straight under node so vite.kill() stops Vite itself (an npx wrapper would leave it running)
+const viteBin = fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url));
 const vite = spawn(
-  isWin ? 'npx.cmd' : 'npx',
-  ['vite', '--port', String(port), '--strictPort', '--host', '127.0.0.1'],
-  { stdio: 'ignore', shell: isWin },
+  process.execPath,
+  [viteBin, '--port', String(port), '--strictPort', '--host', '127.0.0.1'],
+  {
+    stdio: 'ignore',
+  },
 );
 const base = `http://127.0.0.1:${port}/docs/visual-directions/mockups/`;
 const out = 'docs/visual-directions/shots';
