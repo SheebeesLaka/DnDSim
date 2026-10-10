@@ -67,3 +67,49 @@ export function unitNamed(state: BattleState, name: string) {
   if (!u) throw new Error(`no unit named ${name}`);
   return u;
 }
+
+/** Return a copy of the state with one unit mutated in place (test setup only). */
+export function mutateUnit<T extends BattleState['units'][number]>(
+  state: BattleState,
+  id: string,
+  fn: (u: T) => void,
+): BattleState {
+  const units = state.units.map((u) => {
+    if (u.id !== id) return u;
+    const copy = JSON.parse(JSON.stringify(u)) as T;
+    fn(copy);
+    return copy;
+  });
+  return { ...state, units };
+}
+
+export const status = (
+  name: string,
+  effectType: number,
+  magnitude: number,
+  duration: number,
+  targetAttribute = -1,
+) => ({
+  name,
+  effectType,
+  magnitude,
+  duration,
+  targetAttribute,
+  extra: {},
+});
+
+export const ability = (
+  effectType: string,
+  magnitude: number,
+  extra: Partial<{ name: string; triggerType: string; statusName: string | null; abilityType: string }> = {},
+) => ({
+  name: extra.name ?? 'Ab',
+  description: '',
+  triggerType: extra.triggerType ?? 'ON_TURN_START',
+  effectType,
+  magnitude,
+  targetAttribute: 0,
+  statusName: extra.statusName ?? null,
+  abilityType: extra.abilityType ?? 'PASSIVE',
+  extra: {},
+});
