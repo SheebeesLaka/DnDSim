@@ -7,23 +7,26 @@ public class TerrainObject extends GridObject {
     protected String type;
     protected int health;
     protected String color;
-    protected boolean blocksMovement = true;
+    protected boolean collision = true;
+    // Only meaningful when collision is false: whether an entity sharing this
+    // tile draws in front of the terrain sprite (true) or behind it (false).
+    protected boolean entityAboveTerrain = true;
     protected String spritePath; // Optional sprite image path
 
-    public TerrainObject(int row, int col, String type, int health, String color, boolean blocksMovement) {
+    public TerrainObject(int row, int col, String type, int health, String color, boolean collision) {
         super(row, col);
         this.type = type;
         this.health = health;
         this.color = ColorUtils.normalizeHex(color, ColorUtils.fromLegacyIndex(8));
-        this.blocksMovement = blocksMovement;
+        this.collision = collision;
     }
 
-    public TerrainObject(int row, int col, String type, int health, int color, boolean blocksMovement) {
-        this(row, col, type, health, ColorUtils.fromLegacyIndex(color), blocksMovement);
+    public TerrainObject(int row, int col, String type, int health, int color, boolean collision) {
+        this(row, col, type, health, ColorUtils.fromLegacyIndex(color), collision);
     }
 
     public TerrainObject(int row, int col, String type, int health, String color) {
-        this(row, col, type, health, color, true); // Default blocks movement
+        this(row, col, type, health, color, true); // Default: has collision
     }
 
     public TerrainObject(int row, int col, String type, int health, int color) {
@@ -45,8 +48,9 @@ public class TerrainObject extends GridObject {
      * Copy constructor - used when placing a fresh instance of a terrain template.
      */
     public TerrainObject(TerrainObject other) {
-        this(other.row, other.col, other.type, other.health, other.color, other.blocksMovement);
+        this(other.row, other.col, other.type, other.health, other.color, other.collision);
         this.spritePath = other.spritePath;
+        this.entityAboveTerrain = other.entityAboveTerrain;
     }
 
     public int getHealth() {
@@ -67,8 +71,27 @@ public class TerrainObject extends GridObject {
         this.health = Math.max(0, health);
     }
 
-    public boolean blocksMovement() {
-        return blocksMovement;
+    /** True if entities cannot occupy this tile (a wall, a rock, a tree trunk). */
+    public boolean hasCollision() {
+        return collision;
+    }
+
+    public void setCollision(boolean collision) {
+        this.collision = collision;
+    }
+
+    /**
+     * When collision is false, whether an entity standing on this tile draws
+     * in front of the terrain sprite (true, e.g. flowers underfoot) or behind
+     * it (false, e.g. tall grass that hides the entity's feet). Ignored while
+     * collision is true, since no entity can ever share the tile.
+     */
+    public boolean isEntityAboveTerrain() {
+        return entityAboveTerrain;
+    }
+
+    public void setEntityAboveTerrain(boolean entityAboveTerrain) {
+        this.entityAboveTerrain = entityAboveTerrain;
     }
 
     public String getColor() {
@@ -82,10 +105,6 @@ public class TerrainObject extends GridObject {
 
     public void setColor(int color) {
         setColor(ColorUtils.fromLegacyIndex(color));
-    }
-
-    public void setBlocksMovement(boolean blocksMovement) {
-        this.blocksMovement = blocksMovement;
     }
 
     public String getSpritePath() {

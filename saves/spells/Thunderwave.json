@@ -1,0 +1,24 @@
+{
+  "name": "Thunderwave",
+  "description": "A wave of thunderous force sweeps out from you. Constitution save for half. Hits everyone adjacent, friend or foe.",
+  "color": "#7986CB",
+  "level": 1,
+  "school": "Evocation",
+  "resolution": "SAVE",
+  "range": 0,
+  "targetType": "ENEMY",
+  "damageDice": [
+    "d8",
+    "d6",
+    "d8"
+  ],
+  "saveStat": "CONSTITUTION",
+  "onSave": "HALF",
+  "riderMinTier": 1,
+  "addCastingMod": false,
+  "flatDamage": 0,
+  "area": "BURST",
+  "areaSize": 1,
+  "friendlyFire": true,
+  "upcastDie": "d8"
+}

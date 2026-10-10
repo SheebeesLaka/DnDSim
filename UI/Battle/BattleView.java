@@ -62,6 +62,7 @@ public class BattleView {
     private Button useItemBtn;
     private Button swapBtn;
     private Button pickupBtn;
+    private Button castBtn;
     private ProgressBar healthBar;
     private Label healthTextLabel;
     // Stat rows that only apply to party members (Entities have all 6 stats; Enemies only have Dexterity)
@@ -184,10 +185,26 @@ public class BattleView {
         // The column's width is driven entirely by sidebarPanelWidth (animated on tab/panel
         // switches) rather than derived from whichever child happens to be managed, so a
         // toggle slides smoothly instead of snapping straight to the new panel's width.
+        // The width is pinned on the scroll pane below; rightContent just fills its viewport
+        // (minus the scrollbar when one shows), so it isn't given a hard min/max here.
         rightContent.prefWidthProperty().bind(sidebarPanelWidth);
-        rightContent.minWidthProperty().bind(sidebarPanelWidth);
-        rightContent.maxWidthProperty().bind(sidebarPanelWidth);
-        VBox rightPanel = new VBox(8, tabHeader, rightContent);
+
+        // The Battle tab's stat/action stack is taller than a short window (e.g. a 1080p
+        // screen at 125% scaling). Unscrolled, its height became the whole battle view's
+        // minimum height, and the app root then centered the oversized view - clipping
+        // the timeline at the top and the actions at the bottom. Scrolling the sidebar
+        // instead lets the column shrink to whatever height the window has.
+        ScrollPane sidebarScroll = new ScrollPane(rightContent);
+        sidebarScroll.setFitToWidth(true);
+        sidebarScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        sidebarScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        sidebarScroll.setFocusTraversable(false);
+        sidebarScroll.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-padding: 0;");
+        sidebarScroll.prefWidthProperty().bind(sidebarPanelWidth);
+        sidebarScroll.minWidthProperty().bind(sidebarPanelWidth);
+        sidebarScroll.maxWidthProperty().bind(sidebarPanelWidth);
+        VBox.setVgrow(sidebarScroll, Priority.ALWAYS);
+        VBox rightPanel = new VBox(8, tabHeader, sidebarScroll);
         // A VBox's default max width is unbounded, so rightWrap below (which must stay wide
         // enough for the Add Objects drawer) would otherwise stretch rightPanel out to that
         // full width and left-align its children within the leftover space - the exact gap
@@ -327,7 +344,17 @@ public class BattleView {
     public boolean isObjectPlacementMode() {
         return objectPlacementMode;
     }
-    
+
+    /**
+     * Whether the pending object-placement item is a unit (party member or
+     * enemy) rather than terrain or a pickup. Units may share a tile with
+     * non-colliding terrain; terrain and pickups still need a fully empty tile.
+     */
+    public boolean isPendingObjectUnit() {
+        return pendingObjectKey != null
+            && (pendingObjectKey.startsWith("party:") || pendingObjectKey.startsWith("enemy:"));
+    }
+
     /**
      * Check whether a specific add-objects menu item is currently selected for placement.
      */
@@ -731,6 +758,15 @@ public class BattleView {
         pickupBtn.setOnAction(e -> gridCanvas.startPickupMode());
         pickupBtn.getStyleClass().add("button-earth");
 
+        // Cast spans both columns under the numpad so spellcasting reads as its own action
+        castBtn = createSquareActionButton(IconUtils.Icon.SPELL, "C");
+        castBtn.setMinSize(120, 56);
+        castBtn.setPrefSize(120, 56);
+        castBtn.setMaxSize(120, 56);
+        castBtn.setDisable(true);
+        castBtn.setOnAction(e -> gridCanvas.startCastMode());
+        castBtn.getStyleClass().add("button-arcane");
+
         GridPane actionsGrid = new GridPane();
         actionsGrid.setHgap(8);
         actionsGrid.setVgap(8);
@@ -739,6 +775,7 @@ public class BattleView {
         actionsGrid.add(attackBtn, 1, 0);
         actionsGrid.add(useItemBtn, 0, 1);
         actionsGrid.add(pickupBtn, 1, 1);
+        actionsGrid.add(castBtn, 0, 2, 2, 1);
 
         panel.getChildren().addAll(
             selectLabel, selectedEntityLabel,
@@ -886,6 +923,7 @@ public class BattleView {
             useItemBtn.setDisable(true);
             swapBtn.setDisable(true);
             pickupBtn.setDisable(true);
+            castBtn.setDisable(true);
         } else if (obj instanceof Entity e) {
             if (selectedLabel != null) selectedLabel.setText(e.getName());
             styleAdjustedValue(strLabel, e.getStatAdjustment(CharSheet.STRENGTH));
@@ -932,6 +970,7 @@ public class BattleView {
             useItemBtn.setDisable(!canAct);
             swapBtn.setDisable(!canAct);
             pickupBtn.setDisable(!canAct);
+            castBtn.setDisable(!canAct || SpellPickerDialog.castableSpells(e.getCharSheet()).isEmpty());
         } else if (obj instanceof Enemy en) {
             if (selectedLabel != null) selectedLabel.setText(en.getName());
             styleAdjustedValue(dexLabel, en.getDexAdjustment());
@@ -964,6 +1003,7 @@ public class BattleView {
             useItemBtn.setDisable(true);
             swapBtn.setDisable(true);
             pickupBtn.setDisable(true);
+            castBtn.setDisable(true);
         }
 
         // Keep focus on grid canvas for keyboard shortcuts
@@ -1313,8 +1353,31 @@ public class BattleView {
 
         Separator sep = new Separator();
 
-        panel.getChildren().addAll(title, backBtn, addObjBtn, sep, themeLabel, themePicker);
+        // Long rest: refill every party caster's spell slots between fights
+        Button longRestBtn = new Button("Long Rest (Spell Slots)");
+        longRestBtn.setGraphic(IconUtils.createIcon(IconUtils.Icon.REST, 14, "#ffffff"));
+        longRestBtn.getStyleClass().add("button-arcane");
+        longRestBtn.setMaxWidth(Double.MAX_VALUE);
+        longRestBtn.setTooltip(new Tooltip("Restore all spell slots for every party member on the board"));
+        longRestBtn.setOnAction(e -> handleLongRest());
+
+        panel.getChildren().addAll(title, backBtn, addObjBtn, longRestBtn, sep, themeLabel, themePicker);
         return panel;
+    }
+
+    private void handleLongRest() {
+        int rested = 0;
+        for (Entity entity : grid.getEntities()) {
+            if (entity.isParty() && entity.getCharSheet().isCaster()) {
+                entity.getCharSheet().longRest();
+                gridCanvas.spawnFloatingText(entity, "Rested", javafx.scene.paint.Color.web("#b9a8f5"));
+                rested++;
+            }
+        }
+        if (rested == 0) {
+            DialogUtils.showAlert(Alert.AlertType.INFORMATION, "Long Rest", "No party spellcasters are on the board.");
+        }
+        gridCanvas.redraw();
     }
 
     /** Show the active sidebar tab's content, unless the dice panel is up. */
@@ -1614,7 +1677,6 @@ public class BattleView {
         Optional<ButtonType> result = confirm.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
             battleState.setBattleStarted(false);
-            battleState.setBattleEnded(true);
             
             for (Entity entity : grid.getEntities()) {
                 if (entity.isParty()) {

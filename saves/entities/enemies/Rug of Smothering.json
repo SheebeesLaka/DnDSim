@@ -1,0 +1,22 @@
+{
+  "name": "Rug of Smothering",
+  "health": 25,
+  "maxHealth": 25,
+  "mobility": 4,
+  "armorClass": 11,
+  "attackModifier": 0,
+  "damageDice": [
+    "d4",
+    "d4",
+    "d4"
+  ],
+  "initiative": 1,
+  "dexterity": 1,
+  "color": "#999933",
+  "instanceNumber": 0,
+  "baseName": "Rug of Smothering",
+  "tags": [],
+  "attackDamage": 0,
+  "row": 0,
+  "col": 0
+}

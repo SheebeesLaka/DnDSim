@@ -1,0 +1,26 @@
+{
+  "name": "Ray of Frost",
+  "description": "A frigid beam that Chills the target, cutting its movement by 2 until the end of its next turn.",
+  "color": "#4FC3F7",
+  "level": 0,
+  "school": "Evocation",
+  "resolution": "ATTACK",
+  "range": 5,
+  "targetType": "ENEMY",
+  "damageDice": [
+    "d8",
+    "d6",
+    "d8"
+  ],
+  "saveStat": "DEXTERITY",
+  "onSave": "NONE",
+  "riderMinTier": 1,
+  "addCastingMod": false,
+  "riderStatus": {
+    "name": "Chilled",
+    "effectType": 4,
+    "magnitude": -2,
+    "duration": 2,
+    "targetAttribute": -1
+  }
+}

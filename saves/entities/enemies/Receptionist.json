@@ -1,0 +1,22 @@
+{
+  "name": "Receptionist",
+  "health": 10,
+  "maxHealth": 10,
+  "mobility": 3,
+  "armorClass": 10,
+  "attackModifier": 0,
+  "damageDice": [
+    "d4",
+    "d4",
+    "d4"
+  ],
+  "initiative": 2,
+  "dexterity": 2,
+  "color": "#800080",
+  "instanceNumber": 0,
+  "baseName": "Receptionist",
+  "tags": [],
+  "attackDamage": 0,
+  "row": 0,
+  "col": 0
+}

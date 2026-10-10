@@ -1,0 +1,21 @@
+{
+  "name": "Magic Missile",
+  "description": "Three glowing darts that always strike their target: 3d4 + 3 force damage, +1d4 per slot level above 1st.",
+  "color": "#B388FF",
+  "level": 1,
+  "school": "Evocation",
+  "resolution": "AUTO",
+  "range": 8,
+  "targetType": "ENEMY",
+  "damageDice": [
+    "d4",
+    "d4",
+    "d4"
+  ],
+  "saveStat": "DEXTERITY",
+  "onSave": "NONE",
+  "upcastDie": "d4",
+  "riderMinTier": 1,
+  "addCastingMod": false,
+  "flatDamage": 3
+}

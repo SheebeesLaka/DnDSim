@@ -1,0 +1,23 @@
+{
+  "name": "Thunderclap",
+  "description": "A burst of thunder around you. Every enemy adjacent to you makes a Constitution save.",
+  "color": "#90A4AE",
+  "level": 0,
+  "school": "Evocation",
+  "resolution": "SAVE",
+  "range": 0,
+  "targetType": "ENEMY",
+  "damageDice": [
+    "d6",
+    "d4",
+    "d6"
+  ],
+  "saveStat": "CONSTITUTION",
+  "onSave": "NONE",
+  "riderMinTier": 1,
+  "addCastingMod": false,
+  "flatDamage": 0,
+  "area": "BURST",
+  "areaSize": 1,
+  "friendlyFire": false
+}

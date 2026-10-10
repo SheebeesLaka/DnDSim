@@ -2,6 +2,8 @@ package UI.Battle;
 
 import EntityRes.Ammunition;
 import EntityRes.Item;
+import EntityRes.Spell;
+import EntityRes.Status;
 import EntityRes.Weapon;
 import Objects.Entity;
 import Objects.Enemy;
@@ -24,45 +26,6 @@ import java.util.List;
 public class CombatManager {
 
     /**
-     * Result of an attack roll calculation
-     */
-    public static class AttackResult {
-        public final int d20Roll;
-        public final int modifier;
-        public final int targetAC;
-        public final int margin;
-        public final boolean hit;
-        public final int tier;        // 0 = miss, 1-3 = hit tier
-        public final int bonusDamage; // Reserved for compatibility; always 0
-        public final String[] diceToRoll;
-        
-        public AttackResult(int d20Roll, int modifier, int targetAC) {
-            this.d20Roll = d20Roll;
-            this.modifier = modifier;
-            this.targetAC = targetAC;
-            this.margin = (d20Roll + modifier) - targetAC;
-            this.hit = margin >= 0;
-            this.tier = hit ? calculateTier(margin) : 0;
-            this.bonusDamage = 0;
-            this.diceToRoll = new String[0]; // Set separately when weapon is known
-        }
-
-        private static int calculateTier(int margin) {
-            if (margin < 0) return 0;
-            if (margin <= 4) return 1;
-            if (margin <= 7) return 2;
-            return 3;
-        }
-    }
-    
-    /**
-     * Calculate attack result given d20 roll, modifier, and target AC
-     */
-    public static AttackResult calculateAttack(int d20Roll, int modifier, int targetAC) {
-        return new AttackResult(d20Roll, modifier, targetAC);
-    }
-    
-    /**
      * Calculate margin from attack roll
      * @return margin value (negative = miss, 0 or positive = hit)
      */
@@ -77,16 +40,8 @@ public class CombatManager {
     public static int getAttackTier(int margin) {
         if (margin < 0) return 0;
         if (margin <= 4) return 1;
-        if (margin <= 9) return 2;
+        if (margin <= 7) return 2;
         return 3;
-    }
-    
-    /**
-     * Get bonus damage for high-margin hits.
-     * Reserved for compatibility with callers; margin no longer adds flat damage.
-     */
-    public static int getBonusDamage(int margin) {
-        return 0;
     }
     
     /**
@@ -325,5 +280,187 @@ public class CombatManager {
         }
         
         return false; // No compatible ammo found
+    }
+
+    // ===================== Spellcasting =====================
+
+    /** Saving throw modifier for any target; terrain has no saves. */
+    public static int getSaveModifier(GridObject target, int statIndex) {
+        if (target instanceof Entity e) {
+            return e.getSaveModifier(statIndex);
+        } else if (target instanceof Enemy en) {
+            return en.getSaveModifier(statIndex);
+        }
+        return 0;
+    }
+
+    /**
+     * Tier for a saving throw. Meeting the DC is a success (0). Otherwise the fail margin is
+     * DC - total - 1, so failing by exactly 1 mirrors an attack that meets AC exactly (margin 0, tier 1).
+     */
+    public static int getSaveFailTier(int dc, int saveTotal) {
+        if (saveTotal >= dc) return 0;
+        return getAttackTier(dc - saveTotal - 1);
+    }
+
+    /**
+     * Dice for a spell at the given tier: cumulative tier dice, plus one extra tier-1 die per
+     * cantrip scaling level reached, plus one upcast die per slot level above the spell's base level.
+     */
+    public static List<String> getSpellDice(Spell spell, int tier, int casterLevel, int slotLevel) {
+        List<String> dice = new ArrayList<>();
+        String[] tierDice = spell.getDamageDice();
+        for (int i = 0; i < Math.min(tier, 3); i++) {
+            if (tierDice != null && i < tierDice.length && tierDice[i] != null && !tierDice[i].isEmpty()) {
+                dice.add(tierDice[i]);
+            }
+        }
+        if (dice.isEmpty() || tier < 1) {
+            return dice;
+        }
+        if (spell.isCantrip()) {
+            for (int lvl : Spell.CANTRIP_SCALING_LEVELS) {
+                if (casterLevel >= lvl) dice.add(dice.get(0));
+            }
+        } else if (spell.getUpcastDie() != null && !spell.getUpcastDie().isEmpty()) {
+            for (int i = spell.getLevel(); i < slotLevel; i++) {
+                dice.add(spell.getUpcastDie());
+            }
+        }
+        return dice;
+    }
+
+    /** Number of tier dice (ignoring blanks) that a hit of the given tier rolls. */
+    private static int tierDieCount(Spell spell, int tier) {
+        int n = 0;
+        String[] tierDice = spell.getDamageDice();
+        for (int i = 0; i < Math.min(tier, 3); i++) {
+            if (tierDice != null && i < tierDice.length && tierDice[i] != null && !tierDice[i].isEmpty()) n++;
+        }
+        return n;
+    }
+
+    /**
+     * Area spells roll their dice once, at the highest tier any target needs. Because tiers are
+     * cumulative, a lower-tier target takes the first few tier dice plus the shared extra dice
+     * (cantrip scaling / upcast), which getSpellDice always appends after the tier dice.
+     *
+     * @param rolled values for getSpellDice(spell, maxTier, ...), in that order
+     */
+    public static int sumRolledForTier(Spell spell, List<Integer> rolled, int maxTier, int tier) {
+        int own = tierDieCount(spell, tier);
+        if (own == 0 || tier < 1) return 0;
+        int shared = tierDieCount(spell, maxTier);
+        int sum = 0;
+        for (int i = 0; i < own && i < rolled.size(); i++) sum += rolled.get(i);
+        for (int i = shared; i < rolled.size(); i++) sum += rolled.get(i);
+        return sum;
+    }
+
+    public static int gridDistance(GridObject a, GridObject b) {
+        return Math.abs(a.getRow() - b.getRow()) + Math.abs(a.getCol() - b.getCol());
+    }
+
+    public static boolean isInRange(GridObject caster, GridObject target, int range) {
+        if (caster == target) return true;
+        return gridDistance(caster, target) <= Math.max(1, range);
+    }
+
+    /** Hostility is side-based: enemies vs everyone else (party and non-party entities). */
+    public static boolean isHostile(GridObject a, GridObject b) {
+        return (a instanceof Enemy) != (b instanceof Enemy);
+    }
+
+    /** Whether the spell's target type allows this target (range not considered). */
+    public static boolean isValidSpellTarget(GridObject caster, GridObject target, Spell spell) {
+        if (target == null) return false;
+        String type = spell.getTargetType();
+        if (Spell.TARGET_SELF.equals(type)) {
+            return target == caster;
+        }
+        if (target instanceof TerrainObject) {
+            // Only damaging attack spells can hit objects (e.g. Fire Bolt on a tree)
+            return (Spell.ATTACK.equals(spell.getResolution()) || Spell.AUTO.equals(spell.getResolution()))
+                && !Spell.TARGET_ALLY.equals(type);
+        }
+        if (!(target instanceof Entity) && !(target instanceof Enemy)) return false;
+        if (Spell.TARGET_ANY.equals(type)) return true;
+        boolean hostile = isHostile(caster, target);
+        if (Spell.TARGET_ALLY.equals(type)) return !hostile;
+        return hostile && target != caster;
+    }
+
+    /** Heal a target, capped at max HP. Returns the HP actually restored. */
+    public static int applyHealing(GridObject target, int amount) {
+        if (target instanceof Entity e) {
+            var sheet = e.getCharSheet();
+            int before = sheet.getCurrentHP();
+            sheet.setCurrentHP(Math.min(sheet.getTotalHP(), before + amount));
+            sheet.save();
+            return sheet.getCurrentHP() - before;
+        } else if (target instanceof Enemy en) {
+            int before = en.getHealth();
+            en.setHealth(before + amount);
+            return en.getHealth() - before;
+        }
+        return 0;
+    }
+
+    /** Apply a status to an Entity or Enemy (terrain ignores statuses). */
+    public static boolean applyStatus(GridObject target, Status status) {
+        if (status == null) return false;
+        // Re-applying a status of the same name refreshes its duration instead of stacking
+        Iterable<Status> existing = target instanceof Entity e0 ? java.util.Arrays.asList(e0.getCharSheet().getStatus())
+                : target instanceof Enemy en0 ? en0.getStatuses() : null;
+        if (existing != null) {
+            for (Status s : existing) {
+                if (s.getName() != null && s.getName().equals(status.getName())) {
+                    if (s.getDuration() != -1) {
+                        s.setDuration(status.getDuration() == -1 ? -1 : Math.max(s.getDuration(), status.getDuration()));
+                    }
+                    if (target instanceof Entity e1) e1.getCharSheet().save();
+                    return true;
+                }
+            }
+        }
+        if (target instanceof Entity e) {
+            e.getCharSheet().addStatus(status);
+            e.getCharSheet().updateAttributes();
+            e.getCharSheet().save();
+            return true;
+        } else if (target instanceof Enemy en) {
+            en.addStatus(status);
+            return true;
+        }
+        return false;
+    }
+
+    /** Spell attack modifier for a caster (casting stat + attack statuses). */
+    public static int getSpellAttackModifier(GridObject caster) {
+        if (caster instanceof Entity e) {
+            return e.getSpellAttackModifier();
+        }
+        return getAttackModifier(caster);
+    }
+
+    public static int getSpellSaveDC(GridObject caster) {
+        if (caster instanceof Entity e) {
+            return e.getSpellSaveDC();
+        }
+        return EntityRes.CharSheet.SPELL_DC_BASE + getAttackModifier(caster);
+    }
+
+    public static int getCastingModifier(GridObject caster) {
+        if (caster instanceof Entity e) {
+            return e.getCastingModifier();
+        }
+        return getAttackModifier(caster);
+    }
+
+    public static int getCasterLevel(GridObject caster) {
+        if (caster instanceof Entity e) {
+            return e.getCharSheet().getLevel();
+        }
+        return 1;
     }
 }

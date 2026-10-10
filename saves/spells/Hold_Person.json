@@ -1,0 +1,26 @@
+{
+  "name": "Hold Person",
+  "description": "Wisdom save or the target is Held in place (no movement) until the end of its next turn.",
+  "color": "#9575CD",
+  "level": 2,
+  "school": "Enchantment",
+  "resolution": "SAVE",
+  "range": 6,
+  "targetType": "ENEMY",
+  "damageDice": [
+    null,
+    null,
+    null
+  ],
+  "saveStat": "WISDOM",
+  "onSave": "NONE",
+  "riderMinTier": 1,
+  "addCastingMod": false,
+  "riderStatus": {
+    "name": "Held",
+    "effectType": 4,
+    "magnitude": -99,
+    "duration": 2,
+    "targetAttribute": -1
+  }
+}

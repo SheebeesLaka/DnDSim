@@ -1,0 +1,24 @@
+{
+  "name": "Lightning Bolt",
+  "description": "A 10-tile line of lightning blasts out from you toward your aim. Dexterity save for half.",
+  "color": "#FFEE58",
+  "level": 3,
+  "school": "Evocation",
+  "resolution": "SAVE",
+  "range": 0,
+  "targetType": "ENEMY",
+  "damageDice": [
+    "d10",
+    "d10",
+    "d10"
+  ],
+  "saveStat": "DEXTERITY",
+  "onSave": "HALF",
+  "riderMinTier": 1,
+  "addCastingMod": false,
+  "flatDamage": 0,
+  "area": "LINE",
+  "areaSize": 10,
+  "friendlyFire": true,
+  "upcastDie": "d6"
+}

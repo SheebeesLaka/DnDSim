@@ -1,6 +1,7 @@
 package Objects;
 
 import EntityRes.ColorUtils;
+import EntityRes.Status;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import java.io.*;
@@ -18,10 +19,8 @@ public class Enemy extends GridObject {
     private int maxHealth;
     private int mobility;
     private int armorClass;           // AC for attack rolls
-    private int attackModifier;       // Modifier added to attack rolls
     private String[] damageDice;      // Damage dice per tier [tier1, tier2, tier3]
-    private int initiative;
-    private int dexterity;
+    private int dexterity;            // Attack roll modifier and initiative stat
     private String color;
     private int instanceNumber = 0;
     private String baseName;
@@ -30,8 +29,12 @@ public class Enemy extends GridObject {
     private transient int dexAdjustment = 0;  // Temporary in-battle Dexterity tweak; not persisted, resets each battle
     private transient String[] diceOverride = new String[3];  // Temporary in-battle damage dice tweaks per tier; null = use real die
     private List<String> tags = new ArrayList<>();  // Free-form + predefined tags for filtering; empty list default covers legacy saves
+    // Saving-throw stats indexed like CharSheet.STRENGTH..CHARISMA. The DEX slot is ignored in favor of
+    // `dexterity`; legacy saves without this array default every stat to the enemy's dexterity.
+    private int[] attributes;
+    private transient List<Status> statuses = new ArrayList<>();  // In-battle conditions (spell riders etc.)
 
-    // Legacy field for backward compatibility
+    // Legacy flat damage from pre-dice saves; converted to damage dice on read
     private int attackDamage;
 
     /**
@@ -46,7 +49,7 @@ public class Enemy extends GridObject {
     }
 
     public Enemy(int row, int col, String name, int maxHealth, int mobility, int armorClass,
-                 String[] damageDice, int initiative, int dexterity, String color) {
+                 String[] damageDice, int dexterity, String color) {
         super(row, col);
         this.name = name;
         this.baseName = name;
@@ -55,59 +58,10 @@ public class Enemy extends GridObject {
         this.mobility = mobility;
         this.armorClass = armorClass;
         this.damageDice = damageDice != null ? damageDice : new String[]{"d4", "d4", "d6"};
-        this.initiative = initiative;
         this.dexterity = dexterity;
         this.color = ColorUtils.normalizeHex(color, ColorUtils.DEFAULT_COLOR);
     }
 
-    public Enemy(int row, int col, String name, int maxHealth, int mobility, int armorClass,
-                 String[] damageDice, int initiative, int dexterity, int color) {
-        this(row, col, name, maxHealth, mobility, armorClass, damageDice, initiative, dexterity,
-                ColorUtils.fromLegacyIndex(color));
-    }
-    
-    // Legacy constructor for backward compatibility
-    public Enemy(int row, int col, String name, int maxHealth, int mobility, int attackDamage, int initiative,
-                 int dexterity, String color) {
-        super(row, col);
-        this.name = name;
-        this.baseName = name;
-        this.maxHealth = maxHealth;
-        this.health = maxHealth;
-        this.mobility = mobility;
-        this.attackDamage = attackDamage;
-        this.armorClass = 10;  // Default AC
-        this.attackModifier = attackDamage / 3;  // Derive modifier from legacy damage
-        this.damageDice = convertLegacyDamage(attackDamage);
-        this.initiative = initiative;
-        this.dexterity = dexterity;
-        this.color = ColorUtils.normalizeHex(color, ColorUtils.DEFAULT_COLOR);
-    }
-
-    public Enemy(int row, int col, String name, int maxHealth, int mobility, int attackDamage, int initiative,
-                 int dexterity, int color) {
-        this(row, col, name, maxHealth, mobility, attackDamage, initiative, dexterity,
-                ColorUtils.fromLegacyIndex(color));
-    }
-
-    // Copy constructor for creating instances
-    public Enemy(Enemy template, int row, int col) {
-        super(row, col);
-        this.name = template.name;
-        this.baseName = template.baseName;
-        this.maxHealth = template.maxHealth;
-        this.health = template.maxHealth;
-        this.mobility = template.mobility;
-        this.armorClass = template.armorClass;
-        this.attackModifier = template.attackModifier;
-        this.damageDice = template.damageDice;
-        this.attackDamage = template.attackDamage;
-        this.initiative = template.initiative;
-        this.dexterity = template.dexterity;
-        this.color = template.color;
-        this.spritePath = template.spritePath;
-    }
-    
     /**
      * Convert legacy flat damage to dice tiers (for migration)
      */
@@ -117,32 +71,6 @@ public class Enemy extends GridObject {
         if (damage <= 6) return new String[]{"d6", "d6", "d8"};
         return new String[]{"d6", "d8", "d10"};
     }
-
-    @Deprecated
-    public void attack(Entity target) {
-        int damage = getAttackDamage() - target.getDefense();
-        target.takeDamage(Math.max(0, damage));
-    }
-
-    @Deprecated
-    public void attack(Enemy target) {
-        int damage = getAttackDamage();  // Enemies have no defense
-        target.takeDamage(Math.max(0, damage));
-    }
-
-    /**
-     * Get the direct damage value used by legacy terrain damage interactions.
-     */
-    public int getAttackDamage() {
-        // Legacy: return flat attack damage for backward compatibility
-        if (attackDamage > 0) return attackDamage;
-        return 3 + attackModifier;  // Derive from modifier
-    }
-
-    @Deprecated
-    public int getAttackPower() {
-        return getAttackDamage();
-    }
     
     /**
      * Get Armor Class for attack roll calculations
@@ -150,7 +78,7 @@ public class Enemy extends GridObject {
     public int getAC() {
         // Handle legacy enemies without explicit AC
         int baseAC = armorClass <= 0 ? 10 : armorClass;
-        return baseAC + acAdjustment;
+        return baseAC + acAdjustment + Status.sumMagnitude(getStatuses(), Status.AC_MODIFIER);
     }
 
     public void setAC(int ac) {
@@ -176,7 +104,8 @@ public class Enemy extends GridObject {
     /**
      * Temporarily adjust this enemy's Dexterity for the current battle only.
      * Not persisted (transient), so it resets whenever a fresh Enemy is loaded.
-     * Does not affect movement (flat `mobility` stat) or already-rolled initiative.
+     * Applies to initiative rolled after the change (Begin, or joining mid-battle), but not
+     * to initiative already rolled, and never to movement (flat `mobility` stat).
      */
     public void adjustDexterity(int delta) {
         dexAdjustment += delta;
@@ -191,11 +120,81 @@ public class Enemy extends GridObject {
      * Current enemy design uses dexterity for both attack rolls and initiative.
      */
     public int getAttackModifier() {
-        return getAdjustedDexterity();
+        return getAdjustedDexterity() + Status.sumMagnitude(getStatuses(), Status.ATTACK_MODIFIER);
     }
-    
-    public void setAttackModifier(int modifier) {
-        this.attackModifier = modifier;
+
+    private void ensureAttributes() {
+        if (attributes == null || attributes.length != 6) {
+            int[] filled = new int[6];
+            for (int i = 0; i < 6; i++) {
+                filled[i] = attributes != null && i < attributes.length ? attributes[i] : dexterity;
+            }
+            attributes = filled;
+        }
+    }
+
+    /** Base stat for saving throws (index matches CharSheet.STRENGTH..CHARISMA). */
+    public int getAttribute(int index) {
+        if (index == 1) return dexterity;
+        ensureAttributes();
+        return attributes[index];
+    }
+
+    public void setAttribute(int index, int value) {
+        if (index == 1) {
+            dexterity = value;
+            return;
+        }
+        ensureAttributes();
+        attributes[index] = value;
+    }
+
+    /** Saving throw modifier, including temporary DEX tweaks and stat-modifier statuses. */
+    public int getSaveModifier(int index) {
+        int base = index == 1 ? getAdjustedDexterity() : getAttribute(index);
+        int statusMod = 0;
+        for (Status s : getStatuses()) {
+            if (s.getEffectType() == Status.STAT_MODIFIER && s.getTargetAttribute() == index) {
+                statusMod += s.getMagnitude();
+            }
+        }
+        return base + statusMod;
+    }
+
+    public List<Status> getStatuses() {
+        if (statuses == null) {
+            statuses = new ArrayList<>();
+        }
+        return statuses;
+    }
+
+    public void addStatus(Status status) {
+        if (status != null) {
+            getStatuses().add(status);
+        }
+    }
+
+    public void removeStatus(Status status) {
+        getStatuses().remove(status);
+    }
+
+    /**
+     * Turn-start status processing, mirroring CharSheet.procStatus(): DOT/HOT apply (DOT can't
+     * drop below 1 HP), then durations tick down and expired statuses are removed.
+     */
+    public void procStatus() {
+        java.util.Iterator<Status> it = getStatuses().iterator();
+        while (it.hasNext()) {
+            Status s = it.next();
+            if (s.getEffectType() == Status.DAMAGE_OVER_TIME) {
+                health = Math.max(1, health - s.getMagnitude());
+            } else if (s.getEffectType() == Status.HEAL_OVER_TIME) {
+                health = Math.min(maxHealth, health + s.getMagnitude());
+            }
+            if (s.tick()) {
+                it.remove();
+            }
+        }
     }
     
     /**
@@ -256,13 +255,8 @@ public class Enemy extends GridObject {
         diceOverride[tier] = die;
     }
 
-    @Deprecated
-    public int getDefense() {
-        return 0;  // Legacy method - enemies now use AC
-    }
-
     public int getMovement() {
-        return mobility;
+        return Math.max(0, mobility + Status.sumMovement(getStatuses()));
     }
 
     public int getHealth() {
@@ -284,9 +278,12 @@ public class Enemy extends GridObject {
         return baseName;
     }
 
+    /**
+     * Initiative modifier: an enemy's Dexterity is its initiative stat (the same value that
+     * drives its attack rolls), including any temporary in-battle adjustment.
+     */
     public int getInitiative() {
-        // Initiative currently shares the same dexterity value as attack rolls.
-        return dexterity;
+        return getAdjustedDexterity();
     }
 
     public int getDexterity() {

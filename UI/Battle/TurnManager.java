@@ -33,42 +33,23 @@ public class TurnManager {
     }
 
     /**
-     * Roll initiative for all combatants: d20 + DEX modifier.
-     * Handles surprise rounds (party goes first), identifies ties,
-     * resolves enemy ties via coin flip, and queues player ties for resolution.
-     * 
-     * @return List of roll result strings for combat log
-     */
-    public List<String> calculateInitiativeOrder() {
-        return calculateInitiativeOrder(null);
-    }
-
-    /**
-     * Calculate initiative for all combatants, using optional manual d20 rolls for party members.
-     * Enemies always roll randomly.
+     * Roll initiative for all combatants: d20 + DEX (an enemy's Dexterity is its initiative
+     * stat), using the typed d20 for party members where given; enemies always roll randomly.
+     * Handles surprise/ambush rounds, resolves enemy-involved ties via coin flip, and queues
+     * party-only ties for the player to order.
      *
      * @param partyRollInputs Optional map of party entities to d20 roll inputs (1-20)
-     * @return List of roll result strings for combat log
      */
-    public List<String> calculateInitiativeOrder(Map<Entity, Integer> partyRollInputs) {
-        List<String> logMessages = new ArrayList<>();
+    public void calculateInitiativeOrder(Map<Entity, Integer> partyRollInputs) {
         initiativeRolls.clear();
         rollBreakdown.clear();
         pendingTieResolutions.clear();
-        
-        if (roundStartMode == RoundStartMode.SURPRISE) {
-            logMessages.add("Surprise Round! All party members act first.");
-        } else if (roundStartMode == RoundStartMode.AMBUSH) {
-            logMessages.add("Ambush! All enemies act first.");
-        }
-        
+
         // Roll initiative for everyone
         for (GridObject obj : turnOrder) {
             int d20;
-            boolean manualRoll = false;
             if (obj instanceof Entity entity && entity.isParty() && partyRollInputs != null && partyRollInputs.containsKey(entity)) {
                 d20 = Math.max(1, Math.min(20, partyRollInputs.get(entity)));
-                manualRoll = true;
             } else {
                 d20 = random.nextInt(20) + 1;
             }
@@ -84,27 +65,16 @@ public class TurnManager {
             
             initiativeRolls.put(obj, total);
             rollBreakdown.put(obj, new int[]{d20, dexMod});
-            
-            String name = getName(obj);
-            if (manualRoll) {
-                logMessages.add(name + " initiative (manual): " + (total > 100 ? total - 100 : total) +
-                        " (d20: " + d20 + " + DEX: " + dexMod + ")");
-            } else {
-                logMessages.add(name + " rolls initiative: " + (total > 100 ? total - 100 : total) +
-                        " (d20: " + d20 + " + DEX: " + dexMod + ")");
-            }
         }
-        
+
         // Sort by initiative (highest first)
         turnOrder.sort((o1, o2) -> Integer.compare(initiativeRolls.get(o2), initiativeRolls.get(o1)));
-        
+
         // Identify and resolve ties
-        logMessages.addAll(resolveTies());
-        
+        resolveTies();
+
         currentIndex = 0;
         round = 1;
-        
-        return logMessages;
     }
     
     /**
@@ -112,9 +82,7 @@ public class TurnManager {
      * - Enemy vs Enemy/Player: coin flip (resolved immediately)
      * - Player vs Player: queue for player choice each round
      */
-    private List<String> resolveTies() {
-        List<String> logMessages = new ArrayList<>();
-        
+    private void resolveTies() {
         // Group combatants by their initiative roll
         Map<Integer, List<GridObject>> tieGroups = new LinkedHashMap<>();
         for (GridObject obj : turnOrder) {
@@ -150,18 +118,7 @@ public class TurnManager {
             if (needsCoinFlip.size() > 1) {
                 // Shuffle using coin flips
                 Collections.shuffle(needsCoinFlip, random);
-                
-                // Log the coin flip results for mixed ties
-                if (!enemies.isEmpty() && !partyMembers.isEmpty()) {
-                    GridObject winner = needsCoinFlip.get(0);
-                    logMessages.add("Tie between " + formatTiedNames(tied) + 
-                                  " - coin flip: " + getName(winner) + " goes first");
-                } else if (enemies.size() > 1) {
-                    GridObject winner = needsCoinFlip.get(0);
-                    logMessages.add("Tie between " + formatTiedNames(enemies) + 
-                                  " - coin flip: " + getName(winner) + " goes first");
-                }
-                
+
                 // Update the turn order for these tied combatants
                 int startIdx = turnOrder.indexOf(tied.get(0));
                 for (int i = 0; i < needsCoinFlip.size(); i++) {
@@ -181,47 +138,26 @@ public class TurnManager {
                 pendingTieResolutions.add(new ArrayList<>(partyMembers));
             }
         }
-        
-        return logMessages;
     }
-    
-    private String formatTiedNames(List<GridObject> objects) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < objects.size(); i++) {
-            if (i > 0) {
-                sb.append(i == objects.size() - 1 ? " and " : ", ");
-            }
-            sb.append(getName(objects.get(i)));
-        }
-        return sb.toString();
-    }
-    
+
     /**
-     * Get the DEX modifier for a combatant.
+     * The DEX added to a combatant's initiative roll, including any temporary in-battle
+     * adjustment from the sidebar. An enemy's Dexterity doubles as its initiative stat.
      */
     private int getDexterity(GridObject obj) {
         if (obj instanceof Entity e) {
-            return e.getCharSheet().getTotalAttribute(CharSheet.DEXTERITY);
+            return e.getAdjustedAttribute(CharSheet.DEXTERITY);
         } else if (obj instanceof Enemy enemy) {
-            return enemy.getDexterity();
+            return enemy.getInitiative();
         }
         return 0;
     }
-    
+
     private boolean isPartyMember(GridObject obj) {
         if (obj instanceof Entity e) {
             return e.isParty();
         }
         return false;
-    }
-    
-    private String getName(GridObject obj) {
-        if (obj instanceof Entity e) {
-            return e.getName();
-        } else if (obj instanceof Enemy en) {
-            return en.getName();
-        }
-        return "Unknown";
     }
 
     /**
@@ -291,10 +227,6 @@ public class TurnManager {
         this.roundStartMode = mode;
     }
 
-    public RoundStartMode getRoundStartMode() {
-        return roundStartMode;
-    }
-    
     public void setTieResolutionHandler(Consumer<List<List<GridObject>>> handler) {
         this.tieResolutionHandler = handler;
     }
@@ -304,22 +236,6 @@ public class TurnManager {
             return null;
         }
         return turnOrder.get(currentIndex);
-    }
-
-    public Entity getCurrent() {
-        GridObject current = getCurrentCombatant();
-        if (current instanceof Entity e) {
-            return e;
-        }
-        return null;
-    }
-
-    public Enemy getCurrentEnemy() {
-        GridObject current = getCurrentCombatant();
-        if (current instanceof Enemy e) {
-            return e;
-        }
-        return null;
     }
 
     public List<String> nextTurn() {
@@ -346,21 +262,12 @@ public class TurnManager {
             e.getCharSheet().procStatus();
             // Process ON_TURN_START abilities (e.g., Plasmoid Core regeneration)
             abilityMessages.addAll(e.getCharSheet().processEquippedAbilities(ItemAbility.ON_TURN_START));
+        } else if (current instanceof Enemy en) {
+            // Spell riders (burning, chilled, held...) tick on the enemy's own turn
+            en.procStatus();
         }
         
         return abilityMessages;
-    }
-
-    public void removeDeadCombatants() {
-        turnOrder.removeIf(obj -> {
-            if (obj instanceof Entity e) return e.isDead();
-            if (obj instanceof Enemy en) return en.isDead();
-            return false;
-        });
-        if (currentIndex >= turnOrder.size() && !turnOrder.isEmpty()) {
-            currentIndex = 0;
-            round++;
-        }
     }
 
     public boolean isCurrent(GridObject obj) {
@@ -390,7 +297,7 @@ public class TurnManager {
     public int addEntity(Entity entity) {
         turnOrder.add(entity);
         if (battleStarted) {
-            return rollAndInsert(entity, entity.getCharSheet().getTotalAttribute(CharSheet.DEXTERITY));
+            return rollAndInsert(entity, getDexterity(entity));
         }
         return -1;
     }
@@ -420,7 +327,7 @@ public class TurnManager {
      */
     public int addEnemy(Enemy enemy) {
         turnOrder.add(enemy);
-        return rollAndInsert(enemy, enemy.getDexterity());
+        return rollAndInsert(enemy, getDexterity(enemy));
     }
 
     /**

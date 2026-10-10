@@ -1,0 +1,25 @@
+{
+  "name": "Legendary Broodmother",
+  "health": 55,
+  "maxHealth": 55,
+  "mobility": 3,
+  "armorClass": 13,
+  "attackModifier": 0,
+  "damageDice": [
+    "d4",
+    "d6",
+    "d6"
+  ],
+  "initiative": 2,
+  "dexterity": 2,
+  "color": "#4D3399",
+  "instanceNumber": 0,
+  "baseName": "Legendary Broodmother",
+  "tags": [
+    "Boss",
+    "Beast"
+  ],
+  "attackDamage": 0,
+  "row": 0,
+  "col": 0
+}

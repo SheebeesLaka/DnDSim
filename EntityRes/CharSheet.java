@@ -15,6 +15,13 @@ public class CharSheet {
     private boolean isParty;
     private String spritePath; // Path to character sprite image (e.g., "sprites/party/henry.png")
     private int level;
+    private String group;      // Character-sheet roster group (GROUP_*); null = ungrouped
+
+    // Roster groups for organizing the character sheet list. A character is in at most one.
+    public static final String GROUP_OMEGA = "OMEGA";
+    public static final String GROUP_ALPHA = "ALPHA";
+    public static final String GROUP_NPC = "NPC";
+    public static final String[] GROUPS = {GROUP_OMEGA, GROUP_ALPHA, GROUP_NPC};
 
     // HP and Statuses
     private int totalHP;
@@ -47,6 +54,12 @@ public class CharSheet {
 
     // Character Abilities (innate abilities not tied to equipment)
     private ArrayList<ItemAbility> abilities;
+
+    // Spellcasting (null spellcastingStat = not a caster)
+    public static final int SPELL_DC_BASE = 10;
+    private String spellcastingStat;
+    private ArrayList<String> knownSpells;
+    private int[] spellSlotsUsed;     // index 0 = level 1 slots used ... index 8 = level 9
 
     //Constructor
     public CharSheet(String name, boolean isParty, int totalHP, int[] baseAttributes, String color) {
@@ -83,6 +96,8 @@ public class CharSheet {
         updateAttributes();
         inventory = new ArrayList<Item>();
         abilities = new ArrayList<ItemAbility>();
+        knownSpells = new ArrayList<String>();
+        spellSlotsUsed = new int[SpellSlots.MAX_SPELL_LEVEL];
     }
 
     public CharSheet(String name, boolean isParty, int totalHP, int[] baseAttributes, int color) {
@@ -97,6 +112,27 @@ public class CharSheet {
 
     public String getName() {
         return name;
+    }
+
+    public String getGroup() {
+        return group;
+    }
+
+    /** Move this character into a roster group (null or unknown = ungrouped). */
+    public void setGroup(String group) {
+        this.group = java.util.Arrays.asList(GROUPS).contains(group) ? group : null;
+        save();
+    }
+
+    /** Display name for a roster group: "Group \u03A9", "Group \u03B1", "NPC", or "Ungrouped" for null. */
+    public static String groupLabel(String group) {
+        if (group == null) return "Ungrouped";
+        return switch (group) {
+            case GROUP_OMEGA -> "Group \u03A9";
+            case GROUP_ALPHA -> "Group \u03B1";
+            case GROUP_NPC -> "NPC";
+            default -> group;
+        };
     }
 
     public void setCharacterClass(String characterClass) {
@@ -835,12 +871,153 @@ public class CharSheet {
         return wallet;
     }
 
+    // ---- Spellcasting ----
+
+    public boolean isCaster() {
+        return spellcastingStat != null && !spellcastingStat.isEmpty();
+    }
+
+    public String getSpellcastingStat() {
+        return spellcastingStat;
+    }
+
+    public void setSpellcastingStat(String stat) {
+        this.spellcastingStat = (stat == null || stat.isEmpty() || stat.equalsIgnoreCase("None")) ? null : stat;
+        save();
+    }
+
+    public int getSpellcastingStatIndex() {
+        return Spell.statIndex(spellcastingStat);
+    }
+
+    /** Raw casting stat, matching how weapon attacks use the raw weapon stat. */
+    public int getCastingModifier() {
+        return isCaster() ? getTotalAttribute(getSpellcastingStatIndex()) : 0;
+    }
+
+    public int getSpellSaveDC() {
+        return SPELL_DC_BASE + getCastingModifier();
+    }
+
+    public java.util.List<String> getKnownSpellNames() {
+        followSpellRenames();
+        return knownSpells;
+    }
+
+    /** Known spells resolved through SpellDatabase (missing/deleted spells are skipped). */
+    public java.util.List<Spell> getKnownSpells() {
+        if (followSpellRenames()) save();
+        java.util.List<Spell> list = new ArrayList<>();
+        for (String spellName : knownSpells) {
+            Spell spell = SpellDatabase.getInstance().getSpell(spellName);
+            if (spell != null) list.add(spell);
+        }
+        list.sort(java.util.Comparator.comparingInt(Spell::getLevel).thenComparing(Spell::getName));
+        return list;
+    }
+
+    /**
+     * Swap in the new name for any known spell renamed in the editor while this sheet was loaded,
+     * so neither display nor a later save() resurrects the stale name. Returns true if anything changed.
+     */
+    private boolean followSpellRenames() {
+        if (knownSpells == null) return false;
+        boolean changed = false;
+        SpellDatabase db = SpellDatabase.getInstance();
+        for (int i = 0; i < knownSpells.size(); i++) {
+            String renamed = db.getRenamedName(knownSpells.get(i));
+            if (renamed != null && db.getSpell(knownSpells.get(i)) == null) {
+                knownSpells.set(i, renamed);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    public void learnSpell(String spellName) {
+        if (spellName != null && !knownSpells.contains(spellName)) {
+            knownSpells.add(spellName);
+            save();
+        }
+    }
+
+    public void forgetSpell(String spellName) {
+        if (knownSpells.remove(spellName)) {
+            save();
+        }
+    }
+
+    public int getMaxSpellSlots(int spellLevel) {
+        return isCaster() ? SpellSlots.maxSlots(level, spellLevel) : 0;
+    }
+
+    public int getSpellSlotsUsed(int spellLevel) {
+        if (spellLevel < 1 || spellLevel > SpellSlots.MAX_SPELL_LEVEL) return 0;
+        return spellSlotsUsed[spellLevel - 1];
+    }
+
+    public int getSpellSlotsRemaining(int spellLevel) {
+        return Math.max(0, getMaxSpellSlots(spellLevel) - getSpellSlotsUsed(spellLevel));
+    }
+
+    public boolean hasSpellSlot(int spellLevel) {
+        return spellLevel == 0 || getSpellSlotsRemaining(spellLevel) > 0;
+    }
+
+    /** Lowest slot level >= minLevel that still has a slot available, or -1 if none. */
+    public int lowestAvailableSlot(int minLevel) {
+        if (minLevel <= 0) return 0;
+        for (int lvl = minLevel; lvl <= SpellSlots.MAX_SPELL_LEVEL; lvl++) {
+            if (getSpellSlotsRemaining(lvl) > 0) return lvl;
+        }
+        return -1;
+    }
+
+    /** Spend one slot of the given level. Cantrips (level 0) are free. */
+    public boolean spendSpellSlot(int spellLevel) {
+        if (spellLevel == 0) return true;
+        if (getSpellSlotsRemaining(spellLevel) <= 0) return false;
+        spellSlotsUsed[spellLevel - 1]++;
+        save();
+        return true;
+    }
+
+    /** Restore one slot of the given level (manual DM correction). */
+    public void restoreSpellSlot(int spellLevel) {
+        if (spellLevel < 1 || spellLevel > SpellSlots.MAX_SPELL_LEVEL) return;
+        if (spellSlotsUsed[spellLevel - 1] > 0) {
+            spellSlotsUsed[spellLevel - 1]--;
+            save();
+        }
+    }
+
+    /** Long rest: restore every spell slot. */
+    public void longRest() {
+        java.util.Arrays.fill(spellSlotsUsed, 0);
+        save();
+    }
+
+    // ---- Status-derived combat modifiers ----
+
+    public int getStatusACModifier() {
+        return Status.sumMagnitude(status, Status.AC_MODIFIER);
+    }
+
+    public int getStatusAttackModifier() {
+        return Status.sumMagnitude(status, Status.ATTACK_MODIFIER);
+    }
+
+    public int getStatusMovementModifier() {
+        return Status.sumMovement(status);
+    }
+
     public void save() {
         // Only save party entities
         if (!isParty) {
             return;
         }
 
+        followSpellRenames();
         String dir = "saves/entities/party";
         new File(dir).mkdirs();
         String filePath = dir + "/" + name.replaceAll("[^a-zA-Z0-9]", "_") + ".json";
@@ -901,6 +1078,12 @@ public class CharSheet {
             }
             if (sheet.abilities == null) {
                 sheet.abilities = new ArrayList<ItemAbility>();
+            }
+            if (sheet.knownSpells == null) {
+                sheet.knownSpells = new ArrayList<String>();
+            }
+            if (sheet.spellSlotsUsed == null || sheet.spellSlotsUsed.length != SpellSlots.MAX_SPELL_LEVEL) {
+                sheet.spellSlotsUsed = new int[SpellSlots.MAX_SPELL_LEVEL];
             }
             // Recalculate attributes in case they were corrupted
             sheet.updateAttributes();

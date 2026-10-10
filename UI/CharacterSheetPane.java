@@ -19,6 +19,8 @@ public class CharacterSheetPane extends BorderPane {
     private CharSheet sheet;
     private boolean updatingDisplay = false;
     private Runnable onDelete;
+    private Runnable onGroupChanged;
+    private ComboBox<String> groupCombo;
 
     private StackPane headerAvatarBox;
     private AttributeRadarChart attributeChart;
@@ -68,6 +70,10 @@ public class CharacterSheetPane extends BorderPane {
     private ObservableList<EntityRes.ItemAbility> passiveAbilitiesData;
     private ObservableList<EntityRes.ItemAbility> activeAbilitiesData;
     private ObservableList<EntityRes.ItemAbility> specialAbilitiesData;
+    private ComboBox<String> castingStatCombo;
+    private Label castingInfoLabel;
+    private VBox spellSlotBox;
+    private ObservableList<Spell> knownSpellsData;
 
     public CharacterSheetPane(CharSheet sheet) {
         this.sheet = sheet;
@@ -82,7 +88,8 @@ public class CharacterSheetPane extends BorderPane {
         scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
 
         VBox leftColumn = new VBox(10, createBasicInfoSection(), createAttributesSection());
-        VBox rightColumn = new VBox(10, createEquipmentSection(), createAbilitiesSection(), createInventorySection());
+        VBox rightColumn = new VBox(10, createEquipmentSection(), createAbilitiesSection(),
+            createSpellcastingSection(), createInventorySection());
 
         GridPane content = new GridPane();
         content.setHgap(10);
@@ -108,6 +115,11 @@ public class CharacterSheetPane extends BorderPane {
      * The pane itself has no knowledge of the sheet list/party config, so the caller
      * (CharacterSheetView) is responsible for actually removing the sheet.
      */
+    /** Called after the user moves this character to a different roster group. */
+    public void setOnGroupChanged(Runnable onGroupChanged) {
+        this.onGroupChanged = onGroupChanged;
+    }
+
     public void setOnDelete(Runnable onDelete) {
         this.onDelete = onDelete;
     }
@@ -296,7 +308,27 @@ public class CharacterSheetPane extends BorderPane {
 
         VBox colorRow = new VBox(6, colorLabel, colorPicker);
 
-        form.getChildren().addAll(hpRow, acRow, statusRow, colorRow);
+        // Roster group (Character Sheets list filter)
+        Label groupLabel = new Label("Group:");
+        groupLabel.getStyleClass().add("form-label");
+        groupCombo = new ComboBox<>();
+        groupCombo.getItems().add(CharSheet.groupLabel(null));
+        for (String g : CharSheet.GROUPS) groupCombo.getItems().add(CharSheet.groupLabel(g));
+        groupCombo.setMaxWidth(Double.MAX_VALUE);
+        groupCombo.getStyleClass().add("styled-combo-box");
+        groupCombo.valueProperty().addListener((obs, old, val) -> {
+            if (updatingDisplay || val == null) return;
+            String key = null;
+            for (String g : CharSheet.GROUPS) {
+                if (CharSheet.groupLabel(g).equals(val)) key = g;
+            }
+            if (java.util.Objects.equals(key, sheet.getGroup())) return;
+            sheet.setGroup(key);
+            if (onGroupChanged != null) onGroupChanged.run();
+        });
+        VBox groupRow = new VBox(6, groupLabel, groupCombo);
+
+        form.getChildren().addAll(hpRow, acRow, statusRow, colorRow, groupRow);
 
         // Combine sprite and form
         basicInfoMainBox.getChildren().addAll(spriteBox, form);
@@ -620,6 +652,153 @@ public class CharacterSheetPane extends BorderPane {
         pane.getStyleClass().add("form-section");
         pane.setCollapsible(false);
         return pane;
+    }
+
+    private static final String[] CASTING_STATS = {"None", "INTELLIGENCE", "WISDOM", "CHARISMA", "STRENGTH", "DEXTERITY", "CONSTITUTION"};
+
+    private TitledPane createSpellcastingSection() {
+        castingStatCombo = new ComboBox<>();
+        castingStatCombo.getItems().addAll(CASTING_STATS);
+        castingStatCombo.valueProperty().addListener((obs, old, val) -> {
+            if (updatingDisplay || val == null) return;
+            sheet.setSpellcastingStat(val);
+            updateDisplay();
+        });
+        Label statLabel = new Label("Casting stat:");
+        statLabel.getStyleClass().add("label-muted");
+
+        castingInfoLabel = new Label();
+        castingInfoLabel.setStyle("-fx-text-fill: #b9a8f5; -fx-font-weight: bold;");
+
+        Button longRestBtn = new Button("Long Rest");
+        longRestBtn.setGraphic(IconUtils.createIcon(IconUtils.Icon.REST, 14, "#ffffff"));
+        longRestBtn.getStyleClass().add("button-arcane");
+        longRestBtn.setTooltip(new Tooltip("Restore all spell slots"));
+        longRestBtn.setOnAction(e -> {
+            sheet.longRest();
+            updateDisplay();
+        });
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox statRow = new HBox(8, statLabel, castingStatCombo, castingInfoLabel, spacer, longRestBtn);
+        statRow.setAlignment(Pos.CENTER_LEFT);
+
+        spellSlotBox = new VBox();
+
+        knownSpellsData = FXCollections.observableArrayList();
+        ListView<Spell> spellList = new ListView<>(knownSpellsData);
+        spellList.getStyleClass().add("ability-list");
+        // Grow with the spell count (no inner scrolling for a typical list), capped at 8 rows
+        spellList.prefHeightProperty().bind(javafx.beans.binding.Bindings.createDoubleBinding(
+            () -> 12 + 64.0 * Math.max(1, Math.min(8, knownSpellsData.size())), knownSpellsData));
+        spellList.setPlaceholder(new Label("No known spells"));
+        spellList.setCellFactory(lv -> new ListCell<>() {
+            private final Label nameLabel = new Label();
+            private final Label summaryLabel = new Label();
+            private final Label levelBadge = new Label();
+            private final Button removeBtn = new Button();
+            private final Button editBtn = new Button();
+            private final HBox container;
+            {
+                editBtn.setGraphic(IconUtils.createIcon(IconUtils.Icon.EDIT, 12, "#dcdcdc"));
+                editBtn.getStyleClass().add("button");
+                editBtn.setTooltip(new Tooltip("Edit this spell (changes apply to everyone who knows it)"));
+                editBtn.setOnAction(e -> {
+                    if (getItem() != null) {
+                        SpellEditorDialog.showAndWait(getScene() != null ? getScene().getWindow() : null,
+                            getItem(), CharacterSheetPane.this::updateDisplay);
+                    }
+                });
+                nameLabel.getStyleClass().add("ability-name");
+                summaryLabel.getStyleClass().add("ability-desc");
+                summaryLabel.maxWidthProperty().bind(lv.widthProperty().subtract(190));
+                levelBadge.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-padding: 2 7 2 7; "
+                    + "-fx-background-radius: 10; -fx-text-fill: white; -fx-background-color: #5d4bb8;");
+                removeBtn.setGraphic(IconUtils.createIcon(IconUtils.Icon.CLOSE, 12, "#ffffff"));
+                removeBtn.getStyleClass().add("button-danger");
+                removeBtn.setOnAction(e -> {
+                    if (getItem() != null) {
+                        sheet.forgetSpell(getItem().getName());
+                        updateDisplay();
+                    }
+                });
+                Region gap = new Region();
+                HBox.setHgrow(gap, Priority.ALWAYS);
+                container = new HBox(10, new VBox(2, nameLabel, summaryLabel), gap, levelBadge, editBtn, removeBtn);
+                container.setAlignment(Pos.CENTER_LEFT);
+                container.getStyleClass().addAll("ability-row", "ability-row-special");
+            }
+
+            @Override
+            protected void updateItem(Spell spell, boolean empty) {
+                super.updateItem(spell, empty);
+                setStyle("-fx-background-color: transparent;");
+                if (empty || spell == null) {
+                    setGraphic(null);
+                    return;
+                }
+                nameLabel.setText(spell.getName());
+                summaryLabel.setText(spell.getSummary());
+                levelBadge.setText(spell.getLevelLabel());
+                levelBadge.setStyle(levelBadge.getStyle().replaceAll("-fx-background-color: #[0-9a-fA-F]+;",
+                    "-fx-background-color: " + (spell.isCantrip() ? "#4a4f6a" : "#5d4bb8") + ";"));
+                setGraphic(container);
+            }
+        });
+
+        Button learnBtn = new Button("+ Learn Spell");
+        learnBtn.getStyleClass().add("button-accent");
+        learnBtn.setOnAction(e -> showLearnSpellDialog());
+
+        VBox box = new VBox(10, statRow, spellSlotBox, learnBtn, spellList);
+        box.setPadding(new Insets(6, 0, 0, 0));
+
+        TitledPane pane = new TitledPane("Spellcasting", box);
+        pane.setGraphic(IconUtils.createIcon(IconUtils.Icon.SPELL, 16, "#9a7cf0"));
+        pane.getStyleClass().add("form-section");
+        pane.setCollapsible(false);
+        return pane;
+    }
+
+    private void showLearnSpellDialog() {
+        java.util.List<String> choices = new java.util.ArrayList<>();
+        java.util.Map<String, String> labelToName = new java.util.HashMap<>();
+        for (Spell spell : SpellDatabase.getInstance().getAllSpells()) {
+            if (sheet.getKnownSpellNames().contains(spell.getName())) continue;
+            String label = spell.getName() + "  (" + spell.getLevelLabel() + ")";
+            choices.add(label);
+            labelToName.put(label, spell.getName());
+        }
+        if (choices.isEmpty()) {
+            DialogUtils.showAlert(Alert.AlertType.INFORMATION, "No Spells",
+                "No other spells exist yet. Create some in the Asset Editor's Spells tab.");
+            return;
+        }
+        ChoiceDialog<String> dialog = new ChoiceDialog<>(choices.get(0), choices);
+        dialog.setTitle("Learn Spell");
+        dialog.setHeaderText("Add a spell to " + sheet.getName() + "'s known spells:");
+        DialogUtils.theme(dialog);
+        dialog.showAndWait().ifPresent(choice -> {
+            sheet.learnSpell(labelToName.get(choice));
+            updateDisplay();
+        });
+    }
+
+    private void refreshSpellcasting() {
+        String stat = sheet.getSpellcastingStat();
+        castingStatCombo.setValue(stat == null ? "None" : stat);
+        if (sheet.isCaster()) {
+            int atk = sheet.getCastingModifier();
+            castingInfoLabel.setText("DC " + sheet.getSpellSaveDC() + "  |  Atk " + (atk >= 0 ? "+" : "") + atk);
+        } else {
+            castingInfoLabel.setText("Not a caster");
+        }
+        spellSlotBox.getChildren().setAll(sheet.isCaster()
+            ? UI.Battle.SpellPickerDialog.buildSlotRow(sheet) : new Label());
+        spellSlotBox.setVisible(sheet.isCaster());
+        spellSlotBox.setManaged(sheet.isCaster());
+        knownSpellsData.setAll(sheet.getKnownSpells());
     }
 
     private Tab createAbilityTab(String label, String abilityType, ObservableList<EntityRes.ItemAbility> data, String rowStyleClass) {
@@ -1142,6 +1321,7 @@ public class CharacterSheetPane extends BorderPane {
                     ? sheet.getCharacterClass() : "");
             }
             colorPicker.setValue(Color.web(sheet.getColor()));
+            groupCombo.setValue(CharSheet.groupLabel(sheet.getGroup()));
             refreshHeaderAvatar();
 
         // Update HP spinners without triggering listeners
@@ -1304,6 +1484,7 @@ public class CharacterSheetPane extends BorderPane {
                 default -> passiveAbilitiesData.add(ability);
             }
         }
+        refreshSpellcasting();
         } finally {
             updatingDisplay = false;
         }

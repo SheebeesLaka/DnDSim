@@ -365,6 +365,61 @@ public class CardUtils {
     }
     
     /**
+     * Creates a spell card: level/resolution badges, then the mechanical details.
+     */
+    public static VBox createSpellCard(Spell spell, CardAction onEdit, CardAction onDelete) {
+        CardStyle style = spell.isCantrip() ? CardStyle.NEUTRAL : CardStyle.RARE;
+
+        VBox card = createBaseCard(style);
+        card.setMinWidth(200);
+        card.setMaxWidth(240);
+
+        HBox header = createCardHeader(spell.getName(), style,
+            IconUtils.createIcon(IconUtils.Icon.SPELL, 18, spell.getColor()));
+
+        HBox badges = new HBox(6);
+        badges.getChildren().addAll(createBadge(spell.getLevelLabel(), style.accentColor),
+            createBadge(spell.getResolution(), "#7B68EE"));
+
+        VBox stats = new VBox(4);
+        stats.setPadding(new Insets(8, 0, 0, 0));
+        if (spell.getSchool() != null && !spell.getSchool().isEmpty()) {
+            addDetailRow(stats, "School", spell.getSchool());
+        }
+        if (spell.isArea()) {
+            addDetailRow(stats, "Area", spell.getAreaLabel() + (spell.isFriendlyFire() ? " (FF)" : ""));
+        } else {
+            addDetailRow(stats, "Range", spell.getRangeLabel());
+        }
+        addDetailRow(stats, "Targets", spell.getTargetType());
+        if (Spell.SAVE.equals(spell.getResolution())) {
+            addDetailRow(stats, "Save", spell.getSaveStat() + (Spell.ON_SAVE_HALF.equals(spell.getOnSave()) ? " (half)" : ""));
+        }
+        if (!Spell.BUFF.equals(spell.getResolution()) && !spell.getDiceLabel().isEmpty()) {
+            int flat = spell.getFlatDamage();
+            String flatStr = flat == 0 ? "" : (flat > 0 ? " +" : " ") + flat;
+            addDetailRow(stats, Spell.HEAL.equals(spell.getResolution()) ? "Healing" : "Damage",
+                (Spell.HEAL.equals(spell.getResolution()) ? spell.getDamageDice()[0] : spell.getDiceLabel()) + flatStr);
+        }
+        if (spell.getUpcastDie() != null && !spell.getUpcastDie().isEmpty() && !spell.isCantrip()) {
+            addDetailRow(stats, "Upcast", "+" + spell.getUpcastDie() + "/lvl");
+        }
+        if (spell.getRiderStatus() != null) {
+            Status rider = spell.getRiderStatus();
+            addDetailRow(stats, "Effect", rider.getName() + (rider.getDuration() > 0 ? " (" + rider.getDuration() + "t)" : ""));
+        }
+
+        HBox actions = createCardFooter(
+            createActionButton("Edit", IconUtils.Icon.EDIT, false, onEdit),
+            createActionButton("Delete", IconUtils.Icon.CLOSE, true, onDelete)
+        );
+
+        card.getChildren().addAll(header, badges, stats, actions);
+        addCardHoverEffect(card);
+        return card;
+    }
+
+    /**
      * Creates a detailed accessory card (defense + attribute mods, same shape as a weapon/armor card).
      */
     public static VBox createAccessoryCard(Accessory accessory, CardAction onEdit, CardAction onDelete) {

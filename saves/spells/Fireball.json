@@ -1,0 +1,31 @@
+{
+  "name": "Fireball",
+  "description": "A bead of fire blossoms into a radius-2 explosion up to 8 tiles away. Dexterity save for half; a tier 3 failure leaves targets Burning.",
+  "color": "#FF5722",
+  "level": 3,
+  "school": "Evocation",
+  "resolution": "SAVE",
+  "range": 8,
+  "targetType": "ENEMY",
+  "damageDice": [
+    "d10",
+    "d10",
+    "d12"
+  ],
+  "saveStat": "DEXTERITY",
+  "onSave": "HALF",
+  "riderMinTier": 3,
+  "addCastingMod": false,
+  "flatDamage": 0,
+  "area": "BURST",
+  "areaSize": 2,
+  "friendlyFire": true,
+  "upcastDie": "d6",
+  "riderStatus": {
+    "name": "Burning",
+    "effectType": 1,
+    "magnitude": 2,
+    "duration": 2,
+    "targetAttribute": -1
+  }
+}

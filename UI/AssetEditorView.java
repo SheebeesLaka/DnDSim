@@ -22,7 +22,9 @@ public class AssetEditorView {
     private TabPane itemTabs;
     private HBox itemButtonPanel;
     private HBox terrainButtonPanel;
+    private HBox spellButtonPanel;
     private FlowPane terrainPane;
+    private FlowPane spellPane;
     
     // Item data
     private ArrayList<Weapon> weapons = new ArrayList<>();
@@ -62,7 +64,16 @@ public class AssetEditorView {
         // Terrain add button (shown when Terrain tab selected)
         terrainButtonPanel = createTerrainButtonPanel();
         
-        topContainer.getChildren().addAll(backPanel, itemButtonPanel, terrainButtonPanel);
+        // Spell add button (shown when Spells tab selected)
+        spellButtonPanel = new HBox(8);
+        spellButtonPanel.setPadding(new Insets(5, 10, 10, 10));
+        spellButtonPanel.setAlignment(Pos.CENTER_LEFT);
+        Button addSpellBtn = new Button("+ Spell");
+        addSpellBtn.getStyleClass().add("button-primary");
+        addSpellBtn.setOnAction(e -> showSpellDialog(null));
+        spellButtonPanel.getChildren().add(addSpellBtn);
+
+        topContainer.getChildren().addAll(backPanel, itemButtonPanel, terrainButtonPanel, spellButtonPanel);
         root.setTop(topContainer);
         
         // Main tabs for Items vs Terrain
@@ -78,18 +89,27 @@ public class AssetEditorView {
         Tab terrainTab = new Tab("Terrain");
         terrainTab.setContent(createTerrainContent());
         mainTabs.getTabs().add(terrainTab);
-        
+
+        // Spells tab
+        Tab spellsTab = new Tab("Spells");
+        spellsTab.setContent(createSpellsContent());
+        mainTabs.getTabs().add(spellsTab);
+
         // Show/hide contextual buttons based on selected tab
         mainTabs.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
             itemButtonPanel.setVisible(newTab == itemsTab);
             itemButtonPanel.setManaged(newTab == itemsTab);
             terrainButtonPanel.setVisible(newTab == terrainTab);
             terrainButtonPanel.setManaged(newTab == terrainTab);
+            spellButtonPanel.setVisible(newTab == spellsTab);
+            spellButtonPanel.setManaged(newTab == spellsTab);
         });
-        
+
         // Initial visibility
         terrainButtonPanel.setVisible(false);
         terrainButtonPanel.setManaged(false);
+        spellButtonPanel.setVisible(false);
+        spellButtonPanel.setManaged(false);
         
         root.setCenter(mainTabs);
     }
@@ -253,6 +273,47 @@ public class AssetEditorView {
         return CardUtils.createKeyItemCard(item, () -> editKeyItem(item), () -> deleteItem(item));
     }
 
+    // ==================== SPELLS ====================
+
+    private VBox createSpellsContent() {
+        VBox content = new VBox();
+        spellPane = new FlowPane(10, 10);
+        spellPane.setPadding(new Insets(10));
+        spellPane.getStyleClass().add("panel");
+
+        ScrollPane scroll = new ScrollPane(spellPane);
+        scroll.setFitToWidth(true);
+        scroll.getStyleClass().add("panel");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+
+        refreshSpellDisplay();
+        content.getChildren().add(scroll);
+        return content;
+    }
+
+    private void refreshSpellDisplay() {
+        spellPane.getChildren().clear();
+        for (Spell spell : SpellDatabase.getInstance().getAllSpells()) {
+            spellPane.getChildren().add(CardUtils.createSpellCard(spell,
+                () -> showSpellDialog(spell), () -> deleteSpell(spell)));
+        }
+    }
+
+    private void deleteSpell(Spell spell) {
+        DialogUtils.confirm("Delete Spell", null, "Delete " + spell.getName() + "?\nCharacters who know it will simply stop seeing it.")
+            .ifPresent(response -> {
+                if (response == ButtonType.OK) {
+                    SpellDatabase.getInstance().deleteSpell(spell);
+                    refreshSpellDisplay();
+                }
+            });
+    }
+
+    /** Add/edit a spell (existing == null creates a new one). */
+    private void showSpellDialog(Spell existing) {
+        SpellEditorDialog.showAndWait(appController.getPrimaryStage(), existing, this::refreshSpellDisplay);
+    }
+
     // ==================== TERRAIN ====================
 
     private VBox createTerrainContent() {
@@ -291,10 +352,17 @@ public class AssetEditorView {
         HBox header = CardUtils.createCardHeader(terrain.getType(), style,
             IconUtils.createIcon(IconUtils.Icon.MAP, 18, style.accentColor));
 
+        StackPane thumb = new StackPane(SpriteUtils.createTerrainSprite(terrain, 64));
+        thumb.setPrefHeight(72);
+        thumb.setAlignment(Pos.CENTER);
+
         VBox stats = new VBox(4);
         stats.setPadding(new Insets(8, 0, 0, 0));
         addTerrainDetailRow(stats, "HP", String.valueOf(terrain.getHealth()));
-        addTerrainDetailRow(stats, "Blocks", terrain.blocksMovement() ? "Yes" : "No");
+        addTerrainDetailRow(stats, "Collision", terrain.hasCollision() ? "Yes" : "No");
+        if (!terrain.hasCollision()) {
+            addTerrainDetailRow(stats, "Layer", terrain.isEntityAboveTerrain() ? "Above" : "Below");
+        }
 
         Button editBtn = new Button("Edit");
         editBtn.getStyleClass().add("button");
@@ -310,7 +378,7 @@ public class AssetEditorView {
 
         HBox actions = CardUtils.createCardFooter(editBtn, deleteBtn);
 
-        card.getChildren().addAll(header, stats, actions);
+        card.getChildren().addAll(header, thumb, stats, actions);
         CardUtils.addCardHoverEffect(card);
 
         return card;
@@ -843,15 +911,26 @@ public class AssetEditorView {
     // ==================== TERRAIN DIALOGS ====================
 
     private void addNewTerrain() {
-        Stage dialog = createDialog("Add Terrain", 300, 250);
+        Stage dialog = createDialog("Add Terrain", 300, 300);
         GridPane grid = createDialogGrid();
-        
+
         TextField typeField = new TextField();
         TextField hpField = new TextField("10");
         ColorPicker colorPicker = new ColorPicker(Color.web(ColorUtils.fromLegacyIndex(0)));
-        CheckBox blocksCheck = new CheckBox("Blocks Movement");
-        blocksCheck.setSelected(true);
-        
+        CheckBox collisionCheck = new CheckBox("Collision (blocks entry)");
+        collisionCheck.setSelected(true);
+
+        // Layer only matters when collision is off - an entity can never
+        // share a tile with colliding terrain, so there's nothing to layer
+        Label layerLabel = new Label("Layer:");
+        ComboBox<String> layerCombo = new ComboBox<>();
+        layerCombo.getItems().addAll("Entity Above Terrain", "Entity Below Terrain");
+        layerCombo.setValue("Entity Above Terrain");
+        layerLabel.visibleProperty().bind(collisionCheck.selectedProperty().not());
+        layerLabel.managedProperty().bind(layerLabel.visibleProperty());
+        layerCombo.visibleProperty().bind(collisionCheck.selectedProperty().not());
+        layerCombo.managedProperty().bind(layerCombo.visibleProperty());
+
         // Sprite picker
         final String[] spritePath = { null };
         HBox spritePickerContainer = new HBox();
@@ -869,41 +948,52 @@ public class AssetEditorView {
         };
         refreshSpritePicker.run();
         colorPicker.setOnAction(e -> refreshSpritePicker.run());
-        
+
         int row = 0;
         grid.add(new Label("Type:"), 0, row); grid.add(typeField, 1, row++);
         grid.add(new Label("HP:"), 0, row); grid.add(hpField, 1, row++);
         grid.add(new Label("Color:"), 0, row); grid.add(colorPicker, 1, row++);
-        grid.add(new Label(""), 0, row); grid.add(blocksCheck, 1, row++);
+        grid.add(new Label(""), 0, row); grid.add(collisionCheck, 1, row++);
+        grid.add(layerLabel, 0, row); grid.add(layerCombo, 1, row++);
         grid.add(new Label("Sprite:"), 0, row); grid.add(spritePickerContainer, 1, row++);
-        
+
         addDialogButtons(grid, row, dialog, () -> {
             String type = typeField.getText();
             int hp = Integer.parseInt(hpField.getText());
-            boolean blocks = blocksCheck.isSelected();
+            boolean collision = collisionCheck.isSelected();
             if (!type.isEmpty()) {
-                TerrainObject newTerrain = new TerrainObject(0, 0, type, hp, toHexColor(colorPicker.getValue()), blocks);
+                TerrainObject newTerrain = new TerrainObject(0, 0, type, hp, toHexColor(colorPicker.getValue()), collision);
+                newTerrain.setEntityAboveTerrain(layerCombo.getValue().equals("Entity Above Terrain"));
                 newTerrain.setSpritePath(spritePath[0]);
                 TerrainDatabase.getInstance().addTerrain(newTerrain);
                 return true;
             }
             return false;
         }, this::refreshTerrainDisplay);
-        
-        dialog.setScene(createDialogScene(grid, 300, 250));
+
+        dialog.setScene(createDialogScene(grid, 300, 300));
         dialog.showAndWait();
     }
 
     private void editTerrain(TerrainObject terrain) {
-        Stage dialog = createDialog("Edit Terrain", 300, 250);
+        Stage dialog = createDialog("Edit Terrain", 300, 300);
         GridPane grid = createDialogGrid();
-        
+
         TextField typeField = new TextField(terrain.getType());
         TextField hpField = new TextField(String.valueOf(terrain.getHealth()));
         ColorPicker colorPicker = new ColorPicker(Color.web(terrain.getColor()));
-        CheckBox blocksCheck = new CheckBox("Blocks Movement");
-        blocksCheck.setSelected(terrain.blocksMovement());
-        
+        CheckBox collisionCheck = new CheckBox("Collision (blocks entry)");
+        collisionCheck.setSelected(terrain.hasCollision());
+
+        Label layerLabel = new Label("Layer:");
+        ComboBox<String> layerCombo = new ComboBox<>();
+        layerCombo.getItems().addAll("Entity Above Terrain", "Entity Below Terrain");
+        layerCombo.setValue(terrain.isEntityAboveTerrain() ? "Entity Above Terrain" : "Entity Below Terrain");
+        layerLabel.visibleProperty().bind(collisionCheck.selectedProperty().not());
+        layerLabel.managedProperty().bind(layerLabel.visibleProperty());
+        layerCombo.visibleProperty().bind(collisionCheck.selectedProperty().not());
+        layerCombo.managedProperty().bind(layerCombo.visibleProperty());
+
         // Sprite picker
         final String[] spritePath = { terrain.getSpritePath() };
         HBox spritePickerContainer = new HBox();
@@ -921,14 +1011,15 @@ public class AssetEditorView {
         };
         refreshSpritePicker.run();
         colorPicker.setOnAction(e -> refreshSpritePicker.run());
-        
+
         int row = 0;
         grid.add(new Label("Type:"), 0, row); grid.add(typeField, 1, row++);
         grid.add(new Label("HP:"), 0, row); grid.add(hpField, 1, row++);
         grid.add(new Label("Color:"), 0, row); grid.add(colorPicker, 1, row++);
-        grid.add(new Label(""), 0, row); grid.add(blocksCheck, 1, row++);
+        grid.add(new Label(""), 0, row); grid.add(collisionCheck, 1, row++);
+        grid.add(layerLabel, 0, row); grid.add(layerCombo, 1, row++);
         grid.add(new Label("Sprite:"), 0, row); grid.add(spritePickerContainer, 1, row++);
-        
+
         addDialogButtons(grid, row, dialog, () -> {
             String type = typeField.getText().trim();
             int hp = Integer.parseInt(hpField.getText());
@@ -937,14 +1028,15 @@ public class AssetEditorView {
             }
             terrain.setType(type);
             terrain.setHealth(hp);
-            terrain.setBlocksMovement(blocksCheck.isSelected());
+            terrain.setCollision(collisionCheck.isSelected());
+            terrain.setEntityAboveTerrain(layerCombo.getValue().equals("Entity Above Terrain"));
             terrain.setColor(toHexColor(colorPicker.getValue()));
             terrain.setSpritePath(spritePath[0]);
             TerrainDatabase.getInstance().saveTerrain(terrain);
             return true;
         }, this::refreshTerrainDisplay);
-        
-        dialog.setScene(createDialogScene(grid, 300, 250));
+
+        dialog.setScene(createDialogScene(grid, 300, 300));
         dialog.showAndWait();
     }
 

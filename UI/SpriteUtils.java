@@ -512,23 +512,37 @@ public class SpriteUtils {
     }
 
     /**
+     * How far a terrain sprite rises above its own tile, in cells. The art's
+     * aspect ratio is the only height setting: a flat decal returns 0, a sprite
+     * twice as tall as it is wide returns ~1.1. Lets the board reserve headroom
+     * so an overhanging sprite in row 0 is not cut off by the canvas edge.
+     */
+    public static double terrainOverhangCells(Objects.TerrainObject terrain) {
+        Image sprite = staticFrame(terrain.getSpritePath());
+        if (sprite == null || sprite.getWidth() <= 0) {
+            return 0; // no art: the fallback block never leaves its cell
+        }
+        // Mirrors drawTerrainSpriteOnCanvas: height is width-fit, base sits at 0.90
+        return Math.max(0, sprite.getHeight() / sprite.getWidth() - 0.90);
+    }
+
+    /**
      * Draw a terrain sprite on a canvas GraphicsContext.
-     * Sprites are scaled to fit the cell while preserving aspect ratio.
+     * Sprites are scaled to cell width and bottom-anchored on the unit foot
+     * line, so taller-than-wide art overhangs the rows behind it.
      */
     public static void drawTerrainSpriteOnCanvas(GraphicsContext gc, Objects.TerrainObject terrain,
             double x, double y, double cellSize) {
         Image sprite = staticFrame(terrain.getSpritePath());
         
         if (sprite != null) {
-            // Scale to fit cell while preserving aspect ratio
-            double spriteWidth = sprite.getWidth();
-            double spriteHeight = sprite.getHeight();
-            double scale = Math.min(cellSize / spriteWidth, cellSize / spriteHeight);
-            double drawWidth = spriteWidth * scale;
-            double drawHeight = spriteHeight * scale;
-            double drawX = x + (cellSize - drawWidth) / 2;
-            double drawY = y + (cellSize - drawHeight) / 2;
-            gc.drawImage(sprite, drawX, drawY, drawWidth, drawHeight);
+            // Scale to cell WIDTH and stand on the same foot line as units, so a
+            // taller-than-wide sprite (a tree) overhangs the rows behind it rather
+            // than being squashed into its tile. The back-to-front pass in
+            // BattleGridCanvas.redraw() then occludes the overhang correctly.
+            double footY = y + cellSize * 0.90;
+            double drawHeight = sprite.getHeight() * (cellSize / sprite.getWidth());
+            gc.drawImage(sprite, Math.round(x), Math.round(footY - drawHeight), cellSize, drawHeight);
         } else {
             // Fallback: extruded block - lighter top face over a darker front
             // face so flat colors still read as standing on the board

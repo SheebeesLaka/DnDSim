@@ -88,17 +88,6 @@ public class Weapon extends Item {
     }
 
     /**
-     * Get the legacy-style flat damage value derived from the first damage die.
-     */
-    public int getDamageValue() {
-        String[] dice = getDamageDice();
-        if (dice.length > 0) {
-            return getAverageDieValue(dice[0]);
-        }
-        return damage > 0 ? damage : 4;
-    }
-    
-    /**
      * Get the ammo type this weapon uses (null for melee weapons)
      */
     public String getAmmoType() {
@@ -116,31 +105,6 @@ public class Weapon extends Item {
         return ammoType != null && !ammoType.isEmpty();
     }
     
-    // Legacy method for backward compatibility
-    @Deprecated
-    public void setDamage(int damage) {
-        this.damage = damage;
-        this.damageDice = convertLegacyDamage(damage);
-    }
-
-    @Deprecated
-    public int getDamage() {
-        return getDamageValue();
-    }
-    
-    private int getAverageDieValue(String die) {
-        if (die == null) return 4;
-        switch (die.toLowerCase()) {
-            case "d4": return 2;
-            case "d6": return 3;
-            case "d8": return 4;
-            case "d10": return 5;
-            case "d12": return 6;
-            case "d20": return 10;
-            default: return 4;
-        }
-    }
-
     public void setModifiedAttributes(int[] modifiedAttributes) {
         // Always store as 6-element array
         this.modifiedAttributes = new int[6];

@@ -1,0 +1,22 @@
+{
+  "name": "Grey Ooze",
+  "health": 10,
+  "maxHealth": 10,
+  "mobility": 2,
+  "armorClass": 16,
+  "attackModifier": 0,
+  "damageDice": [
+    "d4",
+    "d4",
+    "d6"
+  ],
+  "initiative": 2,
+  "dexterity": 2,
+  "color": "#666666",
+  "instanceNumber": 0,
+  "baseName": "Grey Ooze",
+  "tags": [],
+  "attackDamage": 0,
+  "row": 0,
+  "col": 0
+}

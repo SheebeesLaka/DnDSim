@@ -1,0 +1,19 @@
+{
+  "name": "Sacred Flame",
+  "description": "Radiant flame descends on a creature that fails a Dexterity save.",
+  "color": "#FFE082",
+  "level": 0,
+  "school": "Evocation",
+  "resolution": "SAVE",
+  "range": 6,
+  "targetType": "ENEMY",
+  "damageDice": [
+    "d8",
+    "d6",
+    "d8"
+  ],
+  "saveStat": "DEXTERITY",
+  "onSave": "NONE",
+  "riderMinTier": 1,
+  "addCastingMod": false
+}

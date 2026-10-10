@@ -1,0 +1,22 @@
+{
+  "name": "Shielded Moongate Guard",
+  "health": 15,
+  "maxHealth": 15,
+  "mobility": 2,
+  "armorClass": 14,
+  "attackModifier": 0,
+  "damageDice": [
+    "d4",
+    "d4",
+    "d4"
+  ],
+  "initiative": 2,
+  "dexterity": 2,
+  "color": "#CC3333",
+  "instanceNumber": 0,
+  "baseName": "Shielded Moongate Guard",
+  "tags": [],
+  "attackDamage": 0,
+  "row": 0,
+  "col": 0
+}

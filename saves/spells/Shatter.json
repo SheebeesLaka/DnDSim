@@ -1,0 +1,20 @@
+{
+  "name": "Shatter",
+  "description": "A painful ringing noise. Constitution save; half damage on a success.",
+  "color": "#BA68C8",
+  "level": 2,
+  "school": "Evocation",
+  "resolution": "SAVE",
+  "range": 6,
+  "targetType": "ENEMY",
+  "damageDice": [
+    "d8",
+    "d8",
+    "d8"
+  ],
+  "saveStat": "CONSTITUTION",
+  "onSave": "HALF",
+  "riderMinTier": 1,
+  "addCastingMod": false,
+  "upcastDie": "d8"
+}

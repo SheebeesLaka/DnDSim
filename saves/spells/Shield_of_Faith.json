@@ -1,0 +1,26 @@
+{
+  "name": "Shield of Faith",
+  "description": "A shimmering field grants an ally +2 AC for 10 turns.",
+  "color": "#90CAF9",
+  "level": 1,
+  "school": "Abjuration",
+  "resolution": "BUFF",
+  "range": 4,
+  "targetType": "ALLY",
+  "damageDice": [
+    null,
+    null,
+    null
+  ],
+  "saveStat": "DEXTERITY",
+  "onSave": "NONE",
+  "riderMinTier": 1,
+  "addCastingMod": false,
+  "riderStatus": {
+    "name": "Shield of Faith",
+    "effectType": 5,
+    "magnitude": 2,
+    "duration": 10,
+    "targetAttribute": -1
+  }
+}

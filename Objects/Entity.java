@@ -19,27 +19,12 @@ public class Entity extends GridObject {
         this.baseName = charSheet.getName();
     }
 
-    @Deprecated
-    public void attack(Entity target) {
-        int damage = getAttackPower() - target.getDefense();
-        target.takeDamage(Math.max(0, damage));  // Minimum 0 damage
-    }
-
-    @Deprecated
-    public int getAttackPower() {
-        // Legacy: Attack damage = weapon damage + strength attribute
-        // Default unarmed damage is 1
-        int weaponDamage = charSheet.getEquippedWeapon() != null ? charSheet.getEquippedWeapon().getDamage() : 1;
-        int strength = charSheet.getAttribute(0); // STRENGTH = 0
-        return weaponDamage + strength;
-    }
-    
     /**
      * Get Armor Class for attack roll calculations
      * Base AC from the character sheet (default 10) + total defense from equipped armor
      */
     public int getAC() {
-        return charSheet.getArmorClass() + charSheet.getTotalDefense() + acAdjustment;
+        return charSheet.getArmorClass() + charSheet.getTotalDefense() + charSheet.getStatusACModifier() + acAdjustment;
     }
 
     public int getAcAdjustment() {
@@ -73,33 +58,40 @@ public class Entity extends GridObject {
         return charSheet.getTotalAttribute(attributeIndex) + statAdjustment[attributeIndex];
     }
 
-    @Deprecated
-    public int getDefense() {
-        return charSheet.getTotalDefense();
-    }
-    
     /**
      * Get the stat modifier used for attack rolls with current weapon
      */
     public int getAttackModifier() {
         Weapon weapon = charSheet.getEquippedWeapon();
+        int statusBonus = charSheet.getStatusAttackModifier();
         if (weapon != null) {
             int statIndex = weapon.getStatIndex();
-            return getAdjustedAttribute(statIndex);
+            return getAdjustedAttribute(statIndex) + statusBonus;
         }
         // Unarmed uses STR
-        return getAdjustedAttribute(CharSheet.STRENGTH);
+        return getAdjustedAttribute(CharSheet.STRENGTH) + statusBonus;
     }
 
-    /**
-     * Get the direct damage value used by legacy terrain damage interactions.
-     */
-    public int getAttackDamage() {
-        int weaponDamage = charSheet.getEquippedWeapon() != null ? charSheet.getEquippedWeapon().getDamageValue() : 1;
-        int strength = charSheet.getAttribute(0); // STRENGTH = 0
-        return weaponDamage + strength;
+    /** Raw casting stat (with battle adjustments), the spell analogue of the weapon stat. */
+    public int getCastingModifier() {
+        if (!charSheet.isCaster()) return 0;
+        return getAdjustedAttribute(charSheet.getSpellcastingStatIndex());
     }
-    
+
+    /** Spell attack roll modifier: casting stat plus any attack-modifier statuses. */
+    public int getSpellAttackModifier() {
+        return getCastingModifier() + charSheet.getStatusAttackModifier();
+    }
+
+    public int getSpellSaveDC() {
+        return CharSheet.SPELL_DC_BASE + getCastingModifier();
+    }
+
+    /** Saving throw modifier for the given stat index. */
+    public int getSaveModifier(int attributeIndex) {
+        return getAdjustedAttribute(attributeIndex);
+    }
+
     /**
      * Get damage dice from equipped weapon, with any temporary battle adjustment applied per tier.
      */
@@ -149,7 +141,7 @@ public class Entity extends GridObject {
 
     public int getMovement() {
         int totalDex = getAdjustedAttribute(CharSheet.DEXTERITY);
-        return 1 +((totalDex + 1) / 2);
+        return Math.max(0, 1 + ((totalDex + 1) / 2) + charSheet.getStatusMovementModifier());
     }
 
     public int getHealth() {
@@ -191,11 +183,6 @@ public class Entity extends GridObject {
 
     public boolean isDead() {
         return charSheet.getCurrentHP() <= 0;
-    }
-
-    public void pickup(Pickup p) {
-        charSheet.pickupItem(p.getItem());
-        charSheet.save();
     }
 
     public void addStatus(Status s) {

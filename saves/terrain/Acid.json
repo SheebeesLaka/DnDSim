@@ -1,1 +1,1 @@
-{"type":"Acid","health":1,"color":"#00FF00","blocksMovement":false,"row":0,"col":0}
+{"type":"Acid","health":1,"color":"#00FF00","collision":false,"entityAboveTerrain":true,"spritePath":"terrain/acid.png","row":0,"col":0}

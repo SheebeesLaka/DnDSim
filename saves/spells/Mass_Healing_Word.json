@@ -1,0 +1,24 @@
+{
+  "name": "Mass Healing Word",
+  "description": "Words of restoration heal every ally within a radius-2 burst up to 8 tiles away.",
+  "color": "#A5D6A7",
+  "level": 3,
+  "school": "Evocation",
+  "resolution": "HEAL",
+  "range": 8,
+  "targetType": "ALLY",
+  "damageDice": [
+    "d4",
+    null,
+    null
+  ],
+  "saveStat": "DEXTERITY",
+  "onSave": "NONE",
+  "riderMinTier": 1,
+  "addCastingMod": true,
+  "flatDamage": 0,
+  "area": "BURST",
+  "areaSize": 2,
+  "friendlyFire": false,
+  "upcastDie": "d4"
+}

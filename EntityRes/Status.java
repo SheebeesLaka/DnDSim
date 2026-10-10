@@ -7,7 +7,13 @@ public class Status {
     public static final int DAMAGE_OVER_TIME = 1;
     public static final int HEAL_OVER_TIME = 2;
     public static final int STAT_MODIFIER = 3;
-    public static final int MOVEMENT_MODIFIER = 4;
+    public static final int MOVEMENT_MODIFIER = 4;  // targetAttribute -1 = flat tiles of movement
+    public static final int AC_MODIFIER = 5;        // flat AC bonus/penalty
+    public static final int ATTACK_MODIFIER = 6;    // flat bonus/penalty to attack rolls (weapons and spells)
+
+    public static final String[] EFFECT_TYPE_NAMES = {
+        "None", "Damage over time", "Heal over time", "Stat modifier", "Movement modifier", "AC modifier", "Attack modifier"
+    };
 
     // Target attribute constants (for STAT_MODIFIER)
     public static final int STRENGTH = 0;
@@ -52,6 +58,26 @@ public class Status {
     // Factory methods for common status effects
     public static Status poison(int damagePerTurn, int duration) {
         return new Status("POISONED", DAMAGE_OVER_TIME, damagePerTurn, duration, -1);
+    }
+
+    /** Sum of magnitudes for statuses of the given effect type (targetAttribute ignored). */
+    public static int sumMagnitude(Iterable<Status> statuses, int effectType) {
+        int total = 0;
+        if (statuses == null) return 0;
+        for (Status s : statuses) {
+            if (s.getEffectType() == effectType) total += s.getMagnitude();
+        }
+        return total;
+    }
+
+    /** Sum of flat movement modifiers (MOVEMENT_MODIFIER not tied to an attribute). */
+    public static int sumMovement(Iterable<Status> statuses) {
+        int total = 0;
+        if (statuses == null) return 0;
+        for (Status s : statuses) {
+            if (s.getEffectType() == MOVEMENT_MODIFIER && s.getTargetAttribute() < 0) total += s.getMagnitude();
+        }
+        return total;
     }
     // Methods
     public void setName(String name) {

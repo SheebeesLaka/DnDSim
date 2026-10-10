@@ -1,0 +1,20 @@
+{
+  "name": "Cure Wounds",
+  "description": "Touch a creature to restore d8 + casting bonus HP (+d8 per slot level above 1st).",
+  "color": "#81C784",
+  "level": 1,
+  "school": "Evocation",
+  "resolution": "HEAL",
+  "range": 1,
+  "targetType": "ALLY",
+  "damageDice": [
+    "d8",
+    null,
+    null
+  ],
+  "saveStat": "DEXTERITY",
+  "onSave": "NONE",
+  "riderMinTier": 1,
+  "addCastingMod": true,
+  "upcastDie": "d8"
+}

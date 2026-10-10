@@ -1,0 +1,27 @@
+{
+  "name": "Guiding Bolt",
+  "description": "A flash of light that leaves the target Illuminated (-2 AC) until the end of its next turn.",
+  "color": "#FFF59D",
+  "level": 1,
+  "school": "Evocation",
+  "resolution": "ATTACK",
+  "range": 8,
+  "targetType": "ENEMY",
+  "damageDice": [
+    "d12",
+    "d8",
+    "d10"
+  ],
+  "saveStat": "DEXTERITY",
+  "onSave": "NONE",
+  "riderMinTier": 1,
+  "addCastingMod": false,
+  "upcastDie": "d6",
+  "riderStatus": {
+    "name": "Illuminated",
+    "effectType": 5,
+    "magnitude": -2,
+    "duration": 2,
+    "targetAttribute": -1
+  }
+}

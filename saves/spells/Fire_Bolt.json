@@ -1,0 +1,27 @@
+{
+  "name": "Fire Bolt",
+  "description": "Hurl a mote of fire. A tier 3 hit sets the target Burning.",
+  "color": "#FF7043",
+  "level": 0,
+  "school": "Evocation",
+  "resolution": "ATTACK",
+  "range": 8,
+  "targetType": "ENEMY",
+  "damageDice": [
+    "d4",
+    "d6",
+    "d10"
+  ],
+  "saveStat": "DEXTERITY",
+  "onSave": "NONE",
+  "riderStatus": {
+    "name": "Burning",
+    "effectType": 1,
+    "magnitude": 2,
+    "duration": 2,
+    "targetAttribute": -1
+  },
+  "riderMinTier": 3,
+  "addCastingMod": false,
+  "flatDamage": 0
+}

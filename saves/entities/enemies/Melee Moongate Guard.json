@@ -1,0 +1,24 @@
+{
+  "name": "Melee Moongate Guard",
+  "health": 18,
+  "maxHealth": 18,
+  "mobility": 3,
+  "armorClass": 12,
+  "attackModifier": 0,
+  "damageDice": [
+    "d4",
+    "d4",
+    "d4"
+  ],
+  "initiative": 3,
+  "dexterity": 3,
+  "color": "#FF0000",
+  "instanceNumber": 0,
+  "baseName": "Melee Moongate Guard",
+  "tags": [
+    "Humanoid"
+  ],
+  "attackDamage": 0,
+  "row": 0,
+  "col": 0
+}

@@ -3,20 +3,26 @@
   "health": 14,
   "maxHealth": 14,
   "mobility": 5,
-  "armorClass": 10,
-  "attackModifier": 0,
+  "armorClass": 12,
   "damageDice": [
     "d4",
     "d4",
     "d4"
   ],
-  "initiative": 7,
   "dexterity": 7,
   "color": "#008000",
   "instanceNumber": 0,
   "baseName": "Snake",
   "tags": [
     "Beast"
+  ],
+  "attributes": [
+    7,
+    7,
+    7,
+    7,
+    7,
+    7
   ],
   "attackDamage": 0,
   "row": 0,

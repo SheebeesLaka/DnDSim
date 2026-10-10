@@ -118,7 +118,12 @@ public class BattleGridCanvas extends Pane {
     private Enemy movingEnemy;
     private boolean pickupMode;
     private Entity pickupEntity;
-    private final VBox infoPopup;
+    private boolean castMode;
+    private Entity castingEntity;
+    private EntityRes.Spell pendingSpell;
+    private int pendingSlotLevel;
+    private java.util.List<int[]> lockedAreaCells;  // template frozen in place while an area spell's rolls are entered
+private final VBox infoPopup;
     private boolean infoPopupPinned;
     private GridObject infoPopupTarget;
     private final PauseTransition hoverDelay;
@@ -275,7 +280,7 @@ public class BattleGridCanvas extends Pane {
             int col = cellInfo[1];
             if (grid.inBounds(row, col)) {
                 GridObject obj = grid.getObjectAt(row, col);
-                if (obj != null && !moveMode && !attackMode && !pickupMode) {
+                if (obj != null && !moveMode && !attackMode && !pickupMode && !castMode) {
                     // Select the entity and update action panel
                     selectedObject = obj;
                     battleView.updateSelectedEntity(obj);
@@ -312,12 +317,19 @@ public class BattleGridCanvas extends Pane {
      */
     private void handleMouseMoved(MouseEvent e) {
         int[] cellInfo = getCellAtPoint(e.getX(), e.getY());
+        int prevRow = hoverRow;
+        int prevCol = hoverCol;
         if (cellInfo != null && grid.inBounds(cellInfo[0], cellInfo[1])) {
             hoverRow = cellInfo[0];
             hoverCol = cellInfo[1];
         } else {
             hoverRow = -1;
             hoverCol = -1;
+        }
+        // Area spells preview their template under the cursor
+        if (castMode && pendingSpell != null && pendingSpell.isArea() && lockedAreaCells == null
+                && (prevRow != hoverRow || prevCol != hoverCol)) {
+            redraw();
         }
 
         if (infoPopupPinned) return;
@@ -532,6 +544,15 @@ public class BattleGridCanvas extends Pane {
                         triggerSwapForSelected();
                         e.consume();
                     }
+                    case C -> {
+                        // Toggle cast mode
+                        if (castMode && castingEntity == entity) {
+                            cancelModes();
+                        } else {
+                            triggerCast(entity);
+                        }
+                        e.consume();
+                    }
                     case P -> {
                         // Toggle pickup mode
                         if (pickupMode && pickupEntity == entity) {
@@ -586,10 +607,20 @@ public class BattleGridCanvas extends Pane {
         attackingEnemy = null;
         pickupMode = false;
         pickupEntity = null;
+        clearCastMode();
         redraw();
     }
 
+    private void clearCastMode() {
+        castMode = false;
+        castingEntity = null;
+        pendingSpell = null;
+        pendingSlotLevel = 0;
+        lockedAreaCells = null;
+    }
+
     private void triggerMove(Entity entity) {
+        clearCastMode();
         selectedObject = entity;
         attackMode = false;
         attackingEntity = null;
@@ -609,6 +640,7 @@ public class BattleGridCanvas extends Pane {
                 "No " + ammoType + " ammo in inventory!");
             return;
         }
+        clearCastMode();
         selectedObject = entity;
         attackMode = true;
         attackingEntity = entity;
@@ -763,6 +795,7 @@ public class BattleGridCanvas extends Pane {
     }
 
     private void triggerPickup(Entity entity) {
+        clearCastMode();
         selectedObject = entity;
         attackMode = false;
         attackingEntity = null;
@@ -781,6 +814,7 @@ public class BattleGridCanvas extends Pane {
     }
 
     private void triggerEnemyMove(Enemy enemy) {
+        clearCastMode();
         selectedObject = enemy;
         attackMode = false;
         attackingEntity = null;
@@ -794,6 +828,7 @@ public class BattleGridCanvas extends Pane {
     }
 
     private void triggerEnemyAttack(Enemy enemy) {
+        clearCastMode();
         selectedObject = enemy;
         attackMode = true;
         attackingEntity = null;
@@ -822,6 +857,241 @@ public class BattleGridCanvas extends Pane {
         } else if (selectedObject instanceof Enemy enemy) {
             triggerEnemyAttack(enemy);
         }
+    }
+
+    public void startCastMode() {
+        if (!battleStarted) return;
+        if (selectedObject instanceof Entity entity && entity.isParty()) {
+            triggerCast(entity);
+        }
+    }
+
+    /**
+     * Open the spell picker for a caster, then either resolve a self-only spell immediately or
+     * enter cast mode so the player can click a target within range.
+     */
+    private void triggerCast(Entity entity) {
+        if (!entity.getCharSheet().isCaster() || entity.getCharSheet().getKnownSpells().isEmpty()) {
+            showAlert(Alert.AlertType.INFORMATION, "No Spells",
+                entity.getName() + " has no spellcasting stat or known spells.\nSet them up on the character sheet.");
+            return;
+        }
+        cancelModes();
+        selectedObject = entity;
+        java.util.Optional<SpellPickerDialog.SpellChoice> choice = SpellPickerDialog.show(entity);
+        if (choice.isEmpty()) {
+            redraw();
+            return;
+        }
+        pendingSpell = choice.get().spell();
+        pendingSlotLevel = choice.get().slotLevel();
+        castingEntity = entity;
+        castMode = true;
+
+        if (pendingSpell.isArea()) {
+            if (pendingSpell.isSelfCenteredArea()) {
+                resolveAreaAt(entity.getRow(), entity.getCol());
+            } else {
+                redraw();
+            }
+            return;
+        }
+        if (EntityRes.Spell.TARGET_SELF.equals(pendingSpell.getTargetType()) || pendingSpell.getRange() == 0) {
+            resolveSpellOn(entity);
+            return;
+        }
+        redraw();
+    }
+
+    /** Whether a grid object is a legal, in-range target for the spell being cast. */
+    private boolean isCastTarget(GridObject obj) {
+        if (!castMode || castingEntity == null || pendingSpell == null || obj == null) return false;
+        if (pendingSpell.isArea()) return false;  // area spells pick cells, not units
+        return CombatManager.isValidSpellTarget(castingEntity, obj, pendingSpell)
+            && CombatManager.isInRange(castingEntity, obj, pendingSpell.getRange());
+    }
+
+    /** Route the pending spell to the right resolution flow. */
+    private void resolveSpellOn(GridObject target) {
+        Entity caster = castingEntity;
+        EntityRes.Spell spell = pendingSpell;
+        int slot = pendingSlotLevel;
+        DiceRollPanel dicePanel = battleView.getDiceRollPanel();
+
+        switch (spell.getResolution()) {
+            case EntityRes.Spell.SAVE -> {
+                battleView.showDiceRollPanel();
+                dicePanel.startSavingThrow(caster, target, spell, slot, this::handleSpellOutcome, this::handleCastCancelled);
+            }
+            case EntityRes.Spell.AUTO -> {
+                battleView.showDiceRollPanel();
+                dicePanel.startAutoHit(caster, target, spell, slot, this::handleSpellOutcome, this::handleCastCancelled);
+            }
+            case EntityRes.Spell.HEAL -> {
+                battleView.showDiceRollPanel();
+                dicePanel.startHeal(caster, target, spell, slot, this::handleSpellOutcome, this::handleCastCancelled);
+            }
+            case EntityRes.Spell.BUFF -> {
+                // No roll: the buff simply lands
+                DiceRollPanel.AttackOutcome outcome = new DiceRollPanel.AttackOutcome(
+                    caster, target, true, 1, 0, 0, 0, 0, 0);
+                outcome.spell = spell;
+                outcome.slotLevel = slot;
+                outcome.applyRider = true;
+                handleSpellOutcome(outcome);
+            }
+            default -> {
+                battleView.showDiceRollPanel();
+                dicePanel.startSpellAttack(caster, target, spell, slot, this::handleSpellOutcome, this::handleCastCancelled);
+            }
+        }
+    }
+
+    private void handleSpellOutcome(DiceRollPanel.AttackOutcome outcome) {
+        GridObject caster = outcome.attacker;
+        GridObject target = outcome.target;
+        EntityRes.Spell spell = outcome.spell;
+        Color spellColor = Color.web(spell.getColor());
+
+        // The slot is spent once the spell resolves, hit or miss (cancelling refunds it)
+        if (caster instanceof Entity e) {
+            e.getCharSheet().spendSpellSlot(outcome.slotLevel);
+        }
+
+        if (EntityRes.Spell.HEAL.equals(spell.getResolution())) {
+            int healed = CombatManager.applyHealing(target, outcome.totalDamage);
+            spawnFloatingText(target, "+" + healed, Color.web("#7ee08a"));
+        } else if (EntityRes.Spell.BUFF.equals(spell.getResolution())) {
+            // Floating text comes from the rider below
+        } else if (outcome.hit && outcome.totalDamage > 0) {
+            CombatManager.applyDamage(target, outcome.totalDamage);
+            boolean crit = EntityRes.Spell.ATTACK.equals(spell.getResolution()) && outcome.d20Roll == 20;
+            spawnFloatingText(target, "-" + outcome.totalDamage, crit ? Color.web("#FFD700") : spellColor.brighter());
+        } else if (!outcome.hit) {
+            spawnFloatingText(target, outcome.saved ? "Saved" : "Miss", Color.web("#b8b8c0"));
+        }
+
+        boolean defeated = !EntityRes.Spell.HEAL.equals(spell.getResolution()) && CombatManager.isTargetDead(target);
+        if (outcome.applyRider && !defeated) {
+            EntityRes.Status rider = spell.createRiderStatus();
+            if (rider != null && CombatManager.applyStatus(target, rider)) {
+                boolean delay = !EntityRes.Spell.BUFF.equals(spell.getResolution());
+                if (delay) {
+                    PauseTransition later = new PauseTransition(Duration.millis(450));
+                    later.setOnFinished(ev -> { spawnFloatingText(target, rider.getName(), spellColor); redraw(); });
+                    later.play();
+                } else {
+                    spawnFloatingText(target, rider.getName(), spellColor);
+                }
+            }
+        }
+        if (defeated) {
+            removeDefeated(target);
+        }
+
+        finishCast(caster);
+    }
+
+    private void handleCastCancelled() {
+        finishCast(castingEntity);
+    }
+
+    /** Template cells for the current aim: frozen once rolling starts, else under the cursor. */
+    private java.util.List<int[]> currentAreaCells() {
+        if (lockedAreaCells != null) return lockedAreaCells;
+        if (!castMode || castingEntity == null || pendingSpell == null || !pendingSpell.isArea()) return java.util.List.of();
+        if (pendingSpell.isSelfCenteredArea()) {
+            return SpellArea.cells(pendingSpell, castingEntity, castingEntity.getRow(), castingEntity.getCol(), grid);
+        }
+        if (hoverRow < 0) return java.util.List.of();
+        return SpellArea.cells(pendingSpell, castingEntity, hoverRow, hoverCol, grid);
+    }
+
+    /** Cast the pending area spell aimed at a cell. No targets inside = nothing happens, slot kept. */
+    private void resolveAreaAt(int aimRow, int aimCol) {
+        Entity caster = castingEntity;
+        EntityRes.Spell spell = pendingSpell;
+        int slot = pendingSlotLevel;
+        java.util.List<int[]> cells = SpellArea.cells(spell, caster, aimRow, aimCol, grid);
+        java.util.List<GridObject> targets = SpellArea.targets(spell, caster, cells, grid);
+        if (targets.isEmpty()) {
+            spawnFloatingText(aimRow, aimCol, "No targets", Color.web("#b8b8c0"));
+            if (spell.isSelfCenteredArea()) {
+                finishCast(caster);  // nothing to aim, so drop out of cast mode
+            } else {
+                redraw();
+            }
+            return;
+        }
+        lockedAreaCells = cells;
+        redraw();
+
+        if (EntityRes.Spell.BUFF.equals(spell.getResolution())) {
+            java.util.List<DiceRollPanel.AreaHit> hits = new java.util.ArrayList<>();
+            for (GridObject t : targets) hits.add(new DiceRollPanel.AreaHit(t, 1, 0, false, false, true));
+            handleAreaOutcome(new DiceRollPanel.AreaOutcome(caster, spell, slot, hits));
+            return;
+        }
+        battleView.showDiceRollPanel();
+        battleView.getDiceRollPanel().startAreaSpell(caster, targets, spell, slot,
+            this::handleAreaOutcome, this::handleCastCancelled);
+    }
+
+    private void handleAreaOutcome(DiceRollPanel.AreaOutcome outcome) {
+        GridObject caster = outcome.caster;
+        EntityRes.Spell spell = outcome.spell;
+        Color spellColor = Color.web(spell.getColor());
+        boolean heal = EntityRes.Spell.HEAL.equals(spell.getResolution());
+        boolean buff = EntityRes.Spell.BUFF.equals(spell.getResolution());
+
+        if (caster instanceof Entity e) {
+            e.getCharSheet().spendSpellSlot(outcome.slotLevel);
+        }
+
+        java.util.List<GridObject> defeated = new java.util.ArrayList<>();
+        for (DiceRollPanel.AreaHit hit : outcome.hits) {
+            GridObject target = hit.target;
+            if (heal) {
+                int healed = CombatManager.applyHealing(target, hit.damage);
+                spawnFloatingText(target, "+" + healed, Color.web("#7ee08a"));
+            } else if (!buff) {
+                if (hit.damage > 0) {
+                    CombatManager.applyDamage(target, hit.damage);
+                    spawnFloatingText(target, "-" + hit.damage, hit.crit ? Color.web("#FFD700") : spellColor.brighter());
+                } else if (hit.tier == 0) {
+                    spawnFloatingText(target, hit.saved ? "Saved" : "Miss", Color.web("#b8b8c0"));
+                }
+            }
+            boolean dead = !heal && CombatManager.isTargetDead(target);
+            if (hit.applyRider && !dead) {
+                EntityRes.Status rider = spell.createRiderStatus();
+                if (rider != null && CombatManager.applyStatus(target, rider)) {
+                    if (buff) {
+                        spawnFloatingText(target, rider.getName(), spellColor);
+                    } else {
+                        PauseTransition later = new PauseTransition(Duration.millis(450));
+                        later.setOnFinished(ev -> { spawnFloatingText(target, rider.getName(), spellColor); redraw(); });
+                        later.play();
+                    }
+                }
+            }
+            if (dead) defeated.add(target);
+        }
+        for (GridObject d : defeated) {
+            removeDefeated(d);
+        }
+        finishCast(caster);
+    }
+
+    private void finishCast(GridObject caster) {
+        clearCastMode();
+        battleView.hideDiceRollPanel();
+        if (caster != null) {
+            selectedObject = caster;
+            battleView.updateSelectedEntity(caster);
+        }
+        redraw();
+        battleView.refreshPartyHealth();
     }
 
     public void triggerUseItemForSelected() {
@@ -870,7 +1140,10 @@ public class BattleGridCanvas extends Pane {
     private double[] getGridLayout() {
         double cellSize = fitCellSize() * zoom;
         double offsetX = (canvas.getWidth() - cellSize * grid.getCols()) / 2 + panX;
-        double offsetY = (canvas.getHeight() - cellSize * grid.getRows()) / 2 + panY;
+        // Centre the board plus its headroom, then push the board down past the
+        // headroom, so the reserved space ends up above row 0 where sprites overhang
+        double overhang = cellSize * topOverhangCells();
+        double offsetY = (canvas.getHeight() - cellSize * grid.getRows() - overhang) / 2 + overhang + panY;
         return new double[]{cellSize, offsetX, offsetY};
     }
 
@@ -1028,6 +1301,22 @@ public class BattleGridCanvas extends Pane {
         drawCliffShadows(gc, r, c, offsetX, offsetY, cellSize);
     }
 
+    /** Draw one terrain object's sprite plus its selection outline, if any. */
+    private void drawTerrainObject(GraphicsContext gc, TerrainObject t, int r,
+            double offsetX, double offsetY, double cellSize) {
+        double x = offsetX + t.getCol() * cellSize;
+        double y = offsetY + r * cellSize - liftFor(r, t.getCol(), cellSize);
+
+        SpriteUtils.drawTerrainSpriteOnCanvas(gc, t, x, y, cellSize);
+
+        if (t == selectedObject) {
+            gc.setStroke(Color.ORANGE);
+            gc.setLineWidth(2);
+            double padding = 2;
+            gc.strokeRect(x + padding, y + padding, cellSize - padding * 2, cellSize - padding * 2);
+        }
+    }
+
     /** Draw a single floor pickup token at its lifted position. */
     private void drawPickup(GraphicsContext gc, Pickup p, double offsetX, double offsetY, double cellSize) {
         double x = offsetX + p.getCol() * cellSize;
@@ -1041,20 +1330,44 @@ public class BattleGridCanvas extends Pane {
         gc.fillOval(x + offset, y + offset, circleSize, circleSize);
     }
 
-    /** Cell size that fits the whole board in the canvas (zoom = 1.0). */
+    /**
+     * Tallest terrain overhang on the board, in cells, or 0 when every terrain
+     * sprite is flat. Nothing clips at cell boundaries, but the canvas edge does,
+     * so a tree in row 0 needs headroom reserved above the board. Computed from
+     * what is actually placed rather than reserved unconditionally, because a
+     * fixed allowance would shrink the tiles on every board that has no tall art.
+     */
+    private double topOverhangCells() {
+        double max = 0;
+        for (TerrainObject t : grid.getTerrainObjects()) {
+            max = Math.max(max, SpriteUtils.terrainOverhangCells(t));
+        }
+        return max;
+    }
+
+    /** Cell size that fits the whole board - plus any overhang headroom - in the canvas (zoom = 1.0). */
     private double fitCellSize() {
         return Math.min(
             (canvas.getWidth() - BOARD_MARGIN * 2) / grid.getCols(),
-            (canvas.getHeight() - BOARD_MARGIN * 2) / grid.getRows());
+            (canvas.getHeight() - BOARD_MARGIN * 2) / (grid.getRows() + topOverhangCells()));
     }
 
     /** Keep at least PAN_VISIBLE_MARGIN px of the board visible on each axis. */
     private void clampPan() {
+        // Skip until the canvas has a real size. The first layout passes report 0 (or tiny)
+        // sizes, where fitCellSize() goes negative and this "clamp" would shove the camera
+        // off-center - and that bogus pan then stuck, so a new battle opened focused on
+        // some arbitrary cell instead of the whole board.
+        if (canvas.getWidth() < PAN_VISIBLE_MARGIN * 2 || canvas.getHeight() < PAN_VISIBLE_MARGIN * 2) {
+            return;
+        }
         double cs = fitCellSize() * zoom;
         double gridW = cs * grid.getCols();
         double gridH = cs * grid.getRows();
+        double overhang = cs * topOverhangCells();
         double cx = (canvas.getWidth() - gridW) / 2;
-        double cy = (canvas.getHeight() - gridH) / 2;
+        // Same unpanned origin getGridLayout() uses, so the clamp matches what is drawn
+        double cy = (canvas.getHeight() - gridH - overhang) / 2 + overhang;
         panX = Math.max(PAN_VISIBLE_MARGIN - gridW - cx,
                Math.min(canvas.getWidth() - PAN_VISIBLE_MARGIN - cx, panX));
         panY = Math.max(PAN_VISIBLE_MARGIN - gridH - cy,
@@ -1073,7 +1386,9 @@ public class BattleGridCanvas extends Pane {
         zoom = newZoom;
         double cs = fitCellSize() * zoom;
         panX = e.getX() - worldCol * cs - (canvas.getWidth() - cs * grid.getCols()) / 2;
-        panY = e.getY() - worldRow * cs - (canvas.getHeight() - cs * grid.getRows()) / 2;
+        // Invert getGridLayout()'s offsetY, overhang headroom included, so the anchor holds
+        double overhang = cs * topOverhangCells();
+        panY = e.getY() - worldRow * cs - (canvas.getHeight() - cs * grid.getRows() - overhang) / 2 - overhang;
         clampPan();
         hideInfoPopup();
         e.consume();
@@ -1103,21 +1418,25 @@ public class BattleGridCanvas extends Pane {
         // Handle placement mode
         if (battleView.isPlacementMode()) {
             CharSheet placing = battleView.getCurrentPlacing();
-            if (placing != null && clicked == null && !grid.isBlocked(row, col)) {
+            if (placing != null && grid.canUnitStand(row, col)) {
                 // Place the entity at clicked location
                 Entity newEntity = new Entity(row, col, placing);
                 battleView.entityPlaced(newEntity);
                 return;
-            } else if (clicked != null || grid.isBlocked(row, col)) {
+            } else {
                 spawnFloatingText(row, col, "Occupied", Color.web("#b8b8c0"));
                 return;
             }
-            return;
         }
-        
+
         // Handle object placement mode (enemies, terrain, pickups)
         if (battleView.isObjectPlacementMode()) {
-            if (clicked == null && !grid.isBlocked(row, col)) {
+            // Units may share a tile with non-colliding terrain; terrain and
+            // pickups still need a fully empty tile.
+            boolean canPlace = battleView.isPendingObjectUnit()
+                ? grid.canUnitStand(row, col)
+                : (clicked == null && !grid.isBlocked(row, col));
+            if (canPlace) {
                 // Place the object at clicked location
                 battleView.objectPlaced(row, col);
                 return;
@@ -1164,7 +1483,7 @@ public class BattleGridCanvas extends Pane {
 
         // Handle move mode for Entity
         if (moveMode && movingEntity != null) {
-            if (clicked == null && !grid.isBlocked(row, col)) {
+            if (grid.canUnitStand(row, col)) {
                 int dist = Math.abs(movingEntity.getRow() - row) + Math.abs(movingEntity.getCol() - col);
                 int mobilityLimit = movingEntity.getMovement();
 
@@ -1185,8 +1504,8 @@ public class BattleGridCanvas extends Pane {
                     return;
                 }
             }
-            if (clicked == null && grid.isBlocked(row, col)) {
-                // Clicked on blocked space - cancel mode
+            if (clicked == null) {
+                // Empty but not standable (e.g. a disabled cell) - cancel mode
                 cancelModes();
                 return;
             }
@@ -1202,7 +1521,7 @@ public class BattleGridCanvas extends Pane {
 
         // Handle move mode for Enemy
         if (moveMode && movingEnemy != null) {
-            if (clicked == null && !grid.isBlocked(row, col)) {
+            if (grid.canUnitStand(row, col)) {
                 int dist = Math.abs(movingEnemy.getRow() - row) + Math.abs(movingEnemy.getCol() - col);
                 int mobilityLimit = movingEnemy.getMovement();
 
@@ -1223,8 +1542,8 @@ public class BattleGridCanvas extends Pane {
                     return;
                 }
             }
-            if (clicked == null && grid.isBlocked(row, col)) {
-                // Clicked on blocked space - cancel mode
+            if (clicked == null) {
+                // Empty but not standable (e.g. a disabled cell) - cancel mode
                 cancelModes();
                 return;
             }
@@ -1236,6 +1555,39 @@ public class BattleGridCanvas extends Pane {
                 redraw();
                 return;
             }
+        }
+
+        // Area spell aiming: click a cell to place the template
+        if (castMode && castingEntity != null && pendingSpell != null && pendingSpell.isArea()) {
+            if (lockedAreaCells != null) return;  // already rolling for a placed template
+            if (SpellArea.isAimValid(pendingSpell, castingEntity, row, col, grid)) {
+                resolveAreaAt(row, col);
+            } else if (grid.inBounds(row, col) && (row != castingEntity.getRow() || col != castingEntity.getCol())) {
+                spawnFloatingText(row, col, "Out of range", Color.web("#b8b8c0"));
+            } else {
+                Entity caster = castingEntity;
+                clearCastMode();
+                selectedObject = caster;
+                redraw();
+                battleView.updateSelectedEntity(caster);
+            }
+            return;
+        }
+
+        // Handle cast mode: only legal in-range targets resolve; anything else cancels
+        if (castMode && castingEntity != null) {
+            if (isCastTarget(clicked)) {
+                resolveSpellOn(clicked);
+            } else if (clicked != null && CombatManager.isValidSpellTarget(castingEntity, clicked, pendingSpell)) {
+                spawnFloatingText(clicked, "Out of range", Color.web("#b8b8c0"));
+            } else {
+                Entity caster = castingEntity;
+                clearCastMode();
+                selectedObject = caster;
+                redraw();
+                battleView.updateSelectedEntity(caster);
+            }
+            return;
         }
 
         // Handle attack mode for Entity
@@ -1321,24 +1673,7 @@ public class BattleGridCanvas extends Pane {
 
             // Check for defeat
             if (CombatManager.isTargetDead(target)) {
-                if (target instanceof Entity e) {
-                    grid.removeEntity(e);
-                    turnManager.removeEntity(e);
-                } else if (target instanceof Enemy en) {
-                    grid.removeEnemy(en);
-                    turnManager.removeEnemy(en);
-                    battleView.getBattleState().incrementEnemiesDefeated();
-                } else if (target instanceof TerrainObject) {
-                    grid.removeDestroyedTerrain();
-                }
-            }
-
-            // Update stats (terrain damage doesn't count toward battle stats)
-            if (!(target instanceof TerrainObject)) {
-                battleView.getBattleState().addDamageDealt(outcome.totalDamage);
-            }
-            if (target instanceof Entity) {
-                battleView.getBattleState().addDamageTaken(outcome.totalDamage);
+                removeDefeated(target);
             }
         } else {
             spawnFloatingText(target, "Miss", Color.web("#b8b8c0"));
@@ -1348,6 +1683,20 @@ public class BattleGridCanvas extends Pane {
         finishAttack(attacker);
     }
     
+    /** Remove a defeated unit/destroyed terrain from the board and turn order. */
+    private void removeDefeated(GridObject target) {
+        if (target instanceof Entity e) {
+            grid.removeEntity(e);
+            turnManager.removeEntity(e);
+        } else if (target instanceof Enemy en) {
+            grid.removeEnemy(en);
+            turnManager.removeEnemy(en);
+            battleView.getBattleState().incrementEnemiesDefeated();
+        } else if (target instanceof TerrainObject) {
+            grid.removeDestroyedTerrain();
+        }
+    }
+
     /**
      * Handle attack cancellation
      */
@@ -1373,18 +1722,6 @@ public class BattleGridCanvas extends Pane {
         
         redraw();
         battleView.refreshPartyHealth();
-    }
-
-    public void pickupAction() {
-        Entity current = turnManager.getCurrent();
-        if (current == null || !current.isParty()) return;
-
-        Pickup p = grid.getPickupAt(current.getRow(), current.getCol());
-        if (p == null) return;
-
-        current.pickup(p);
-        grid.removePickup(p);
-        redraw();
     }
 
     public void redraw() {
@@ -1471,7 +1808,7 @@ public class BattleGridCanvas extends Pane {
             gc.setFill(Color.rgb(90, 170, 230, 0.20));
             for (int r = 0; r < rows; r++) {
                 for (int c = 0; c < cols; c++) {
-                    if (grid.getObjectAt(r, c) == null && !grid.isBlocked(r, c)) {
+                    if (grid.canUnitStand(r, c)) {
                         double x = offsetX + c * cellSize;
                         double y = offsetY + r * cellSize - liftFor(r, c, cellSize);
                         gc.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
@@ -1490,7 +1827,7 @@ public class BattleGridCanvas extends Pane {
             for (int r = 0; r < rows; r++) {
                 for (int c = 0; c < cols; c++) {
                     int dist = Math.abs(entityRow - r) + Math.abs(entityCol - c);
-                    if (dist > 0 && dist <= mobilityLimit && !grid.isBlocked(r, c)) {
+                    if (dist > 0 && dist <= mobilityLimit && grid.canUnitStand(r, c)) {
                         double x = offsetX + c * cellSize;
                         double y = offsetY + r * cellSize - liftFor(r, c, cellSize);
                         gc.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
@@ -1509,7 +1846,7 @@ public class BattleGridCanvas extends Pane {
             for (int r = 0; r < rows; r++) {
                 for (int c = 0; c < cols; c++) {
                     int dist = Math.abs(entityRow - r) + Math.abs(entityCol - c);
-                    if (dist > 0 && dist <= mobilityLimit && !grid.isBlocked(r, c)) {
+                    if (dist > 0 && dist <= mobilityLimit && grid.canUnitStand(r, c)) {
                         double x = offsetX + c * cellSize;
                         double y = offsetY + r * cellSize - liftFor(r, c, cellSize);
                         gc.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
@@ -1584,6 +1921,67 @@ public class BattleGridCanvas extends Pane {
             gc.setLineWidth(1);
         }
 
+        // Cast mode: tint the range diamond, outline every legal target inside it
+        boolean showRange = pendingSpell != null
+            && (!pendingSpell.isArea() || (EntityRes.Spell.AREA_BURST.equals(pendingSpell.getArea()) && !pendingSpell.isSelfCenteredArea()));
+        if (castMode && castingEntity != null && pendingSpell != null && showRange && lockedAreaCells == null) {
+            int range = Math.max(1, pendingSpell.getRange());
+            int cr = castingEntity.getRow();
+            int cc = castingEntity.getCol();
+            gc.setFill(Color.rgb(123, 104, 238, 0.10));
+            for (int r = 0; r < rows; r++) {
+                for (int c = 0; c < cols; c++) {
+                    int dist = Math.abs(cr - r) + Math.abs(cc - c);
+                    if (dist <= range && grid.isEnabled(r, c)) {
+                        double x = offsetX + c * cellSize;
+                        double y = offsetY + r * cellSize - liftFor(r, c, cellSize);
+                        gc.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+                    }
+                }
+            }
+            java.util.List<GridObject> candidates = new java.util.ArrayList<>();
+            candidates.addAll(grid.getEntities());
+            candidates.addAll(grid.getEnemies());
+            candidates.addAll(grid.getTerrainObjects());
+            gc.setFill(Color.rgb(123, 104, 238, 0.25));
+            gc.setStroke(Color.rgb(170, 150, 255, 0.9));
+            gc.setLineWidth(1.5);
+            for (GridObject obj : candidates) {
+                if (!isCastTarget(obj)) continue;
+                double x = offsetX + obj.getCol() * cellSize;
+                double y = offsetY + obj.getRow() * cellSize - liftFor(obj.getRow(), obj.getCol(), cellSize);
+                gc.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+                gc.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+            }
+            gc.setLineWidth(1);
+        }
+
+        // Area template: spell-colored cells, with the units it would affect outlined
+        if (castMode && castingEntity != null && pendingSpell != null && pendingSpell.isArea()) {
+            java.util.List<int[]> area = currentAreaCells();
+            if (!area.isEmpty()) {
+                Color base = Color.web(pendingSpell.getColor());
+                gc.setFill(Color.color(base.getRed(), base.getGreen(), base.getBlue(), 0.28));
+                gc.setStroke(Color.color(base.getRed(), base.getGreen(), base.getBlue(), 0.55));
+                gc.setLineWidth(1);
+                for (int[] cell : area) {
+                    double x = offsetX + cell[1] * cellSize;
+                    double y = offsetY + cell[0] * cellSize - liftFor(cell[0], cell[1], cellSize);
+                    gc.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+                    gc.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+                }
+                gc.setStroke(Color.color(Math.min(1, base.getRed() + 0.25), Math.min(1, base.getGreen() + 0.25),
+                    Math.min(1, base.getBlue() + 0.25), 0.95));
+                gc.setLineWidth(2.5);
+                for (GridObject t : SpellArea.targets(pendingSpell, castingEntity, area, grid)) {
+                    double x = offsetX + t.getCol() * cellSize;
+                    double y = offsetY + t.getRow() * cellSize - liftFor(t.getRow(), t.getCol(), cellSize);
+                    gc.strokeRect(x + 2, y + 2, cellSize - 4, cellSize - 4);
+                }
+                gc.setLineWidth(1);
+            }
+        }
+
         // Pickups - floor items, drawn under everything that stands
         for (Pickup p : grid.getPickups()) {
             drawPickup(gc, p, offsetX, offsetY, cellSize);
@@ -1609,18 +2007,13 @@ public class BattleGridCanvas extends Pane {
                     }
                 }
             }
+            // Terrain that collides (no entity can ever share its tile) or is
+            // flagged "entity above" draws before the row's units, so units
+            // appear in front of it - the pre-existing behavior.
             for (TerrainObject t : grid.getTerrainObjects()) {
                 if (t.getRow() != r) continue;
-                double x = offsetX + t.getCol() * cellSize;
-                double y = offsetY + r * cellSize - liftFor(r, t.getCol(), cellSize);
-
-                SpriteUtils.drawTerrainSpriteOnCanvas(gc, t, x, y, cellSize);
-
-                if (t == selectedObject) {
-                    gc.setStroke(Color.ORANGE);
-                    gc.setLineWidth(2);
-                    double padding = 2;
-                    gc.strokeRect(x + padding, y + padding, cellSize - padding * 2, cellSize - padding * 2);
+                if (t.hasCollision() || t.isEntityAboveTerrain()) {
+                    drawTerrainObject(gc, t, r, offsetX, offsetY, cellSize);
                 }
             }
             for (Enemy en : grid.getEnemies()) {
@@ -1642,6 +2035,15 @@ public class BattleGridCanvas extends Pane {
                     Color.rgb(awtColor.getRed(), awtColor.getGreen(), awtColor.getBlue()), true,
                     turnManager.isCurrent(e), e == selectedObject,
                     e.getCharSheet().getCurrentHP(), e.getCharSheet().getTotalHP(), frameNow);
+            }
+            // Non-colliding terrain flagged "entity below" draws after the
+            // row's units, so it covers whatever is standing on its tile
+            // (e.g. tall grass hiding an entity's feet).
+            for (TerrainObject t : grid.getTerrainObjects()) {
+                if (t.getRow() != r) continue;
+                if (!t.hasCollision() && !t.isEntityAboveTerrain()) {
+                    drawTerrainObject(gc, t, r, offsetX, offsetY, cellSize);
+                }
             }
         }
 

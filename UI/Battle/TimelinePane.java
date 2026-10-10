@@ -133,8 +133,8 @@ public class TimelinePane extends HBox {
 
     /**
      * Switch the strip into inline initiative entry: one portrait per party
-     * member with a typed d20 value (1-20), plus Begin/Cancel. Begin stays
-     * disabled until every value parses. Enemies roll automatically.
+     * member with a typed d20 value (1-20), plus Begin/Cancel. Begin is
+     * disabled whenever any value doesn't parse. Enemies roll automatically.
      */
     public void enterInitiativeSetup(List<Entity> partyMembers,
             Consumer<Map<Entity, Integer>> onConfirm, Runnable onCancel) {
@@ -206,6 +206,10 @@ public class TimelinePane extends HBox {
 
             entitiesBox.getChildren().add(box);
         }
+
+        // Fields start pre-filled with a valid 10, so Begin is usable right away; the
+        // listeners above only re-check it once a value is edited.
+        confirmBtn.setDisable(!allFieldsValid(fields));
 
         HBox buttons = new HBox(6, confirmBtn, cancelBtn);
         buttons.setAlignment(Pos.CENTER_LEFT);

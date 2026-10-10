@@ -76,7 +76,7 @@ public class BattleGrid {
         }
         for (TerrainObject t : terrainObjects) {
             if (t.getRow() == r && t.getCol() == c && !t.isDestroyed()) {
-                return t.blocksMovement();
+                return t.hasCollision();
             }
         }
 
@@ -93,6 +93,26 @@ public class BattleGrid {
         }
 
         return false;
+    }
+
+    /**
+     * Whether an entity or enemy may occupy (r,c): the cell must be enabled,
+     * free of other units, and free of any terrain that has collision - unless
+     * that terrain is the only thing there and has collision off, in which case
+     * the unit shares the tile with it. Unlike isBlocked(), this respects
+     * getObjectAt()'s precedence (a unit already standing on non-colliding
+     * terrain still counts as occupied) rather than isBlocked()'s early return
+     * on terrain presence alone.
+     */
+    public boolean canUnitStand(int r, int c) {
+        if (!isEnabled(r, c)) {
+            return false;
+        }
+        GridObject obj = getObjectAt(r, c);
+        if (obj == null) {
+            return true;
+        }
+        return obj instanceof TerrainObject && !((TerrainObject) obj).hasCollision();
     }
 
     public boolean inBounds(int r, int c) {
@@ -171,18 +191,6 @@ public class BattleGrid {
         return cols;
     }
 
-    public void addEntityAtNextAvailable(Entity entity) {
-        for (int r = 0; r < rows; r++) {
-            for (int c = 0; c < cols; c++) {
-                if (getObjectAt(r, c) == null && !isBlocked(r, c)) {
-                    entity.moveTo(r, c);
-                    entities.add(entity);
-                    return;
-                }
-            }
-        }
-    }
-    
     /**
      * Add an entity at its current position.
      */
@@ -210,41 +218,4 @@ public class BattleGrid {
     public void addEnemy(Enemy enemy) {
         enemies.add(enemy);
     }
-
-    public void addTerrainAtNextAvailable(TerrainObject terrain) {
-        for (int r = 0; r < rows; r++) {
-            for (int c = 0; c < cols; c++) {
-                if (getObjectAt(r, c) == null && !isBlocked(r, c)) {
-                    terrain.moveTo(r, c);
-                    terrainObjects.add(terrain);
-                    return;
-                }
-            }
-        }
-    }
-
-    public void addPickupAtNextAvailable(Pickup pickup) {
-        for (int r = 0; r < rows; r++) {
-            for (int c = 0; c < cols; c++) {
-                if (getObjectAt(r, c) == null && !isBlocked(r, c)) {
-                    pickup.moveTo(r, c);
-                    pickups.add(pickup);
-                    return;
-                }
-            }
-        }
-    }
-
-    public void addEnemyAtNextAvailable(Enemy enemy) {
-        for (int r = 0; r < rows; r++) {
-            for (int c = 0; c < cols; c++) {
-                if (getObjectAt(r, c) == null && !isBlocked(r, c)) {
-                    enemy.moveTo(r, c);
-                    enemies.add(enemy);
-                    return;
-                }
-            }
-        }
-    }
-
 }

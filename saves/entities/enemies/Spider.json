@@ -10,8 +10,8 @@
     "d4",
     "d6"
   ],
-  "initiative": 9,
-  "dexterity": 9,
+  "initiative": 4,
+  "dexterity": 4,
   "color": "#0000FF",
   "instanceNumber": 0,
   "baseName": "Spider",

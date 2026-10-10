@@ -35,7 +35,11 @@ public class CharacterSheetView {
     private final ArrayList<Enemy> enemies = new ArrayList<>();
     private BattleView battleView;
     private VBox partyListBox;
-    private StackPane displayPane;
+    // Roster group filter for the Characters list: null = All, else a CharSheet.GROUP_* key
+    private String groupFilter = null;
+    private final Map<String, ToggleButton> groupChips = new LinkedHashMap<>();
+    private static final String ALL_KEY = "ALL";
+private StackPane displayPane;
     private VBox partyPopup;
     private Region partyPopupScrim;
     private boolean partyPopupVisible = false;
@@ -73,9 +77,13 @@ public class CharacterSheetView {
         displayPane = new StackPane();
         displayPane.getStyleClass().add("panel");
 
-        SplitPane charactersView = new SplitPane(partyScroll, displayPane);
-        charactersView.setDividerPositions(0.25);
+        SplitPane charactersSplit = new SplitPane(partyScroll, displayPane);
+        charactersSplit.setDividerPositions(0.25);
         SplitPane.setResizableWithParent(partyScroll, false);
+
+        // Group filter chips sit right under the Characters/Enemies switch, Characters mode only
+        VBox charactersView = new VBox(8, createGroupFilterBar(), charactersSplit);
+        VBox.setVgrow(charactersSplit, Priority.ALWAYS);
 
         // Enemies mode: full-width searchable/taggable card browser
         VBox enemiesView = createEnemyBrowser();
@@ -122,15 +130,110 @@ public class CharacterSheetView {
         return switchBar;
     }
 
+    /** "All / Group Ω / Group α / NPC" filter for the character list. */
+    private HBox createGroupFilterBar() {
+        ToggleGroup toggleGroup = new ToggleGroup();
+        HBox bar = new HBox(6);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        List<String> keys = new ArrayList<>();
+        keys.add(ALL_KEY);
+        keys.addAll(Arrays.asList(CharSheet.GROUPS));
+        for (String key : keys) {
+            ToggleButton chip = new ToggleButton();
+            chip.getStyleClass().add("group-chip");
+            chip.setToggleGroup(toggleGroup);
+            chip.setUserData(key);
+            chip.setTooltip(new Tooltip((ALL_KEY.equals(key) ? "Show every character"
+                : "Show only " + CharSheet.groupLabel(key) + " (right-click a character to move it)")
+                + "\nDouble-click to always open Character Sheets on this tab"));
+            // Double-click pins this tab as the one Character Sheets opens on (double-click again to unpin)
+            chip.setOnMouseClicked(e -> {
+                if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY && e.getClickCount() == 2) {
+                    toggleDefaultGroup(key);
+                }
+            });
+            groupChips.put(key, chip);
+            bar.getChildren().add(chip);
+        }
+        groupChips.get(ALL_KEY).setSelected(true);
+        refreshDefaultGroupOutline();
+        toggleGroup.selectedToggleProperty().addListener((obs, old, now) -> {
+            if (now == null) {
+                // Always keep one filter selected - clicking the active chip shouldn't empty the list
+                old.setSelected(true);
+                return;
+            }
+            String key = (String) now.getUserData();
+            groupFilter = ALL_KEY.equals(key) ? null : key;
+            updatePartyList();
+        });
+        refreshGroupChipLabels();
+        return bar;
+    }
+
+    /** The pinned default tab key (ALL or a GROUP_*), or null if none is pinned. */
+    private String getDefaultGroup() {
+        String key = UiPreferences.get(UiPreferences.CHARACTER_DEFAULT_GROUP);
+        return key != null && groupChips.containsKey(key) ? key : null;
+    }
+
+    private void toggleDefaultGroup(String key) {
+        boolean alreadyDefault = key.equals(getDefaultGroup());
+        UiPreferences.set(UiPreferences.CHARACTER_DEFAULT_GROUP, alreadyDefault ? null : key);
+        groupChips.get(key).setSelected(true);
+        refreshDefaultGroupOutline();
+    }
+
+    /** Outline the pinned default chip. */
+    private void refreshDefaultGroupOutline() {
+        String def = getDefaultGroup();
+        for (Map.Entry<String, ToggleButton> e : groupChips.entrySet()) {
+            e.getValue().getStyleClass().remove("group-chip-default");
+            if (e.getKey().equals(def)) e.getValue().getStyleClass().add("group-chip-default");
+        }
+    }
+
+    /** Switch to the pinned default tab (All if nothing is pinned). */
+    private void selectDefaultGroup() {
+        String def = getDefaultGroup();
+        ToggleButton chip = groupChips.get(def != null ? def : ALL_KEY);
+        if (chip != null) chip.setSelected(true);
+        refreshDefaultGroupOutline();
+    }
+
+    /** Chip text with live member counts, e.g. "Group Ω (3)". */
+    private void refreshGroupChipLabels() {
+        for (Map.Entry<String, ToggleButton> e : groupChips.entrySet()) {
+            String key = e.getKey();
+            long count = ALL_KEY.equals(key) ? sheets.size()
+                : sheets.stream().filter(sb -> key.equals(sb.getSheet().getCharSheet().getGroup())).count();
+            e.getValue().setText((ALL_KEY.equals(key) ? "All" : CharSheet.groupLabel(key)) + " (" + count + ")");
+        }
+    }
+
     public BorderPane getRoot() {
         return root;
     }
 
     public void refresh() {
-        // Reload sheets and enemies when navigating back to this view
-        if (!sheets.isEmpty()) {
-            showSheet(sheets.get(0));
+        // Every visit opens on the pinned group tab
+        selectDefaultGroup();
+        showFirstVisibleSheet();
+    }
+
+    /** Open the first character in the current group tab (falling back to the first overall). */
+    private void showFirstVisibleSheet() {
+        if (sheets.isEmpty()) {
+            displayPane.getChildren().setAll(createEmptyState());
+            return;
         }
+        for (SheetButton sb : sheets) {
+            if (groupFilter == null || groupFilter.equals(sb.getSheet().getCharSheet().getGroup())) {
+                showSheet(sb);
+                return;
+            }
+        }
+        showSheet(sheets.get(0));
     }
 
     private HBox createButtonPanel() {
@@ -170,15 +273,11 @@ public class CharacterSheetView {
     private void autoLoadSheets() {
         loadEntitiesFromFolder("party");
         loadEnemies();
+        selectDefaultGroup();
         updatePartyList();
         rebuildTagFilterBar();
         rebuildEnemyGrid();
-
-        if (!sheets.isEmpty()) {
-            showSheet(sheets.get(0));
-        } else {
-            displayPane.getChildren().setAll(createEmptyState());
-        }
+        showFirstVisibleSheet();
     }
 
     private Node createEmptyState() {
@@ -208,6 +307,7 @@ public class CharacterSheetView {
                         CharacterSheetPane pane = new CharacterSheetPane(loaded);
                         SheetButton sheetBtn = new SheetButton(pane, loaded.getName());
                         pane.setOnDelete(() -> deleteSheet(loaded, sheetBtn));
+                        pane.setOnGroupChanged(this::updatePartyList);
                         sheets.add(sheetBtn);
                     }
                 }
@@ -228,11 +328,21 @@ public class CharacterSheetView {
 
     private void updatePartyList() {
         partyListBox.getChildren().clear();
+        refreshGroupChipLabels();
         int partyIndex = 0;
         for (SheetButton sheetBtn : sheets) {
+            if (groupFilter != null && !groupFilter.equals(sheetBtn.getSheet().getCharSheet().getGroup())) continue;
             Node row = createListButton(sheetBtn);
             partyListBox.getChildren().add(row);
             AnimationUtils.slideIn(row, AnimationUtils.SlideDirection.UP, Duration.millis(200), Duration.millis(partyIndex++ * 40));
+        }
+        if (partyListBox.getChildren().isEmpty() && groupFilter != null) {
+            Label empty = new Label("No one in " + CharSheet.groupLabel(groupFilter) + " yet.\n"
+                + "Right-click a character in All, or set Group on their sheet.");
+            empty.getStyleClass().add("empty-state-text");
+            empty.setWrapText(true);
+            empty.setPadding(new Insets(12, 6, 12, 6));
+            partyListBox.getChildren().add(empty);
         }
     }
     
@@ -530,10 +640,43 @@ public class CharacterSheetView {
         VBox textBox = new VBox(2, nameLabel, subtitleLabel);
 
         HBox row = new HBox(10, avatar, textBox);
+        // In the All view, tag grouped characters so the grouping is visible at a glance
+        String group = charSheet.getGroup();
+        if (groupFilter == null && group != null) {
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+            Label badge = new Label(group.equals(CharSheet.GROUP_NPC) ? "NPC"
+                : CharSheet.groupLabel(group).replace("Group ", ""));
+            badge.getStyleClass().add("group-badge");
+            row.getChildren().addAll(spacer, badge);
+        }
         row.getStyleClass().addAll("entity-card", "entity-card-party");
         row.setAlignment(Pos.CENTER_LEFT);
         row.setCursor(javafx.scene.Cursor.HAND);
-        row.setOnMouseClicked(e -> showSheet(sheetBtn));
+        row.setOnMouseClicked(e -> {
+            if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) showSheet(sheetBtn);
+        });
+
+        // Right-click: move to a group
+        ContextMenu menu = new ContextMenu();
+        Menu moveTo = new Menu("Move to group");
+        ToggleGroup choice = new ToggleGroup();
+        List<String> options = new ArrayList<>();
+        options.add(null);
+        options.addAll(Arrays.asList(CharSheet.GROUPS));
+        for (String option : options) {
+            RadioMenuItem item = new RadioMenuItem(CharSheet.groupLabel(option));
+            item.setToggleGroup(choice);
+            item.setSelected(java.util.Objects.equals(option, group));
+            item.setOnAction(e -> {
+                charSheet.setGroup(option);
+                sheetBtn.getSheet().updateDisplay();
+                updatePartyList();
+            });
+            moveTo.getItems().add(item);
+        }
+        menu.getItems().add(moveTo);
+        row.setOnContextMenuRequested(e -> menu.show(row, e.getScreenX(), e.getScreenY()));
         AnimationUtils.addHoverAnimation(row, Color.web("#4CAF50"));
         return row;
     }
@@ -936,9 +1079,14 @@ public class CharacterSheetView {
                     }
                 }
                 
+                // A character created while a group filter is active joins that group
+                if (groupFilter != null) {
+                    newSheet.setGroup(groupFilter);
+                }
                 CharacterSheetPane pane = new CharacterSheetPane(newSheet);
                 SheetButton sheetBtn = new SheetButton(pane, nameField.getText());
                 pane.setOnDelete(() -> deleteSheet(newSheet, sheetBtn));
+                pane.setOnGroupChanged(this::updatePartyList);
                 sheets.add(sheetBtn);
                 updatePartyList();
                 newSheet.save();
@@ -1017,6 +1165,26 @@ public class CharacterSheetView {
         dexSpinner.setEditable(true);
         FormUtils.styleSpinner(dexSpinner);
         grid.add(dexSpinner, 1, row++);
+
+        // Saving-throw stats for spells (DEX saves use Dexterity above)
+        grid.add(new Label("Saves (STR/CON/INT/WIS/CHA):"), 0, row);
+        int[] saveIndices = {CharSheet.STRENGTH, CharSheet.CONSTITUTION, CharSheet.INTELLIGENCE, CharSheet.WISDOM, CharSheet.CHARISMA};
+        String[] saveAbbrevs = {"STR", "CON", "INT", "WIS", "CHA"};
+        List<Spinner<Integer>> saveSpinners = new ArrayList<>();
+        HBox savesBox = new HBox(6);
+        for (int i = 0; i < saveIndices.length; i++) {
+            int initial = existing != null ? existing.getAttribute(saveIndices[i]) : 2;
+            Spinner<Integer> spinner = new Spinner<>(-10, 99, initial);
+            spinner.setEditable(true);
+            spinner.setPrefWidth(62);
+            FormUtils.styleSpinner(spinner);
+            spinner.setTooltip(new Tooltip(saveAbbrevs[i] + " save"));
+            saveSpinners.add(spinner);
+            Label abbrev = new Label(saveAbbrevs[i]);
+            abbrev.getStyleClass().add("label-muted");
+            savesBox.getChildren().add(new VBox(2, abbrev, spinner));
+        }
+        grid.add(savesBox, 1, row++);
         
         // Get existing dice values
         String[] existingDice = existing != null ? existing.getDamageDice() : new String[]{"d4", "d4", "d6"};
@@ -1129,10 +1297,13 @@ public class CharacterSheetView {
                 String[] damageDice = {tier1Combo.getValue(), tier2Combo.getValue(), tier3Combo.getValue()};
                 Enemy enemy = new Enemy(0, 0, name, hpSpinner.getValue(), mobSpinner.getValue(),
                         acSpinner.getValue(), damageDice,
-                        dexSpinner.getValue(), dexSpinner.getValue(),
+                        dexSpinner.getValue(),
                     ColorUtils.toHex(colorPicker.getValue()));
                 enemy.setSpritePath(spritePath[0]);
                 enemy.setTags(new ArrayList<>(selectedTags));
+                for (int i = 0; i < saveIndices.length; i++) {
+                    enemy.setAttribute(saveIndices[i], saveSpinners.get(i).getValue());
+                }
                 if (!enemy.save()) {
                     showAlert(Alert.AlertType.ERROR, "Save Failed",
                         "Could not save \"" + name + "\" - the name may contain characters " +

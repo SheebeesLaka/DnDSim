@@ -1,0 +1,24 @@
+{
+  "name": "Burning Hands",
+  "description": "A thin sheet of flame shoots from your fingertips in a 3-tile cone. Dexterity save for half. Allies in the cone get burned too.",
+  "color": "#FF8A65",
+  "level": 1,
+  "school": "Evocation",
+  "resolution": "SAVE",
+  "range": 0,
+  "targetType": "ENEMY",
+  "damageDice": [
+    "d6",
+    "d6",
+    "d8"
+  ],
+  "saveStat": "DEXTERITY",
+  "onSave": "HALF",
+  "riderMinTier": 1,
+  "addCastingMod": false,
+  "flatDamage": 0,
+  "area": "CONE",
+  "areaSize": 3,
+  "friendlyFire": true,
+  "upcastDie": "d6"
+}

@@ -259,6 +259,20 @@
     -fx-effect: dropshadow(gaussian, rgba(139, 69, 19, 0.5), 8, 0, 0, 3);
 }
 
+.button-arcane {
+    -fx-background-color: linear-gradient(to bottom, #9a7cf0, #7B68EE);
+    -fx-text-fill: white;
+    -fx-border-color: #ab92f5;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-effect: dropshadow(gaussian, rgba(123, 104, 238, 0.4), 6, 0, 0, 2);
+}
+
+.button-arcane:hover {
+    -fx-background-color: linear-gradient(to bottom, #ab92f5, #9a7cf0);
+    -fx-effect: dropshadow(gaussian, rgba(123, 104, 238, 0.5), 8, 0, 0, 3);
+}
+
 .button-large {
     -fx-font-size: 24px;
     -fx-font-weight: bold;
@@ -791,6 +805,48 @@
     -fx-border-color: #daa520;
     -fx-border-radius: 6;
     -fx-border-width: 2;
+}
+
+/* ===== CHARACTER ROSTER: GROUP FILTER CHIPS ===== */
+.group-chip {
+    -fx-background-color: #3c3c3e;
+    -fx-text-fill: #b8b8c0;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 14;
+    -fx-padding: 4 12 4 12;
+    -fx-cursor: hand;
+    -fx-border-color: #505052;
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+}
+
+.group-chip:hover {
+    -fx-border-color: #4CAF50;
+}
+
+.group-chip:selected {
+    -fx-background-color: linear-gradient(to bottom, #5CBF60, #4CAF50);
+    -fx-text-fill: white;
+    -fx-border-color: #6FCF73;
+}
+
+/* Pinned default tab (double-clicked): gold outline, padding trimmed so the chip doesn't grow */
+.group-chip-default,
+.group-chip-default:hover,
+.group-chip-default:selected {
+    -fx-border-color: #FFD54F;
+    -fx-border-width: 2;
+    -fx-padding: 3 11 3 11;
+}
+
+.group-badge {
+    -fx-background-color: #2f3a30;
+    -fx-text-fill: #8fd694;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-padding: 1 6 1 6;
 }
 
 /* ===== ENEMY BROWSER: TAG CHIPS & SUMMARY BAR ===== */
