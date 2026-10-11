@@ -569,6 +569,44 @@ describe('board themes', () => {
     expect(DEFAULT_BOARD_THEME).toBe('facility');
   });
 
+  it('wall blocks follow the theme, with their side faces shaded by the camera heading', () => {
+    const wall = unit('wall', 1, 1, {
+      kind: 'terrain',
+      side: 'other',
+      color: '#8a5a3a',
+      spritePath: null,
+      terrain: { collision: true, entityAboveTerrain: false, spritePath: null },
+    });
+    const ctxFor = (theme: string) => ({
+      topY: () => 0,
+      surface: () => new THREE.Matrix4(),
+      mode: 'tactical' as const,
+      stretch: 1,
+      view: 'dm' as const,
+      library: { get: () => null } as never,
+      now: 0,
+      theme,
+    });
+    const layer = new UnitLayer();
+    layer.setHeading(AZIMUTHS[0] as number);
+    layer.update([wall], ctxFor('facility'));
+    const block = layer.blocks()[0];
+    const mats = block?.material as THREE.MeshLambertMaterial[];
+    expect(mats).toHaveLength(6);
+    expect(mats[2]?.map).not.toBe(mats[0]?.map); // its own roof texture
+    // the brown terrain colour only tints a themed bulkhead a little
+    expect(mats[2]?.color.r).toBeGreaterThan(0.6); // linear; the raw brown is ~0.25
+    // +x and +z both face the camera at heading 0; the camera-left one (+z) is lighter
+    expect(mats[4]?.color.r ?? 0).toBeGreaterThan((mats[0]?.color.r ?? 0) + 0.05);
+    const pzBefore = mats[4]?.color.r ?? 0;
+    layer.setHeading(AZIMUTHS[1] as number);
+    expect(mats[4]?.color.r).not.toBeCloseTo(pzBefore, 3);
+    // a theme change rebuilds the materials; legacy themes keep the full terrain colour
+    layer.update([wall], ctxFor('stone'));
+    const stone = layer.blocks()[0]?.material as THREE.MeshLambertMaterial[];
+    expect(stone[2]?.color.getHexString()).toBe('8a5a3a');
+  });
+
   it('bakes the top variants side by side, one cell of texels each', () => {
     const atlas = makeTopAtlas('facility');
     const img = atlas.image as { width: number; height: number };

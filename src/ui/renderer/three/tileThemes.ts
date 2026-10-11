@@ -275,3 +275,71 @@ export function topVariantMaterial(atlas: THREE.Texture): THREE.MeshLambertMater
 
 /** The themes the board offers, moonbase first. */
 export const BOARD_THEME_IDS = Object.keys(THEMES);
+
+/**
+ * Collision terrain without sprite art (walls, pillars, cover) as a themed
+ * block: a bulkhead in the facility, a hedge in a planter in the arboretum,
+ * rock elsewhere. Side and top textures, TEXELS square.
+ */
+export function makeBlockTextures(theme: string): { side: THREE.CanvasTexture; top: THREE.CanvasTexture } {
+  const paint = (fn: Painter, seed: number) => {
+    const [c, ctx] = canvas(TEXELS, TEXELS);
+    fn(ctx, rng(seed));
+    return pixelTexture(c);
+  };
+  if (theme === 'facility')
+    return {
+      // bulkhead: steel frame, recessed panel, status light, hazard stripe at the foot
+      side: paint((ctx, r) => {
+        speckle(ctx, r, '#59616c', '#525a64', '#636b76', TEXELS, TEXELS, 0.1, 0.05);
+        px(ctx, 0, 0, '#7a838f', TEXELS, 1);
+        px(ctx, 2, 2, '#3c424a', TEXELS - 4, 9);
+        px(ctx, 3, 3, '#484f58', TEXELS - 6, 7);
+        px(ctx, 3, 3, '#5d6570', TEXELS - 6, 1);
+        px(ctx, TEXELS - 5, 4, '#5ff2ff');
+        for (let x = 0; x < TEXELS; x++)
+          px(ctx, x, TEXELS - 3, (x >> 1) % 2 === 0 ? '#e0b128' : '#1b1d21', 1, 2);
+        px(ctx, 0, TEXELS - 1, '#2b3037', TEXELS, 1);
+      }, 61),
+      // roof plate with a vent
+      top: paint((ctx, r) => {
+        speckle(ctx, r, '#6a737e', '#626b75', '#747d88', TEXELS, TEXELS, 0.1, 0.05);
+        px(ctx, 0, 0, '#4c535c', TEXELS, 1);
+        px(ctx, 0, 0, '#4c535c', 1, TEXELS);
+        px(ctx, 0, TEXELS - 1, '#454b54', TEXELS, 1);
+        px(ctx, TEXELS - 1, 0, '#454b54', 1, TEXELS);
+        px(ctx, 5, 5, '#2a2f36', 6, 6);
+        for (let y = 6; y < 11; y += 2) px(ctx, 5, y, '#5c646e', 6, 1);
+      }, 67),
+    };
+  if (theme === 'arboretum')
+    return {
+      // clipped hedge growing out of a metal planter
+      side: paint((ctx, r) => {
+        // darker than the moss floor so walls stand out, with a pale metal planter
+        speckle(ctx, r, '#26421f', '#1b3117', '#355a2c', TEXELS, TEXELS, 0.3, 0.15);
+        for (let i = 0; i < 8; i++) px(ctx, Math.floor(r() * TEXELS), Math.floor(r() * 10), '#4a7a3c');
+        px(ctx, 0, 10, '#8a939c', TEXELS, 6);
+        px(ctx, 0, 10, '#aab3bc', TEXELS, 1);
+        px(ctx, 0, TEXELS - 1, '#4e555c', TEXELS, 1);
+        for (let x = 1; x < TEXELS; x += 5) px(ctx, x, 13, '#c3ccd5');
+      }, 71),
+      top: paint((ctx, r) => {
+        // clipped top, lighter than the sides so the block reads as a solid
+        speckle(ctx, r, '#5b8a48', '#4a7a3c', '#73a35c', TEXELS, TEXELS, 0.3, 0.15);
+      }, 73),
+    };
+  // rock (legacy themes): the same speckled stone with mortar lines on every face
+  const rock: Painter = (ctx, r) => {
+    speckle(ctx, r, '#9a9ea6', '#80848c', '#b0b4bc', TEXELS, TEXELS, 0.11, 0.11);
+    px(ctx, 0, 5, '#6a6e76', TEXELS, 1);
+    px(ctx, 0, 11, '#6a6e76', TEXELS, 1);
+    px(ctx, 6, 0, '#6a6e76', 1, 5);
+    px(ctx, 11, 6, '#6a6e76', 1, 5);
+    px(ctx, 3, 12, '#6a6e76', 1, 4);
+  };
+  return { side: paint(rock, 3), top: paint(rock, 5) };
+}
+
+/** Whether a theme's blocks carry their own colours (tinted only lightly by the terrain colour). */
+export const themedBlocks = (theme: string): boolean => theme === 'facility' || theme === 'arboretum';

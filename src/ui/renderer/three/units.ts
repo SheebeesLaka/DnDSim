@@ -3,7 +3,8 @@
  * standing on the tile top, lit by the scene, casting their own silhouette as
  * shadow. Rings live in flat decals at the feet (or under a flier's shadow);
  * fliers get a tether with 5 ft ticks. Terrain without art is a textured
- * block; pickups are a small item icon.
+ * block that follows the board theme (bulkhead, hedge, rock); pickups are a
+ * small item icon.
  */
 import * as THREE from 'three';
 import type { Cell } from '../../../engine/types.ts';
@@ -17,13 +18,9 @@ import {
 import { idleFrameIndex } from '../../sprites/slicer.ts';
 import { BLOCK_HEIGHT, STEP, TEXELS, type CameraMode } from './constants.ts';
 import { UnitDecals } from './marks.ts';
-import {
-  makePickupTexture,
-  makeSlabTexture,
-  makeTokenTexture,
-  makeWallTexture,
-  pixelTexture,
-} from './textures.ts';
+import { faceShade } from './tiles.ts';
+import { makeBlockTextures, themedBlocks } from './tileThemes.ts';
+import { makePickupTexture, makeSlabTexture, makeTokenTexture, pixelTexture } from './textures.ts';
 
 interface AtlasMaterials {
   texture: THREE.Texture;
@@ -120,6 +117,8 @@ export interface UnitContext {
   view: 'dm' | 'player';
   library: SpriteLibrary;
   now: number;
+  /** board theme: collision blocks without art follow it */
+  theme?: string;
 }
 
 interface Node {
@@ -152,9 +151,11 @@ export class UnitLayer {
   private nodes = new Map<string, Node>();
   private atlasMats = new Map<SpriteAtlas, AtlasMaterials>();
   private tokenMats = new Map<string, AtlasMaterials>();
-  private wallTex = makeWallTexture();
   private slabTex = makeSlabTexture();
-  private wallMats = new Map<string, THREE.MeshLambertMaterial>();
+  /** themed side/top textures for collision blocks, per board theme */
+  private blockTex = new Map<string, { side: THREE.Texture; top: THREE.Texture }>();
+  /** per block: its six face materials (own opacity for the hover cut-away) */
+  private blockMats = new Map<string, THREE.MeshLambertMaterial[]>();
   private tickGeo = new THREE.BoxGeometry(0.16, 0.02, 0.02);
   private tickMat = new THREE.MeshBasicMaterial({ color: '#9fd0ff' });
   private tetherMat = new THREE.LineDashedMaterial({
@@ -235,8 +236,8 @@ export class UnitLayer {
 
   private destroy(n: Node): void {
     this.group.remove(n.root, n.decals.group, n.tether);
-    this.wallMats.get(n.id)?.dispose();
-    this.wallMats.delete(n.id);
+    for (const m of this.blockMats.get(n.id) ?? []) m.dispose();
+    this.blockMats.delete(n.id);
     n.body?.geometry.dispose();
     n.ghost?.geometry.dispose();
     if (n.block) {
@@ -262,7 +263,7 @@ export class UnitLayer {
     n.root.position.set(u.c + 0.5, feetY, u.r + 0.5);
     n.root.userData.baseY = feetY;
 
-    if (u.kind === 'terrain' && !u.spritePath) this.applyBlock(n, u, top);
+    if (u.kind === 'terrain' && !u.spritePath) this.applyBlock(n, u, top, ctx.theme ?? 'stone');
     else this.applyBillboard(n, u, ctx);
 
     // decals: at the feet, or on the ground under a flier
@@ -301,7 +302,31 @@ export class UnitLayer {
     }
   }
 
-  private applyBlock(n: Node, u: UnitVM, top: number): void {
+  private blockTexturesFor(theme: string): { side: THREE.Texture; top: THREE.Texture } {
+    let t = this.blockTex.get(theme);
+    if (!t) {
+      t = makeBlockTextures(theme);
+      this.blockTex.set(theme, t);
+    }
+    return t;
+  }
+
+  /** Side faces of a block shaded by the camera heading, like the tile stacks. */
+  private shadeBlock(mats: THREE.MeshLambertMaterial[]): void {
+    const normals: [number, [number, number]][] = [
+      [0, [1, 0]],
+      [1, [-1, 0]],
+      [4, [0, 1]],
+      [5, [0, -1]],
+    ];
+    for (const [i, [nx, nz]] of normals) {
+      const m = mats[i];
+      const tint = m?.userData.tint as THREE.Color | undefined;
+      if (m && tint) m.color.copy(tint).multiplyScalar(faceShade(nx, nz, this.heading));
+    }
+  }
+
+  private applyBlock(n: Node, u: UnitVM, top: number, theme: string): void {
     if (n.body) {
       n.root.remove(n.body);
       n.body.geometry.dispose();
@@ -313,28 +338,36 @@ export class UnitLayer {
       n.ghost = null;
     }
     const collision = u.terrain?.collision ?? true;
-    const key = `${u.color}|${collision}`;
-    let mat = this.wallMats.get(u.id);
-    if (!mat || mat.userData.key !== key) {
-      mat?.dispose();
-      mat = new THREE.MeshLambertMaterial({
-        map: collision ? this.wallTex : this.slabTex,
-        color: u.color,
-        transparent: true,
-        opacity: 1,
+    const key = `${u.color}|${collision}|${theme}`;
+    let mats = this.blockMats.get(u.id);
+    if (!mats || mats[0]?.userData.key !== key) {
+      for (const m of mats ?? []) m.dispose();
+      // themed blocks carry their own colours; the terrain colour only tints them a little
+      const tint = new THREE.Color(u.color);
+      if (collision && themedBlocks(theme)) tint.lerp(new THREE.Color('#ffffff'), 0.7);
+      const tex = collision ? this.blockTexturesFor(theme) : { side: this.slabTex, top: this.slabTex };
+      // BoxGeometry face order: +x, -x, +y (top), -y, +z, -z
+      mats = [tex.side, tex.side, tex.top, tex.side, tex.side, tex.side].map((map) => {
+        const m = new THREE.MeshLambertMaterial({ map, color: tint, transparent: true, opacity: 1 });
+        m.userData.key = key;
+        m.userData.tint = tint.clone();
+        return m;
       });
-      mat.userData.key = key;
-      this.wallMats.set(u.id, mat);
+      this.blockMats.set(u.id, mats);
     }
+    this.shadeBlock(mats);
     const h = collision ? BLOCK_HEIGHT : 0.06;
     if (!n.block) {
-      n.block = new THREE.Mesh(new THREE.BoxGeometry(collision ? 0.98 : 0.9, 1, collision ? 0.98 : 0.9), mat);
+      n.block = new THREE.Mesh(
+        new THREE.BoxGeometry(collision ? 0.98 : 0.9, 1, collision ? 0.98 : 0.9),
+        mats,
+      );
       n.block.castShadow = true;
       n.block.receiveShadow = true;
       n.block.userData.unitId = u.id;
       n.root.add(n.block);
     }
-    n.block.material = mat;
+    n.block.material = mats;
     n.block.scale.set(1, h, 1);
     n.block.position.set(0, h / 2, 0);
     n.root.position.y = top;
@@ -457,6 +490,7 @@ export class UnitLayer {
     if (heading === this.heading) return;
     this.heading = heading;
     for (const n of this.nodes.values()) this.orient(n);
+    for (const mats of this.blockMats.values()) this.shadeBlock(mats);
   }
 
   /** Advance idle animations. Returns true when any sprite changed frame. */
@@ -552,8 +586,11 @@ export class UnitLayer {
       m.ghost.dispose();
       m.texture.dispose();
     }
-    for (const m of this.wallMats.values()) m.dispose();
-    this.wallTex.dispose();
+    for (const mats of this.blockMats.values()) for (const m of mats) m.dispose();
+    for (const t of this.blockTex.values()) {
+      t.side.dispose();
+      t.top.dispose();
+    }
     this.slabTex.dispose();
     this.tickGeo.dispose();
     this.tickMat.dispose();

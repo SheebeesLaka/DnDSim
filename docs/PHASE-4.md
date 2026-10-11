@@ -128,6 +128,7 @@ the board read as a flat 2D grid. Plan: `~/.claude/plans/pasted-content-id-ac1f-
 | Lighting: bright rooms lean on the key light (strong two-face contrast) and scale torches down so lit sprites don't blow out; dim is cool moonlight; the DM's reveal in the dark is low and cool so torch/lamp pools stand out in the DM view too; bloom only on HDR emitters (bulbs) | `lights.ts` (`ambientLevels`), `post.ts` |
 | Transitions (visual only, the engine switches at once): a light fades up (450 ms) or down (260 ms); a grouped light, or several switched on together, flickers then ramps up, staggered per light, the "generator restored" moment; ambient changes ease over 700 ms | `lights.ts` (`lightTweenLevel`, `LightLayer.tick`) |
 
-Still to do: terrain blocks that follow the theme (they are still brick), death-save rolls for dying
-heroes, and the Playwright run (its browser isn't installed on the dev machine:
-`npx playwright install chromium`).
+| Wall blocks (collision terrain without sprite art) follow the theme: steel bulkheads with a hazard-striped foot in the facility, clipped hedges in pale planters in the arboretum, rock elsewhere; the terrain colour only lightly tints themed blocks; side faces shaded by heading like the tiles | `tileThemes.ts` (`makeBlockTextures`), `units.ts` |
+
+Still to do: death-save rolls for dying heroes, and the Playwright run (its browser isn't installed on
+the dev machine: `npx playwright install chromium`).

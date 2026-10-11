@@ -172,6 +172,7 @@ export class ThreeRenderer implements BoardRenderer {
       view: vm.view,
       library: this.library,
       now: this.animNow(),
+      theme: vm.theme,
     });
     this.lights.update(
       vm,
@@ -580,12 +581,12 @@ export class ThreeRenderer implements BoardRenderer {
       }
     }
     for (const b of blocks) {
-      const mat = b.material as THREE.MeshLambertMaterial;
       const target = faded.has(b) ? 0.22 : 1;
-      if (mat.opacity !== target) {
+      const mats = (Array.isArray(b.material) ? b.material : [b.material]) as THREE.MeshLambertMaterial[];
+      for (const mat of mats) {
+        if (mat.opacity === target) continue;
         mat.opacity = target;
         mat.depthWrite = target === 1;
-        mat.needsUpdate = false;
       }
     }
   }
