@@ -22,6 +22,8 @@ export default defineConfig({
     timeout: 60_000,
     stdout: 'ignore',
     stderr: 'pipe',
+    // a server started for the tests plays in a throwaway campaign, never your real one
+    env: { DNDSIM_CAMPAIGN_DIR: 'test-results/e2e-campaign' },
   },
   projects: [
     {

@@ -1,8 +1,8 @@
-import { existsSync, readdirSync, rmSync, rmdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync, rmdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../../server/src/app.ts';
-import { resolveSavesPath, resolveSpritePaths } from '../../server/src/paths.ts';
+import { resolveSavesPath, resolveSpritePaths, seedCampaign } from '../../server/src/paths.ts';
 
 const app = createApp();
 
@@ -91,8 +91,13 @@ describe('server api', () => {
     expect(() => resolveSavesPath('../package.json')).toThrow(/escapes/);
     expect(() => resolveSavesPath('entities/party/../../package.json')).toThrow(/escapes|whitelist/);
     expect(() => resolveSavesPath('entities\\party\\..\\..\\x.json')).toThrow(/escapes|whitelist/);
+    // campaign state resolves into the campaign folder, authored content into saves/
     expect(resolveSavesPath('entities/party/Henry_Keaton.json')).toMatch(
-      /saves[\\/]entities[\\/]party[\\/]Henry_Keaton\.json$/,
+      /vitest-campaign[\\/]entities[\\/]party[\\/]Henry_Keaton\.json$/,
+    );
+    expect(resolveSavesPath('party.json')).toMatch(/vitest-campaign[\\/]party\.json$/);
+    expect(resolveSavesPath('entities/enemies/Dummy.json')).toMatch(
+      /saves[\\/]entities[\\/]enemies[\\/]Dummy\.json$/,
     );
     expect((await app.request('/api/files/secret/x.json')).status).toBe(403);
     expect((await app.request('/api/files/entities/party/deep/x.json')).status).toBe(403);
@@ -104,6 +109,31 @@ describe('server api', () => {
     expect(ok.status).toBe(200);
     expect(((await ok.json()) as { name: string }).name).toBe('Henry Keaton');
     expect((await app.request('/api/files/entities/party/Nobody.json')).status).toBe(404);
+  });
+
+  it('seeds a new campaign folder from campaign.example without ever overwriting it', () => {
+    const dir = join(process.cwd(), 'test-results', 'seed-check');
+    rmSync(dir, { recursive: true, force: true });
+    try {
+      expect(seedCampaign(dir)).toEqual([
+        'entities/party',
+        'entities/nonparty',
+        'party.json',
+        'ui_prefs.json',
+      ]);
+      expect(existsSync(join(dir, 'entities', 'party', 'Henry_Keaton.json'))).toBe(true);
+      // a session changes a sheet: a later start keeps it
+      writeFileSync(join(dir, 'party.json'), '["Somebody"]');
+      expect(seedCampaign(dir)).toEqual([]);
+      expect(readFileSync(join(dir, 'party.json'), 'utf8')).toBe('["Somebody"]');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('reports where the campaign lives', async () => {
+    const health = (await (await app.request('/api/health')).json()) as { campaignDir: string };
+    expect(health.campaignDir).toMatch(/vitest-campaign$/);
   });
 
   it('validates battle names', async () => {

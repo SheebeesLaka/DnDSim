@@ -1,10 +1,54 @@
+import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve, sep, relative, isAbsolute } from 'node:path';
 
 /** Repo root = parent of server/ (process.cwd() when started via npm scripts). */
 export const ROOT = resolve(process.cwd());
+/** Authored game content (enemies, items, spells, terrain, grid shapes): tracked in git. */
 export const SAVES_DIR = resolve(ROOT, 'saves');
+/**
+ * Campaign state that changes during play (character sheets with their current
+ * HP, slots and statuses, the party list, UI prefs, saved battles): kept out of
+ * git. Defaults to campaign/ in the project; DNDSIM_CAMPAIGN_DIR points it
+ * anywhere (absolute, or relative to the project), e.g. a synced cloud folder.
+ */
+export const CAMPAIGN_DIR = resolve(ROOT, process.env.DNDSIM_CAMPAIGN_DIR || 'campaign');
+/** The starting campaign (tracked): copied into CAMPAIGN_DIR for anything it doesn't have yet. */
+export const CAMPAIGN_SEED_DIR = resolve(ROOT, 'campaign.example');
 export const SCENARIOS_DIR = resolve(ROOT, 'scenarios');
-export const BATTLES_DIR = resolve(SAVES_DIR, 'battles');
+export const BATTLES_DIR = resolve(CAMPAIGN_DIR, 'battles');
+
+/** saves-relative locations (files or folders) that live in the campaign folder, not saves/. */
+export const CAMPAIGN_ENTRIES = [
+  'entities/party',
+  'entities/nonparty',
+  'party.json',
+  'ui_prefs.json',
+  'battles',
+] as const;
+
+/** Is a saves-relative (posix) path campaign state rather than authored content? */
+export const isCampaignPath = (posix: string): boolean =>
+  CAMPAIGN_ENTRIES.some((e) => posix === e || posix.startsWith(e + '/'));
+
+/** The folder a saves-relative path lives in: the campaign folder or saves/. */
+export const baseDirFor = (posix: string): string => (isCampaignPath(posix) ? CAMPAIGN_DIR : SAVES_DIR);
+
+/**
+ * First run (or a new campaign folder): copy every campaign entry the folder
+ * doesn't have yet from campaign.example/. Never overwrites. Returns what it copied.
+ */
+export function seedCampaign(dir = CAMPAIGN_DIR, seed = CAMPAIGN_SEED_DIR): string[] {
+  const copied: string[] = [];
+  mkdirSync(dir, { recursive: true });
+  for (const entry of CAMPAIGN_ENTRIES) {
+    const from = resolve(seed, entry);
+    const to = resolve(dir, entry);
+    if (existsSync(to) || !existsSync(from)) continue;
+    cpSync(from, to, { recursive: true, errorOnExist: false, force: false });
+    copied.push(entry);
+  }
+  return copied;
+}
 export const DIST_DIR = resolve(ROOT, 'dist');
 /**
  * Sprite folders, searched in order: new art goes in resources/sprites/ at the
@@ -47,7 +91,11 @@ export class PathError extends Error {
   }
 }
 
-/** Resolve a saves/-relative path, refusing traversal and non-whitelisted locations. */
+/**
+ * Resolve a saves/-relative path, refusing traversal and non-whitelisted
+ * locations. Campaign entries (character sheets, party list, prefs, battles)
+ * resolve into the campaign folder; everything else into saves/.
+ */
 export function resolveSavesPath(rel: string): string {
   const clean = rel.replace(/\\/g, '/').replace(/^\/+/, '');
   if (!clean || clean.includes('\0')) throw new PathError('empty path');
@@ -61,7 +109,7 @@ export function resolveSavesPath(rel: string): string {
     (p) => posix.startsWith(p + '/') && !posix.slice(p.length + 1).includes('/'),
   );
   if (!isFile && !inFolder) throw new PathError(`path not in the saves whitelist: ${posix}`, 403);
-  return abs;
+  return resolve(baseDirFor(posix), posix);
 }
 
 /** A battle/scenario name is a single path segment of safe characters. */

@@ -2,23 +2,35 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 export const ROOT = process.cwd();
+/** Authored content (tracked). */
 export const SAVES = join(ROOT, 'saves');
+/**
+ * The tracked starting campaign. Tests read character sheets, the party list
+ * and prefs from here, never from the live campaign/ folder, so a game
+ * session (HP going up and down) can't change test results.
+ */
+export const CAMPAIGN_SEED = join(ROOT, 'campaign.example');
 
-/** Every *.json under saves/, as [posix relative path, parsed JSON]. */
+/** Where a saves-relative path lives for tests: the campaign seed or saves/. */
+const baseFor = (rel: string): string =>
+  /^(entities\/(party|nonparty)(\/|$)|party\.json$|ui_prefs\.json$)/.test(rel) ? CAMPAIGN_SEED : SAVES;
+
+/** Every *.json under saves/ and the campaign seed, as saves-relative posix paths (sorted). */
 export function allSaveFiles(): { rel: string; raw: unknown; text: string }[] {
   const out: { rel: string; raw: unknown; text: string }[] = [];
-  const walk = (dir: string) => {
+  const walk = (root: string, dir: string) => {
     for (const name of readdirSync(dir).sort()) {
       const p = join(dir, name);
-      if (statSync(p).isDirectory()) walk(p);
+      if (statSync(p).isDirectory()) walk(root, p);
       else if (name.endsWith('.json')) {
         const text = readFileSync(p, 'utf8');
-        out.push({ rel: relative(SAVES, p).split(sep).join('/'), raw: JSON.parse(text) as unknown, text });
+        out.push({ rel: relative(root, p).split(sep).join('/'), raw: JSON.parse(text) as unknown, text });
       }
     }
   };
-  walk(SAVES);
-  return out;
+  walk(SAVES, SAVES);
+  walk(CAMPAIGN_SEED, CAMPAIGN_SEED);
+  return out.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
 }
 
 export function readFolder(rel: string): Record<string, unknown> {
@@ -31,7 +43,7 @@ export function readFolder(rel: string): Record<string, unknown> {
 }
 
 export function readSave(rel: string): unknown {
-  return JSON.parse(readFileSync(join(SAVES, rel), 'utf8')) as unknown;
+  return JSON.parse(readFileSync(join(baseFor(rel), rel), 'utf8')) as unknown;
 }
 
 /** The same payload GET /api/assets returns, built straight from disk. */

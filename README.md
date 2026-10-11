@@ -18,8 +18,17 @@ browser.
 
 - DM window: `http://127.0.0.1:8787/` · player window: `http://127.0.0.1:8787/player` (open it in a
   second browser window/tab of the same browser; it mirrors the DM board live).
-- The app reads and writes the repo-root `saves/` folder through a small local server, so your
-  existing JSON files keep working and party sheets are written back like the Java app did.
+- The app reads and writes your data through a small local server, in two places:
+  - `saves/` holds the **game content** you author (enemies, items, spells, terrain, grid shapes).
+    It is tracked in git: commit it when you've made something worth keeping.
+  - `campaign/` holds the **campaign state** that changes while you play: party and NPC character
+    sheets (current HP, spell slots, statuses), the party list, UI prefs and saved battles. It is
+    git-ignored, so a session never leaves you with changes to commit. On first start it is
+    seeded from the tracked `campaign.example/`.
+  - To keep the campaign somewhere else (for example a OneDrive or Dropbox folder, so it's backed
+    up), set `DNDSIM_CAMPAIGN_DIR` before starting, e.g. in PowerShell:
+    `$env:DNDSIM_CAMPAIGN_DIR = "$HOME\OneDrive\DnDSim campaign"; npm start`. An empty folder is
+    seeded the same way; files already there are never overwritten.
 - It opens on a menu: **Battle** (grid setup), **Character Sheets** and **Asset Editor**.
 
 ## Develop
@@ -33,7 +42,7 @@ node scripts/smoke-ui.mjs   # drive the real UI headlessly, screenshots in docs/
 
 Dev URLs: `/?scenario=test&seed=1` loads `scenarios/test.json` (self-contained fixture: party sheets
 and prefs are *not* written back); `/?scenario=perf` is the 25×25 / 40 units / 20 lights stress
-scene; `/?battle=<name>` loads `saves/battles/<name>.json`; `/?readonly=1` never writes party sheets
+scene; `/?battle=<name>` loads `campaign/battles/<name>.json`; `/?readonly=1` never writes party sheets
 or prefs. `?view=menu|setup|sheets|assets` opens a page directly. Press `` ` `` in the DM window for
 the debug panel.
 
@@ -54,7 +63,8 @@ tethered line. Details, the brief-to-implementation map and known limits: `docs/
 - **Mouse:** click selects/acts as before; drag pans; wheel zooms in whole pixel steps; `Home` or ⌂
   resets the camera.
 - **Toolbar (bottom-left of the board):** DM and player camera angle (tactical / top-down), backdrop
-  blur and light glow, each saved in `saves/ui_prefs.json` (`board.*`, `board.player.*`).
+  blur and light glow, each saved in `campaign/ui_prefs.json` (`board.*`, `board.player.*`).
+  ⟲ / ⟳ (or `[` / `]` on the DM board) turn the camera in 90° steps.
 - **Sprites:** a sheet/character `spritePath` like `party/testsprites.png#3` (sheet row 3) is served
   from `resources/sprites/` or `legacy-java/resources/sprites/`; units without art get an initials
   token.
@@ -65,7 +75,7 @@ tethered line. Details, the brief-to-implementation map and known limits: `docs/
 ## Layout
 
 ```
-server/src     Hono API over saves/ (assets bundle, whitelisted file read/write, battles, scenarios)
+server/src     Hono API over saves/ + campaign/ (assets bundle, whitelisted file read/write, battles, scenarios)
 src/engine     PURE rules engine: reduce(state, command, ctx) → { state, events }  (no DOM, IO, clock)
 src/assets     loaders/normalisers/writers for every saves/ JSON format
 src/editors    the editable asset store (save/rename/delete) and pure sheet/form/browser logic

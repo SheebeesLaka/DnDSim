@@ -16,3 +16,7 @@ npm-debug.log*
 # Local scratch
 .DS_Store
 Thumbs.db
+
+# Campaign state (character sheets, party list, prefs, saved battles): local, never committed.
+# Seeded from campaign.example/ on first run; DNDSIM_CAMPAIGN_DIR moves it elsewhere.
+/campaign/

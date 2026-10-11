@@ -5,9 +5,12 @@ import { existsSync, type Dirent } from 'node:fs';
 import { join } from 'node:path';
 import {
   BATTLES_DIR,
+  CAMPAIGN_DIR,
   PathError,
   SAVES_DIR,
   SCENARIOS_DIR,
+  baseDirFor,
+  seedCampaign,
   resolveSavesPath,
   MAX_SPRITE_BYTES,
   SPRITES_DIRS,
@@ -20,12 +23,17 @@ import { listJsonStems, readJsonFolder, readText, writeJsonAtomic } from './file
 import type { Presence } from './presence.ts';
 
 /**
- * JSON API over the repo-root saves/ folder. The web app loads every asset
- * through /api/assets at startup and writes party sheets / battles / prefs
- * back through PUT endpoints. Static serving of dist/ is added by index.ts.
+ * JSON API over the repo-root saves/ folder (authored content) and the
+ * campaign folder (character sheets, party list, prefs, battles; see
+ * paths.ts). Clients use saves-relative paths for both; the server routes
+ * them. The web app loads every asset through /api/assets at startup and
+ * writes party sheets / battles / prefs back through PUT endpoints. Static
+ * serving of dist/ is added by index.ts.
  */
 export function createApp(opts: { presence?: Presence } = {}): Hono {
   const app = new Hono();
+  const seeded = seedCampaign();
+  if (seeded.length > 0) console.log(`[dndsim] campaign folder ${CAMPAIGN_DIR}: seeded ${seeded.join(', ')}`);
 
   app.onError((err, c) => {
     if (err instanceof PathError) return c.json({ error: err.message }, err.status);
@@ -33,7 +41,9 @@ export function createApp(opts: { presence?: Presence } = {}): Hono {
     return c.json({ error: 'internal error' }, 500);
   });
 
-  app.get('/api/health', (c) => c.json({ ok: true, savesDir: SAVES_DIR, time: new Date().toISOString() }));
+  app.get('/api/health', (c) =>
+    c.json({ ok: true, savesDir: SAVES_DIR, campaignDir: CAMPAIGN_DIR, time: new Date().toISOString() }),
+  );
 
   /** Held open by every built app window, so `npm start` knows when the last one closes. */
   app.get('/api/presence', (c) =>
@@ -54,9 +64,9 @@ export function createApp(opts: { presence?: Presence } = {}): Hono {
 
   /** Every asset file as raw JSON, grouped by folder and keyed by file stem. */
   app.get('/api/assets', async (c) => {
-    const folder = (p: string) => readJsonFolder(join(SAVES_DIR, p));
+    const folder = (p: string) => readJsonFolder(join(baseDirFor(p), p));
     const single = async (name: string) => {
-      const text = await readText(join(SAVES_DIR, name));
+      const text = await readText(join(baseDirFor(name), name));
       return text === null ? null : (JSON.parse(text) as unknown);
     };
     const bundle = {

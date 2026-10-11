@@ -1,10 +1,13 @@
 import { expect, test } from '@playwright/test';
 import { battle, beginTestBattle } from './helpers.ts';
 import { rmSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 
-test('save a battle to saves/battles and load it back', async ({ page }) => {
+test('save a battle to the campaign battles folder and load it back', async ({ page, request }) => {
   const name = 'e2e-roundtrip';
-  const file = `saves/battles/${name}.json`;
+  // wherever the server keeps the campaign (a reused dev server may use the real one)
+  const { campaignDir } = (await (await request.get('/api/health')).json()) as { campaignDir: string };
+  const file = join(campaignDir, 'battles', `${name}.json`);
   if (existsSync(file)) rmSync(file);
   try {
     await beginTestBattle(page);
