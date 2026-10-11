@@ -14,6 +14,9 @@ export default tseslint.config(
       'playwright-report/**',
       'saves/**',
       'docs/**',
+      // separate Vite starter projects a collaborator added; not part of this app
+      'DND/**',
+      'vite-project/**',
     ],
   },
   eslint.configs.recommended,

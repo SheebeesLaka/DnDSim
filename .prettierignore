@@ -8,3 +8,6 @@ playwright-report
 package-lock.json
 *.md
 scenarios/
+# separate Vite starter projects (not part of this app)
+DND/
+vite-project/
