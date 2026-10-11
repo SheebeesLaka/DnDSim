@@ -11,6 +11,11 @@ npm install
 npm start          # builds if needed, serves http://127.0.0.1:8787 and opens the DM window
 ```
 
+The server stops by itself a few seconds after you close the last app window (DM and player), which
+gives the terminal back; a refresh doesn't count as closing. `Ctrl+C` stops it at once.
+`npm start -- --keep-running` keeps it up with no window open; `-- --no-open` skips opening the
+browser.
+
 - DM window: `http://127.0.0.1:8787/` · player window: `http://127.0.0.1:8787/player` (open it in a
   second browser window/tab of the same browser; it mirrors the DM board live).
 - The app reads and writes the repo-root `saves/` folder through a small local server, so your

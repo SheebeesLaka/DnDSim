@@ -3,8 +3,10 @@ import '../ui/styles.css';
 import { mountPlayerScreen } from '../ui/playerScreen.ts';
 import { pickRenderer } from '../ui/renderer/pickRenderer.ts';
 import { ReplicaStore } from './replica.ts';
+import { holdPresence } from './presence.ts';
 import { broadcastChannelTransport } from './transport/broadcastChannel.ts';
 
+holdPresence();
 const root = document.getElementById('app') as HTMLElement;
 const replica = new ReplicaStore(broadcastChannelTransport());
 const renderer = pickRenderer(new URLSearchParams(location.search), { view: { blur: false } });

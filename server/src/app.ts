@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { streamSSE } from 'hono/streaming';
 import { promises as fs } from 'node:fs';
 import { existsSync, type Dirent } from 'node:fs';
 import { join } from 'node:path';
@@ -16,13 +17,14 @@ import {
   spriteUploadTarget,
 } from './paths.ts';
 import { listJsonStems, readJsonFolder, readText, writeJsonAtomic } from './files.ts';
+import type { Presence } from './presence.ts';
 
 /**
  * JSON API over the repo-root saves/ folder. The web app loads every asset
  * through /api/assets at startup and writes party sheets / battles / prefs
  * back through PUT endpoints. Static serving of dist/ is added by index.ts.
  */
-export function createApp(): Hono {
+export function createApp(opts: { presence?: Presence } = {}): Hono {
   const app = new Hono();
 
   app.onError((err, c) => {
@@ -32,6 +34,23 @@ export function createApp(): Hono {
   });
 
   app.get('/api/health', (c) => c.json({ ok: true, savesDir: SAVES_DIR, time: new Date().toISOString() }));
+
+  /** Held open by every built app window, so `npm start` knows when the last one closes. */
+  app.get('/api/presence', (c) =>
+    streamSSE(c, async (stream) => {
+      const release = opts.presence?.connect() ?? (() => {});
+      stream.onAbort(release);
+      try {
+        await stream.writeSSE({ event: 'hello', data: 'ok' });
+        while (!stream.aborted) {
+          await stream.sleep(25_000);
+          if (!stream.aborted) await stream.writeSSE({ event: 'ping', data: 'ok' });
+        }
+      } finally {
+        release();
+      }
+    }),
+  );
 
   /** Every asset file as raw JSON, grouped by folder and keyed by file stem. */
   app.get('/api/assets', async (c) => {

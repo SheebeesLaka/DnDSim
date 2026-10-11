@@ -36,11 +36,13 @@ import {
 } from '../assets/client.ts';
 import { createSheetPersister, renderUiPrefs, uiPrefsPath } from './persistence.ts';
 import { PrefsStore } from './prefs.ts';
+import { holdPresence } from './presence.ts';
 import { publishStore } from './replica.ts';
 import { applyScenario, engineAssetsOf, rngFromParams, type Scenario } from './scenario.ts';
 import { Store } from './store.ts';
 import { broadcastChannelTransport } from './transport/broadcastChannel.ts';
 
+holdPresence();
 const root = document.getElementById('app') as HTMLElement;
 const params = new URLSearchParams(location.search);
 
