@@ -26,9 +26,15 @@ export class PrefsStore {
     this.persist();
   }
   set(key: string, value: string | null): void {
+    this.setMany({ [key]: value });
+  }
+  /** Several keys in one write (one notification, one save); null deletes a key. */
+  setMany(patch: Record<string, string | null>): void {
     const next = { ...this.prefs };
-    if (value === null) delete next[key];
-    else next[key] = value;
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === null) delete next[key];
+      else next[key] = value;
+    }
     this.prefs = next;
     this.persist();
   }

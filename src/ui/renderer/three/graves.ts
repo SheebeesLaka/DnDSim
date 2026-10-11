@@ -6,7 +6,7 @@
  */
 import * as THREE from 'three';
 import { canvas, pixelTexture, rng } from './textures.ts';
-import { TEXELS } from './constants.ts';
+import { AREA_SCALE, TEXELS, tx } from './constants.ts';
 
 export interface GraveVM {
   id: string;
@@ -41,14 +41,14 @@ function stoneTexture(): THREE.CanvasTexture {
   const r = rng(83);
   ctx.fillStyle = '#9aa0a8';
   ctx.fillRect(0, 0, TEXELS, TEXELS);
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < Math.round(40 * AREA_SCALE); i++) {
     ctx.fillStyle = r() < 0.5 ? '#868c94' : '#aeb4bc';
     ctx.fillRect(Math.floor(r() * TEXELS), Math.floor(r() * TEXELS), 1, 1);
   }
   // engraved cross in the upper middle of the face
   ctx.fillStyle = '#5c6168';
-  ctx.fillRect(7, 3, 2, 8);
-  ctx.fillRect(5, 5, 6, 2);
+  ctx.fillRect(TEXELS / 2 - 1, tx(3), 2, tx(8));
+  ctx.fillRect(TEXELS / 2 - tx(3), tx(5), tx(6), 2);
   return pixelTexture(c);
 }
 

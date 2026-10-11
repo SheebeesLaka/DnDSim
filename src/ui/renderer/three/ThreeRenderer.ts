@@ -20,6 +20,8 @@ import {
   BLOCK_HEIGHT,
   DEFAULT_VIEW_OPTIONS,
   HIGHLIGHT,
+  MAX_ZOOM,
+  MIN_ZOOM,
   STEP,
   ftLabel,
   type ViewOptions,
@@ -34,6 +36,7 @@ import { heightRegions, labelCellCosts, type HeightRegion } from './regions.ts';
 import { SkirtLayer } from './skirt.ts';
 import { TileLayer } from './tiles.ts';
 import { UnitLayer } from './units.ts';
+import { WheelZoom } from './wheelZoom.ts';
 
 interface LiveText extends FloatingText {
   born: number;
@@ -56,6 +59,9 @@ export interface ThreeRendererOptions {
 }
 
 const FLOAT_MS = 900;
+const DEG = Math.PI / 180;
+/** Movement (CSS px) before a press becomes a drag (pan or orbit) instead of a click. */
+const DRAG_PX = 5;
 const _corner = new THREE.Vector3();
 const _snap = new THREE.Vector3();
 
@@ -86,8 +92,13 @@ export class ThreeRenderer implements BoardRenderer {
   private fitted = false;
   private resizeObs: ResizeObserver | null = null;
   private raycaster = new THREE.Raycaster();
+  private wheel = new WheelZoom();
+  private zoomListeners = new Set<(level: number) => void>();
+  /** the zoom level the listeners last heard */
+  private shownZoom = -1;
   private hoverCell: Cell | null = null;
-  private dragging = false;
+  /** the mouse button held on the board (pan / orbit / click candidate) */
+  private press: { button: 0 | 2; pointerId: number } | null = null;
   private moved = false;
   private pressX = 0;
   private pressY = 0;
@@ -119,7 +130,7 @@ export class ThreeRenderer implements BoardRenderer {
     this.view = { ...DEFAULT_VIEW_OPTIONS, ...opts.view };
     this.benchmark = opts.benchmark ?? false;
     this.library = opts.library ?? new SpriteLibrary();
-    this.cam.setAzimuth(this.view.azimuth);
+    this.cam.setAngles(this.view.yaw * DEG, this.view.pitch * DEG);
     this.scene.background = new THREE.Color('#0b0e14');
     this.scene.add(
       this.tiles.group,
@@ -170,10 +181,10 @@ export class ThreeRenderer implements BoardRenderer {
     this.graves.update(vm.graves ?? [], (r, c) => this.tiles.topY(r, c));
     if (rebuilt && !this.fitted) {
       this.fitted = true;
-      this.cam.fit(this.tiles.bounds);
+      this.fitBoard();
     }
     this.cam.setMode(this.view.camera);
-    this.applyHeading();
+    this.applyView();
     this.units.update(vm.units, {
       topY: (r, c) => this.tiles.topY(r, c),
       surface: (cell, lift) => this.tiles.surfaceMatrix(cell.r, cell.c, lift),
@@ -198,7 +209,8 @@ export class ThreeRenderer implements BoardRenderer {
     this.marks.setHover(this.hoverCell, (cell, lift) => this.tiles.surfaceMatrix(cell.r, cell.c, lift));
     // shadow maps are static: refresh them only when something that casts a shadow changed,
     // and point-light maps only for lights that reach the change (light edits refresh themselves)
-    const global = `${this.view.camera}|${this.cam.azimuth}|${this.library.version}`;
+    // sprite shadows come from proxies at a fixed stretch, so only the heading (which turns them) counts, not the tilt
+    const global = `${this.view.camera}|${this.cam.headingAngle.toFixed(3)}|${this.library.version}`;
     const changes = shadowChanges(this.shadowUnits, vm.units);
     this.shadowUnits = changes.next;
     if (rebuilt || global !== this.shadowGlobal) {
@@ -270,8 +282,37 @@ export class ThreeRenderer implements BoardRenderer {
     this.invalidate();
   }
 
-  resetCamera(): void {
+  getZoom(): { level: number; min: number; max: number } {
+    return { level: this.cam.zoom, min: MIN_ZOOM, max: MAX_ZOOM };
+  }
+
+  /** Jump to a zoom level (whole steps), keeping the centre of the view in place. */
+  setZoom(level: number): void {
+    this.cam.zoomBy(Math.round(level) - this.cam.zoom);
+    this.invalidate();
+    this.notifyZoom();
+  }
+
+  /** Hear about every zoom change (wheel, slider, fit). Returns an unsubscribe. */
+  onZoomChange(fn: (level: number) => void): () => void {
+    this.zoomListeners.add(fn);
+    return () => this.zoomListeners.delete(fn);
+  }
+
+  /** Frame the whole board (largest whole zoom that fits); the zoom bar follows. */
+  private fitBoard(): void {
     this.cam.fit(this.tiles.bounds);
+    this.notifyZoom();
+  }
+
+  private notifyZoom(): void {
+    if (this.cam.zoom === this.shownZoom) return;
+    this.shownZoom = this.cam.zoom;
+    for (const fn of this.zoomListeners) fn(this.cam.zoom);
+  }
+
+  resetCamera(): void {
+    this.fitBoard();
     this.invalidate();
   }
 
@@ -301,14 +342,22 @@ export class ThreeRenderer implements BoardRenderer {
   setViewOptions(patch: Partial<ViewOptions>): void {
     const next = { ...this.view, ...patch };
     const cameraChanged = next.camera !== this.view.camera;
-    const turned = next.azimuth !== this.view.azimuth;
     this.view = next;
     this.post?.setEnabled({ bloom: next.bloom, blur: next.blur });
-    if (turned) this.cam.setAzimuth(next.azimuth, performance.now());
+    // an angle we just settled on ourselves (orbit -> prefs -> back here) is a no-op;
+    // while the user is orbiting, the drag owns the camera
+    // (before the board is first shown it jumps instead of tweening in)
+    if (
+      !this.orbiting &&
+      this.cam.setAngles(next.yaw * DEG, next.pitch * DEG, this.fitted ? performance.now() : undefined)
+    ) {
+      this.applyView();
+      if (!this.cam.turning && this.vm && !cameraChanged) this.render(this.vm);
+    }
     if (cameraChanged) {
       this.cam.setMode(next.camera);
       if (this.vm) this.render(this.vm);
-      this.cam.fit(this.tiles.bounds);
+      this.fitBoard();
     }
     this.invalidate();
   }
@@ -337,7 +386,7 @@ export class ThreeRenderer implements BoardRenderer {
     this.post?.setSize(w, h);
     this.overlay.resize(w, h, this.gl.getPixelRatio());
     this.cam.setViewport(w, h);
-    if (this.fitted) this.cam.fit(this.tiles.bounds);
+    if (this.fitted) this.fitBoard();
     this.invalidate();
   }
 
@@ -346,8 +395,8 @@ export class ThreeRenderer implements BoardRenderer {
     this.raf = requestAnimationFrame(this.loop);
     const now = performance.now();
     if (this.cam.tick(now)) {
-      this.applyHeading();
-      // the turn landed: ghosts, chip placement and shadow maps depend on the heading
+      this.applyView();
+      // the turn landed: ghosts, chip placement and shadow maps depend on the angle
       if (!this.cam.turning && this.vm) this.render(this.vm);
       this.dirty = true;
     }
@@ -407,8 +456,13 @@ export class ThreeRenderer implements BoardRenderer {
     }
   }
 
-  /** Billboards, sun and ghosts follow a camera turn. */
-  private applyHeading(): void {
+  /**
+   * The cheap per-frame part of a camera turn or tilt: billboards face the
+   * heading and stretch for the tilt, side faces re-shade, the sun follows.
+   * Ghosts, chips and shadow maps wait for the camera to settle (render()).
+   */
+  private applyView(): void {
+    this.units.setStretch(this.view.camera === 'top' ? 1 : this.cam.spriteStretch);
     this.units.setHeading(this.cam.headingAngle);
     this.tiles.setHeading(this.cam.headingAngle);
     this.graves.setHeading(this.cam.headingAngle);
@@ -612,50 +666,98 @@ export class ThreeRenderer implements BoardRenderer {
     }
   }
 
+  /** true while a right-drag is turning / tilting the camera */
+  private get orbiting(): boolean {
+    return this.press?.button === 2 && this.moved;
+  }
+
+  /**
+   * Left-drag pans, right-drag orbits (turn + tilt); a press that moves less
+   * than DRAG_PX is a click (left) or the context menu (right). The native
+   * context menu is always suppressed: a right-click is reported on release,
+   * once it is clear it was not a drag.
+   */
   private bindPointer(canvas: HTMLCanvasElement): void {
     canvas.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return;
+      if ((e.button !== 0 && e.button !== 2) || this.press) return;
+      this.press = { button: e.button, pointerId: e.pointerId };
       this.pressX = this.lastX = e.clientX;
       this.pressY = this.lastY = e.clientY;
-      this.dragging = true;
       this.moved = false;
       canvas.focus();
     });
     canvas.addEventListener('pointermove', (e) => {
-      if (this.dragging) {
-        if (!this.moved && Math.hypot(e.clientX - this.pressX, e.clientY - this.pressY) >= 5)
+      const press = this.press;
+      if (press && e.pointerId === press.pointerId) {
+        if (!this.moved && Math.hypot(e.clientX - this.pressX, e.clientY - this.pressY) >= DRAG_PX) {
           this.moved = true;
+          if (press.button === 2) {
+            try {
+              canvas.setPointerCapture(e.pointerId);
+            } catch {
+              // pointer already gone (or synthetic): the orbit still works while over the board
+            }
+            canvas.style.cursor = 'grabbing';
+          }
+        }
         if (this.moved) {
-          this.cam.pan(e.clientX - this.lastX, e.clientY - this.lastY);
+          const dx = e.clientX - this.lastX,
+            dy = e.clientY - this.lastY;
           this.lastX = e.clientX;
           this.lastY = e.clientY;
+          if (press.button === 0) this.cam.pan(dx, dy);
+          else {
+            this.cam.orbit(dx, dy);
+            this.applyView();
+          }
           this.invalidate();
         }
       }
-      this.setHover(this.hitTest(e.clientX, e.clientY));
+      if (!this.orbiting) this.setHover(this.hitTest(e.clientX, e.clientY));
     });
-    canvas.addEventListener('pointerup', (e) => {
-      if (e.button !== 0) return;
+    const release = (e: PointerEvent, cancelled: boolean) => {
+      const press = this.press;
+      if (!press || e.pointerId !== press.pointerId) return;
       const wasDrag = this.moved;
-      this.dragging = false;
+      const wasOrbit = this.orbiting;
+      this.press = null;
       this.moved = false;
-      if (wasDrag) return;
-      this.handlers.onClick?.(this.pointer(e, 0));
-    });
+      if (wasOrbit) {
+        if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+        canvas.style.cursor = '';
+        // settled: ghosts, chips and shadow maps catch up, and the angle is saved
+        if (this.vm) this.render(this.vm);
+        this.handlers.onCameraSettled?.(this.cam.angles);
+        this.setHover(this.hitTest(e.clientX, e.clientY));
+        return;
+      }
+      if (wasDrag || cancelled) return;
+      if (press.button === 0) this.handlers.onClick?.(this.pointer(e, 0));
+      else this.handlers.onContextMenu?.(this.pointer(e, 2));
+    };
+    canvas.addEventListener('pointerup', (e) => release(e, false));
+    canvas.addEventListener('pointercancel', (e) => release(e, true));
     canvas.addEventListener('pointerleave', () => {
-      this.dragging = false;
+      // an orbit holds pointer capture and keeps going outside the board
+      if (this.orbiting) return;
+      this.press = null;
+      this.moved = false;
       this.setHover(null);
     });
     canvas.addEventListener('contextmenu', (e) => {
       e.preventDefault();
-      this.handlers.onContextMenu?.(this.pointer(e, 2));
+      // the Menu key (no right-button press in flight); mouse right-clicks report on release
+      if (!this.press && e.button !== 2) this.handlers.onContextMenu?.(this.pointer(e, 2));
     });
     canvas.addEventListener(
       'wheel',
       (e) => {
         e.preventDefault();
+        const step = this.wheel.feed(e.deltaY, performance.now());
+        if (step === 0) return;
         const rect = canvas.getBoundingClientRect();
-        this.cam.zoomBy(e.deltaY < 0 ? 1 : -1, e.clientX - rect.left, e.clientY - rect.top);
+        this.cam.zoomBy(step, e.clientX - rect.left, e.clientY - rect.top);
+        this.notifyZoom();
         this.invalidate();
       },
       { passive: false },

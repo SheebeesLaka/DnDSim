@@ -9,7 +9,7 @@
  */
 import * as THREE from 'three';
 import type { BoardVM } from '../../../engine/view/boardViewModel.ts';
-import { PITCH_TACTICAL } from './constants.ts';
+import { PITCH_MIN } from './constants.ts';
 import { SKIRT_TOP } from './ledges.ts';
 import {
   makeBarkTexture,
@@ -86,8 +86,8 @@ export const skirtFade = (d: number, rings = SKIRT_RINGS): number => {
   return (1 - t) ** 1.6;
 };
 
-/** Tallest prop that may stand `d` cells from the board without covering a board tile on screen. */
-export const maxPropHeight = (d: number): number => Math.max(0, (d - 1.15) * Math.tan(PITCH_TACTICAL));
+/** Tallest prop that may stand `d` cells from the board without covering a board tile on screen, even at the shallowest tilt. */
+export const maxPropHeight = (d: number): number => Math.max(0, (d - 1.15) * Math.tan(PITCH_MIN));
 
 interface PropDef {
   geo: THREE.BufferGeometry;

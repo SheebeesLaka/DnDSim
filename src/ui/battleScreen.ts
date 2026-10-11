@@ -37,8 +37,8 @@ import {
 } from './panels/dialogs.ts';
 import { mountDebugPanel } from './panels/debugPanel.ts';
 import type { BoardRenderer } from './renderer/BoardRenderer.ts';
-import { mountBoardToolbar } from './panels/boardToolbar.ts';
-import { turnAzimuth, viewOptionsFromPrefs, viewPrefKey } from './viewPrefs.ts';
+import { mountBoardToolbar, resetView, turnView } from './panels/boardToolbar.ts';
+import { anglePrefs } from './viewPrefs.ts';
 import { BOARD_THEMES } from './boardThemes.ts';
 
 export interface BattleScreenDeps {
@@ -78,6 +78,8 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
     onClick: (e) => onBoardClick(e.cell, e.clientX, e.clientY),
     onHover: (cell) => store.dispatchSession({ type: 'hover', cell }),
     onContextMenu: (e) => onRightClick(e.cell, e.clientX, e.clientY),
+    // a right-drag orbit ended: keep the angle (and show it in the player window)
+    onCameraSettled: (a) => prefs.setMany(anglePrefs(a)),
   });
   const toolbar = mountBoardToolbar(boardWrap, renderer, prefs);
   let popup: HTMLElement | null = null;
@@ -347,11 +349,8 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
     if (e.key === '`')
       return (e.preventDefault(), store.dispatchSession({ type: 'debug', open: !session().debugOpen }));
-    if (e.key === 'Home') return renderer.resetCamera();
-    if (e.key === '[' || e.key === ']') {
-      const cur = viewOptionsFromPrefs(prefs.all, 'dm').azimuth;
-      return prefs.set(viewPrefKey('dm', 'azimuth'), String(turnAzimuth(cur, e.key === ']' ? 1 : -1)));
-    }
+    if (e.key === 'Home') return resetView(renderer, prefs);
+    if (e.key === '[' || e.key === ']') return turnView(prefs, e.key === ']' ? 1 : -1);
     if (e.key === 'Escape') {
       if (session().mode.kind !== 'none') return store.dispatchSession({ type: 'cancelMode' });
       return;

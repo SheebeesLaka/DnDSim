@@ -5,7 +5,7 @@
  * sRGB — the HD-2D crisp-pixel contract.
  */
 import * as THREE from 'three';
-import { TEXELS } from './constants.ts';
+import { AREA_SCALE, TEXELS, tx } from './constants.ts';
 import type { UnitVM } from '../../../engine/view/boardViewModel.ts';
 import { SIDE_COLORS } from './constants.ts';
 
@@ -62,11 +62,11 @@ export function makeWallTexture(seed = 3): THREE.CanvasTexture {
         ctx.fillRect(x, y, 1, 1);
       }
   ctx.fillStyle = '#6a6e76';
-  ctx.fillRect(0, 5, TEXELS, 1);
-  ctx.fillRect(0, 11, TEXELS, 1);
-  ctx.fillRect(6, 0, 1, 5);
-  ctx.fillRect(11, 6, 1, 5);
-  ctx.fillRect(3, 12, 1, 4);
+  ctx.fillRect(0, tx(5), TEXELS, 1);
+  ctx.fillRect(0, tx(11), TEXELS, 1);
+  ctx.fillRect(tx(6), 0, 1, tx(5));
+  ctx.fillRect(tx(11), tx(6), 1, tx(5));
+  ctx.fillRect(tx(3), tx(12), 1, TEXELS - tx(12));
   return pixelTexture(c);
 }
 
@@ -76,7 +76,7 @@ export function makeSlabTexture(seed = 5): THREE.CanvasTexture {
   const r = rng(seed);
   ctx.fillStyle = '#d0d0d0';
   ctx.fillRect(0, 0, TEXELS, TEXELS);
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < Math.round(24 * AREA_SCALE); i++) {
     ctx.fillStyle = r() < 0.5 ? '#ffffff' : '#a8a8a8';
     ctx.fillRect(Math.floor(r() * TEXELS), Math.floor(r() * TEXELS), 2, 1);
   }
@@ -187,16 +187,16 @@ export function makeMetalTexture(seed = 13): THREE.CanvasTexture {
   ctx.fillStyle = '#7c8088'; // seams
   ctx.fillRect(0, 0, TEXELS, 1);
   ctx.fillRect(0, 0, 1, TEXELS);
-  ctx.fillRect(0, 8, TEXELS, 1);
+  ctx.fillRect(0, TEXELS / 2, TEXELS, 1);
   ctx.fillStyle = '#e2e4ea'; // bevel highlight
   ctx.fillRect(1, 1, TEXELS - 1, 1);
-  ctx.fillRect(1, 9, TEXELS - 1, 1);
+  ctx.fillRect(1, TEXELS / 2 + 1, TEXELS - 1, 1);
   ctx.fillStyle = '#6a6e76'; // rivets
   for (const [x, y] of [
-    [2, 3],
-    [13, 3],
-    [2, 12],
-    [13, 12],
+    [2, tx(3)],
+    [TEXELS - 3, tx(3)],
+    [2, TEXELS - tx(4)],
+    [TEXELS - 3, TEXELS - tx(4)],
   ] as const)
     ctx.fillRect(x, y, 1, 1);
   return pixelTexture(c);
@@ -208,7 +208,7 @@ export function makeLeafTexture(seed = 17): THREE.CanvasTexture {
   const r = rng(seed);
   ctx.fillStyle = '#436a34';
   ctx.fillRect(0, 0, TEXELS, TEXELS);
-  for (let i = 0; i < 70; i++) {
+  for (let i = 0; i < Math.round(70 * AREA_SCALE); i++) {
     const v = r();
     ctx.fillStyle = v < 0.45 ? '#355a2a' : v < 0.85 ? '#56834a' : '#76a35e';
     ctx.fillRect(Math.floor(r() * TEXELS), Math.floor(r() * TEXELS), v < 0.45 ? 2 : 1, 1);
@@ -226,7 +226,7 @@ export function makeBarkTexture(seed = 19): THREE.CanvasTexture {
     ctx.fillStyle = '#553a24';
     ctx.fillRect(x, 0, 1, TEXELS);
   }
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < Math.round(12 * AREA_SCALE); i++) {
     ctx.fillStyle = '#7f5b3b';
     ctx.fillRect(Math.floor(r() * TEXELS), Math.floor(r() * TEXELS), 1, 2);
   }
@@ -235,12 +235,12 @@ export function makeBarkTexture(seed = 19): THREE.CanvasTexture {
 
 /** A console screen: dark glass with a few bright readout lines (used unlit, so it glows). */
 export function makeScreenTexture(seed = 23): THREE.CanvasTexture {
-  const [c, ctx] = canvas(TEXELS, TEXELS / 2);
+  const [c, ctx] = canvas(TEXELS, Math.floor(TEXELS / 2));
   const r = rng(seed);
   ctx.fillStyle = '#0d2a33';
   ctx.fillRect(0, 0, TEXELS, TEXELS / 2);
   for (let y = 1; y < TEXELS / 2 - 1; y += 2) {
-    const w = 3 + Math.floor(r() * 9);
+    const w = 3 + Math.floor(r() * (TEXELS - 7));
     ctx.fillStyle = r() < 0.25 ? '#ffcf5a' : '#5ff2ff';
     ctx.fillRect(2, y, w, 1);
   }

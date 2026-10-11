@@ -495,6 +495,35 @@ input[type='number'] {
   border-color: var(--blue);
   color: var(--blue);
 }
+.board-zoom {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(14, 16, 20, 0.78);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  backdrop-filter: blur(4px);
+}
+.board-zoom button {
+  padding: 1px 8px;
+  font-size: 13px;
+}
+.board-zoom input[type='range'] {
+  width: 120px;
+  margin: 0;
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+.board-zoom .zoom-level {
+  min-width: 2.2em;
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
 
 /* main menu */
 .menu {

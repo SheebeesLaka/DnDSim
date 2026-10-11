@@ -16,7 +16,7 @@ import {
   type SpriteLibrary,
 } from '../../sprites/library.ts';
 import { idleFrameIndex } from '../../sprites/slicer.ts';
-import { BLOCK_HEIGHT, STEP, TEXELS, type CameraMode } from './constants.ts';
+import { BLOCK_HEIGHT, SHADOW_STRETCH, SPRITE_CELL, STEP, TEXELS, type CameraMode } from './constants.ts';
 import { UnitDecals } from './marks.ts';
 import { faceShade } from './tiles.ts';
 import { makeBlockTextures, themedBlocks } from './tileThemes.ts';
@@ -139,19 +139,22 @@ interface Node {
   root: THREE.Group; // at the feet (incl. altitude)
   body: THREE.Mesh | null; // billboard
   ghost: THREE.Mesh | null;
+  /** shadow-only twin of an upright body at SHADOW_STRETCH height (shares its geometry) */
+  shadow: THREE.Mesh | null;
   block: THREE.Mesh | null; // terrain block / slab
   decals: UnitDecals;
   tether: THREE.Group;
   frames: SpriteFrames | null;
   frameIdx: number;
-  /** billboard size in world units (before stretch) */
+  /** billboard width in world units */
   w: number;
+  /** world-space height of what stands up from the tile (after stretch) */
   h: number;
   tokenTex: THREE.Texture | null;
   tokenKey: string;
   /** body lies flat on the tile (top-down view, or flat floor art) */
   flat: boolean;
-  /** flat body's length along the heading (world units) */
+  /** billboard height before stretch (a flat body's length along the heading) */
   flatH: number;
   u: UnitVM;
   cell: Cell;
@@ -182,6 +185,10 @@ export class UnitLayer {
   private ghosted = new Set<string>();
   /** camera heading (radians): billboards turn around Y to face it */
   private heading = 0;
+  /** 1 / cos(pitch): upright billboards are this much taller than their art so they project 1:1 */
+  private stretch = 1;
+  /** drawn into shadow maps only (through the body's depth materials), invisible on screen */
+  private shadowOnlyMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 
   materialsFor(atlas: SpriteAtlas): AtlasMaterials {
     let m = this.atlasMats.get(atlas);
@@ -231,6 +238,7 @@ export class UnitLayer {
       root,
       body: null,
       ghost: null,
+      shadow: null,
       block: null,
       decals,
       tether,
@@ -350,6 +358,10 @@ export class UnitLayer {
       n.ghost.geometry.dispose();
       n.ghost = null;
     }
+    if (n.shadow) {
+      n.root.remove(n.shadow);
+      n.shadow = null;
+    }
     const collision = u.terrain?.collision ?? true;
     const key = `${u.color}|${collision}|${theme}`;
     let mats = this.blockMats.get(u.id);
@@ -410,8 +422,10 @@ export class UnitLayer {
       atlasW = frames.atlas.width;
       atlasH = frames.atlas.height;
       if (frames.single) {
-        // authored art of any resolution: fit a cell footprint (like Java's scale-to-fit)
-        const scale = Math.min(1 / f.w, 1.25 / f.h);
+        // authored art of any resolution: fit a cell footprint (like Java's scale-to-fit);
+        // a unit's art keeps its on-screen size like pixel sprites, terrain art fills its cell
+        const fit = u.kind === 'terrain' ? 1 : SPRITE_CELL;
+        const scale = Math.min(fit / f.w, (1.25 * fit) / f.h);
         w = f.w * scale;
         h = f.h * scale;
       } else {
@@ -436,38 +450,36 @@ export class UnitLayer {
       n.tokenKey = t.key;
       rect = { x: 0, y: 0, w: 128, h: 128 };
       atlasW = atlasH = 128;
-      w = h = 0.8;
+      w = h = 0.8 * SPRITE_CELL;
     }
-    const stretch = ctx.mode === 'top' ? 1 : ctx.stretch;
+    this.stretch = ctx.mode === 'top' ? 1 : ctx.stretch;
     if (!n.body) {
       n.body = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mats.lit);
-      n.body.castShadow = true;
       n.body.receiveShadow = false;
       n.body.userData.unitId = u.id;
       n.ghost = new THREE.Mesh(n.body.geometry, mats.ghost);
       n.ghost.renderOrder = 20;
       n.ghost.visible = false;
-      n.root.add(n.body, n.ghost);
+      n.shadow = new THREE.Mesh(n.body.geometry, this.shadowOnlyMat);
+      n.shadow.castShadow = true;
+      n.shadow.raycast = () => {};
+      n.root.add(n.body, n.ghost, n.shadow);
     }
     n.body.material = u.dying ? mats.grey : mats.lit;
     n.body.customDepthMaterial = mats.depth;
     n.body.customDistanceMaterial = mats.distance;
     if (n.ghost) n.ghost.material = mats.ghost;
+    if (n.shadow) {
+      n.shadow.customDepthMaterial = mats.depth;
+      n.shadow.customDistanceMaterial = mats.distance;
+    }
     const upright =
       ctx.mode !== 'top' && !(u.kind === 'terrain' && frames?.single && !(u.terrain?.collision ?? true));
     n.w = w;
-    // world-space height of what stands up from the tile (labels, ghost test)
-    n.h = upright ? h * stretch : 0.05;
-    setBillboardGeometry(
-      n.body.geometry as THREE.PlaneGeometry,
-      w,
-      upright ? h * stretch : h,
-      rect,
-      atlasW,
-      atlasH,
-    );
     n.flat = !upright;
     n.flatH = h;
+    setBillboardGeometry(n.body.geometry as THREE.PlaneGeometry, w, h, rect, atlasW, atlasH);
+    this.fitStretch(n);
     this.orient(n);
     if (n.ghost) n.ghost.visible = this.ghosted.has(u.id);
   }
@@ -488,11 +500,32 @@ export class UnitLayer {
       n.body.rotation.set(0, this.heading, 0, 'YXZ');
       n.body.position.set(0, 0, 0);
     }
-    if (n.ghost) {
-      n.ghost.rotation.copy(n.body.rotation);
-      n.ghost.position.copy(n.body.position);
+    for (const twin of [n.ghost, n.shadow]) {
+      if (!twin) continue;
+      twin.rotation.copy(n.body.rotation);
+      twin.position.copy(n.body.position);
     }
     for (const ch of n.tether.children) if (ch instanceof THREE.Mesh) ch.rotation.y = this.heading;
+  }
+
+  /**
+   * Size an upright billboard for the current stretch (its art projects 1:1
+   * at any tilt). Its shadow comes from the twin, held at SHADOW_STRETCH, so
+   * tilting the camera never lengthens or shortens a shadow; a flat body
+   * casts its own.
+   */
+  private fitStretch(n: Node): void {
+    if (!n.body) return;
+    const geo = n.body.geometry as THREE.PlaneGeometry;
+    const h = n.flat ? n.flatH : n.flatH * this.stretch;
+    setBillboardHeight(geo, n.w, h);
+    // world-space height of what stands up from the tile (labels, ghost test)
+    n.h = n.flat ? 0.05 : h;
+    n.body.castShadow = n.flat;
+    if (n.shadow) {
+      n.shadow.visible = !n.flat;
+      n.shadow.scale.set(1, SHADOW_STRETCH / this.stretch, 1);
+    }
   }
 
   /** The camera turned: face every billboard toward the new heading. */
@@ -501,6 +534,13 @@ export class UnitLayer {
     this.heading = heading;
     for (const n of this.nodes.values()) this.orient(n);
     for (const mats of this.blockMats.values()) this.shadeBlock(mats);
+  }
+
+  /** The camera tilted: re-stretch upright billboards (cheap; shadows are unaffected). */
+  setStretch(stretch: number): void {
+    if (stretch === this.stretch) return;
+    this.stretch = stretch;
+    for (const n of this.nodes.values()) this.fitStretch(n);
   }
 
   /** Advance idle animations. Returns true when any sprite changed frame. */
@@ -603,6 +643,7 @@ export class UnitLayer {
       t.top.dispose();
     }
     this.slabTex.dispose();
+    this.shadowOnlyMat.dispose();
     this.tickGeo.dispose();
     this.tickMat.dispose();
     this.tetherMat.dispose();
@@ -618,6 +659,12 @@ export function setBillboardGeometry(
   atlasW: number,
   atlasH: number,
 ): void {
+  setBillboardHeight(geo, w, h);
+  setBillboardUv(geo, rect, atlasW, atlasH);
+}
+
+/** Resize a unit plane (origin at the bottom centre), keeping its UVs. */
+export function setBillboardHeight(geo: THREE.PlaneGeometry, w: number, h: number): void {
   const pos = geo.getAttribute('position') as THREE.BufferAttribute;
   // PlaneGeometry(1,1) vertex order: (-.5,.5) (.5,.5) (-.5,-.5) (.5,-.5)
   pos.setXYZ(0, -w / 2, h, 0);
@@ -625,7 +672,6 @@ export function setBillboardGeometry(
   pos.setXYZ(2, -w / 2, 0, 0);
   pos.setXYZ(3, w / 2, 0, 0);
   pos.needsUpdate = true;
-  setBillboardUv(geo, rect, atlasW, atlasH);
   geo.computeBoundingBox();
   geo.computeBoundingSphere();
 }

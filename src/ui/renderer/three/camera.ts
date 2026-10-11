@@ -1,12 +1,13 @@
 /**
- * Locked tactical orthographic camera with integer texel zoom and pixel-grid
- * snapping (no shimmer while panning). The camera sits on one of four headings
- * (AZIMUTHS, 90° apart and offset from the grid axes so two side faces of every
- * step show) and turns between them in a short tween; top-down drops the
- * offset so the map is square to the screen. Snapping happens in
- * screen space — the view target is rounded along the camera's right and up
- * axes — so a whole-pixel pan is an exact image shift at any heading. A
- * top-down mode looks straight down, keeping the same screen-north.
+ * Tactical orthographic camera with integer texel zoom and pixel-grid
+ * snapping (no shimmer while panning). It orbits the view target freely in
+ * heading (yaw) and tilts between PITCH_MIN and PITCH_MAX (right-drag), and
+ * tweens to a requested angle ([ and ] turn 90°; the home headings in
+ * AZIMUTHS are offset from the grid axes so two side faces of every step
+ * show). Snapping happens in screen space — the view target is rounded along
+ * the camera's right and up axes — so a whole-pixel pan is an exact image
+ * shift at any angle. A top-down mode looks straight down, keeping the same
+ * screen-north and dropping the heading offset so the map is square.
  */
 import * as THREE from 'three';
 import {
@@ -14,18 +15,26 @@ import {
   AZIMUTHS,
   MAX_ZOOM,
   MIN_ZOOM,
+  ORBIT_PER_PX,
+  PITCH_MAX,
+  PITCH_MIN,
   PITCH_TACTICAL,
   PITCH_TOP,
   ROTATE_MS,
   TEXELS,
-  type CameraAzimuth,
   type CameraMode,
 } from './constants.ts';
 
 const DIST = 60;
-const QUARTER = Math.PI / 2;
+const TAU = Math.PI * 2;
 
 const easeOut = (t: number): number => 1 - (1 - t) ** 3;
+/** An angle difference folded into (-π, π]: the short way round. */
+const shortest = (a: number): number => {
+  const d = (((a + Math.PI) % TAU) + TAU) % TAU;
+  return d === 0 ? Math.PI : d - Math.PI;
+};
+export const clampTilt = (p: number): number => Math.max(PITCH_MIN, Math.min(PITCH_MAX, p));
 
 export class TacticalCamera {
   readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
@@ -34,11 +43,12 @@ export class TacticalCamera {
   zoom = 3;
   /** ground point (x, z) the view is centred on (unsnapped) */
   target = new THREE.Vector2(0, 0);
-  /** heading index the camera is at or turning toward */
-  azimuth: CameraAzimuth = 0;
-  /** current heading angle (radians, continuous: turning 3 -> 0 goes forward) */
+  /** current heading angle (radians, continuous: never wrapped, so tweens go the short way) */
   private heading = AZIMUTHS[0] ?? 0;
-  private turn: { from: number; to: number; start: number } | null = null;
+  /** current tactical tilt (radians) */
+  private tilt = PITCH_TACTICAL;
+  private tween: { fromYaw: number; toYaw: number; fromTilt: number; toTilt: number; start: number } | null =
+    null;
   /** viewport in CSS pixels */
   private width = 1;
   private height = 1;
@@ -51,7 +61,21 @@ export class TacticalCamera {
   }
 
   get pitch(): number {
-    return this.mode === 'top' ? PITCH_TOP : PITCH_TACTICAL;
+    return this.mode === 'top' ? PITCH_TOP : this.tilt;
+  }
+  /** The heading the camera is at or tweening toward (radians, unwrapped). */
+  get goalYaw(): number {
+    return this.tween ? this.tween.toYaw : this.heading;
+  }
+  /** The tactical tilt the camera is at or tweening toward (radians). */
+  get goalTilt(): number {
+    return this.tween ? this.tween.toTilt : this.tilt;
+  }
+  /** The settled-on angle in degrees (yaw wrapped to [0, 360)), as stored in prefs. */
+  get angles(): { yaw: number; pitch: number } {
+    const deg = 180 / Math.PI;
+    const yaw = (((this.goalYaw * deg) % 360) + 360) % 360;
+    return { yaw: Math.round(yaw * 100) / 100, pitch: Math.round(this.goalTilt * deg * 100) / 100 };
   }
   /**
    * The heading the view actually uses: top-down drops the off-axis offset so
@@ -64,9 +88,9 @@ export class TacticalCamera {
   get headingAngle(): number {
     return this.view;
   }
-  /** true while a 90° turn is in progress */
+  /** true while a tweened turn / tilt is in progress */
   get turning(): boolean {
-    return this.turn !== null;
+    return this.tween !== null;
   }
   /** CSS pixels per world unit */
   get ppu(): number {
@@ -109,31 +133,53 @@ export class TacticalCamera {
   }
 
   /**
-   * Turn to a heading. With `now` the turn is tweened (advance it with tick);
-   * without, it jumps. Always takes the short way round.
+   * Go to a heading and tilt (radians; tilt is clamped). With `now` the change
+   * is tweened (advance it with tick); without, it jumps. The heading takes
+   * the short way round from where the camera is heading. Returns false when
+   * already there.
    */
-  setAzimuth(azimuth: CameraAzimuth, now?: number): void {
-    if (azimuth === this.azimuth && !this.turn) return;
-    const goal = this.turn ? this.turn.to : this.heading;
-    let delta = (((azimuth - this.azimuth) % 4) + 4) % 4;
-    if (delta === 3) delta = -1;
-    const to = goal + delta * QUARTER;
-    this.azimuth = azimuth;
+  setAngles(yaw: number, tilt: number, now?: number): boolean {
+    const toYaw = this.goalYaw + shortest(yaw - this.goalYaw);
+    const toTilt = clampTilt(tilt);
+    const EPS = 1e-6;
+    if (Math.abs(toYaw - this.goalYaw) < EPS && Math.abs(toTilt - this.goalTilt) < EPS) return false;
     if (now === undefined) {
-      this.turn = null;
-      this.heading = to;
-    } else this.turn = { from: this.heading, to, start: now };
+      this.tween = null;
+      this.heading = toYaw;
+      this.tilt = toTilt;
+    } else this.tween = { fromYaw: this.heading, toYaw, fromTilt: this.tilt, toTilt, start: now };
+    this.update();
+    return true;
+  }
+
+  /**
+   * Right-drag orbit by a CSS-pixel delta around the view target: dragging
+   * right swings the board to the right, dragging down tilts toward
+   * top-down. Hard-stops at the tilt limits; top-down only turns.
+   */
+  orbit(dx: number, dy: number): void {
+    if (this.tween) {
+      this.heading = this.tween.toYaw;
+      this.tilt = this.tween.toTilt;
+      this.tween = null;
+    }
+    this.heading -= dx * ORBIT_PER_PX;
+    if (this.mode !== 'top') this.tilt = clampTilt(this.tilt + dy * ORBIT_PER_PX);
     this.update();
   }
 
-  /** Advance a turn in progress. Returns true while the camera moved. */
+  /** Advance a tween in progress. Returns true while the camera moved. */
   tick(now: number): boolean {
-    if (!this.turn) return false;
-    const t = Math.min(1, (now - this.turn.start) / ROTATE_MS);
-    this.heading = this.turn.from + (this.turn.to - this.turn.from) * easeOut(t);
+    const tw = this.tween;
+    if (!tw) return false;
+    const t = Math.min(1, (now - tw.start) / ROTATE_MS);
+    const k = easeOut(t);
+    this.heading = tw.fromYaw + (tw.toYaw - tw.fromYaw) * k;
+    this.tilt = tw.fromTilt + (tw.toTilt - tw.fromTilt) * k;
     if (t >= 1) {
-      this.heading = this.turn.to;
-      this.turn = null;
+      this.heading = tw.toYaw;
+      this.tilt = tw.toTilt;
+      this.tween = null;
     }
     this.update();
     return true;

@@ -10,7 +10,12 @@
  * `stone`, `grass` and `dirt` are the legacy themes.
  */
 import * as THREE from 'three';
-import { STEP_TEXELS, TEXELS } from './constants.ts';
+import { AREA_SCALE, STEP_TEXELS, TEXELS, tx } from './constants.ts';
+
+/** Half a step-tall side strip, on a whole texel row. */
+const HALF_STEP = Math.floor(STEP_TEXELS / 2);
+/** Random-detail count authored for a 16-texel tile, scaled to this tile's area. */
+const many = (n: number): number => Math.round(n * AREA_SCALE);
 import { canvas, pixelTexture, rng, shade } from './textures.ts';
 
 /** Number of top variants per theme (atlas columns). */
@@ -64,7 +69,7 @@ const legacy = (top: string, grain: string, side: string): ThemeDef => {
   const t: Painter = (ctx, r) => {
     speckle(ctx, r, top, grain, shade(top, 1.1), TEXELS, TEXELS, 0.18, 0.07);
     ctx.fillStyle = shade(grain, 0.85);
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < many(3); i++) {
       const x = Math.floor(r() * (TEXELS - 4)) + 2,
         y = Math.floor(r() * (TEXELS - 4)) + 2;
       px(ctx, x, y, shade(grain, 0.85), 2, 1);
@@ -78,10 +83,10 @@ const legacy = (top: string, grain: string, side: string): ThemeDef => {
       const h = STEP_TEXELS;
       speckle(ctx, r, side, shade(side, 0.85), shade(side, 1.12), TEXELS, h, 0.07, 0.07);
       px(ctx, 0, 0, shade(side, 0.6), TEXELS, 1); // top lip (under the cap)
-      px(ctx, 0, h / 2, shade(side, 0.6), TEXELS, 1); // mortar line
-      px(ctx, TEXELS / 2, 1, shade(side, 0.6), 1, h / 2 - 1); // brick joints
-      px(ctx, 4, h / 2 + 1, shade(side, 0.6), 1, h / 2 - 1);
-      px(ctx, 12, h / 2 + 1, shade(side, 0.6), 1, h / 2 - 1);
+      px(ctx, 0, HALF_STEP, shade(side, 0.6), TEXELS, 1); // mortar line
+      px(ctx, TEXELS / 2, 1, shade(side, 0.6), 1, HALF_STEP - 1); // brick joints
+      px(ctx, TEXELS / 4, HALF_STEP + 1, shade(side, 0.6), 1, h - HALF_STEP - 1);
+      px(ctx, (TEXELS * 3) / 4, HALF_STEP + 1, shade(side, 0.6), 1, h - HALF_STEP - 1);
       px(ctx, 0, 1, shade(side, 1.2), TEXELS); // highlight under the lip
     },
   };
@@ -95,16 +100,17 @@ const facility: ThemeDef = {
     // plain deck plate: scuffed, with a seam and corner rivets
     (ctx, r) => {
       speckle(ctx, r, STEEL, '#57606a', '#6b737e', TEXELS, TEXELS, 0.14, 0.08);
-      px(ctx, 1, 8, '#4c535c', TEXELS - 2, 1);
-      px(ctx, 1, 9, '#717a85', TEXELS - 2, 1);
+      px(ctx, 1, TEXELS / 2, '#4c535c', TEXELS - 2, 1);
+      px(ctx, 1, TEXELS / 2 + 1, '#717a85', TEXELS - 2, 1);
       for (const [x, y] of [
         [2, 2],
-        [13, 2],
-        [2, 13],
-        [13, 13],
+        [TEXELS - 3, 2],
+        [2, TEXELS - 3],
+        [TEXELS - 3, TEXELS - 3],
       ] as const)
         px(ctx, x, y, '#8d96a2');
-      if (r() < 0.6) px(ctx, 4 + Math.floor(r() * 7), 4 + Math.floor(r() * 3), '#4a3f33', 2, 1); // grime
+      if (r() < 0.6)
+        px(ctx, 4 + Math.floor(r() * (TEXELS - 9)), 4 + Math.floor(r() * tx(3)), '#4a3f33', 2, 1); // grime
     },
     // diamond tread plate
     (ctx, r) => {
@@ -125,10 +131,10 @@ const facility: ThemeDef = {
     // lab floor: pale tiles in a 2x2 grid
     (ctx, r) => {
       speckle(ctx, r, '#7f8994', '#77818c', '#89939e', TEXELS, TEXELS, 0.1, 0.06);
-      px(ctx, 0, 7, '#6f7883', TEXELS, 1);
-      px(ctx, 7, 0, '#6f7883', 1, TEXELS);
-      px(ctx, 0, 8, '#939ca7', TEXELS, 1);
-      px(ctx, 8, 0, '#939ca7', 1, TEXELS);
+      px(ctx, 0, TEXELS / 2 - 1, '#6f7883', TEXELS, 1);
+      px(ctx, TEXELS / 2 - 1, 0, '#6f7883', 1, TEXELS);
+      px(ctx, 0, TEXELS / 2, '#939ca7', TEXELS, 1);
+      px(ctx, TEXELS / 2, 0, '#939ca7', 1, TEXELS);
     },
   ],
   // bulkhead side: dark steel with a hazard-striped lip, so every ledge reads as a drop
@@ -138,10 +144,10 @@ const facility: ThemeDef = {
     for (let x = 0; x < TEXELS; x++) px(ctx, x, 0, (x >> 1) % 2 === 0 ? '#e0b128' : '#1b1d21', 1, 2);
     px(ctx, 0, 2, '#2b3037', TEXELS, 1);
     px(ctx, 0, h - 3, '#353b43', TEXELS, 1);
-    px(ctx, 3, 5, '#5a636e', 1, 1);
-    px(ctx, 12, 5, '#5a636e', 1, 1);
-    px(ctx, 6, 5, '#2b3037', 4, 3); // access panel
-    px(ctx, 6, 5, '#4f5761', 4, 1);
+    px(ctx, 3, tx(5), '#5a636e', 1, 1);
+    px(ctx, TEXELS - 4, tx(5), '#5a636e', 1, 1);
+    px(ctx, TEXELS / 2 - tx(2), tx(5), '#2b3037', tx(4), tx(3)); // access panel
+    px(ctx, TEXELS / 2 - tx(2), tx(5), '#4f5761', tx(4), 1);
   },
 };
 
@@ -149,7 +155,7 @@ const facility: ThemeDef = {
 const MOSS = '#42663a';
 const mossy = (ctx: Ctx, r: () => number) => {
   speckle(ctx, r, MOSS, '#375631', '#517a47', TEXELS, TEXELS, 0.2, 0.1);
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < many(6); i++) {
     const x = 1 + Math.floor(r() * (TEXELS - 2)),
       y = 2 + Math.floor(r() * (TEXELS - 3));
     px(ctx, x, y, '#628f50');
@@ -164,7 +170,7 @@ const arboretum: ThemeDef = {
     (ctx, r) => {
       mossy(ctx, r);
       const petals = ['#e86f8a', '#f2d04b', '#b98ef0', '#ffffff'];
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < many(4); i++) {
         const x = 2 + Math.floor(r() * (TEXELS - 4)),
           y = 2 + Math.floor(r() * (TEXELS - 4));
         px(ctx, x, y, petals[Math.floor(r() * petals.length)] ?? '#fff');
@@ -173,9 +179,9 @@ const arboretum: ThemeDef = {
     // damp soil, moss creeping back in at the edges
     (ctx, r) => {
       speckle(ctx, r, '#56503a', '#4a4532', '#625b42', TEXELS, TEXELS, 0.2, 0.08);
-      for (let i = 0; i < 4; i++)
+      for (let i = 0; i < many(4); i++)
         px(ctx, Math.floor(r() * TEXELS), Math.floor(r() * TEXELS), '#858072', 2, 1);
-      for (let i = 0; i < 18; i++) {
+      for (let i = 0; i < many(18); i++) {
         const e = Math.floor(r() * TEXELS);
         const side = Math.floor(r() * 4);
         const [x, y] =
@@ -186,11 +192,11 @@ const arboretum: ThemeDef = {
     // old deck plating, moss creeping over it
     (ctx, r) => {
       speckle(ctx, r, '#69716b', '#5f6761', '#747c76', TEXELS, TEXELS, 0.1, 0.05);
-      px(ctx, 1, 8, '#545b56', TEXELS - 2, 1);
-      for (let i = 0; i < 40; i++) {
+      px(ctx, 1, TEXELS / 2, '#545b56', TEXELS - 2, 1);
+      for (let i = 0; i < many(40); i++) {
         const x = Math.floor(r() * TEXELS),
           y = Math.floor(r() * TEXELS);
-        if (x + y < 14 || r() < 0.15) px(ctx, x, y, r() < 0.5 ? '#42663a' : '#517a47');
+        if (x + y < tx(14) || r() < 0.15) px(ctx, x, y, r() < 0.5 ? '#42663a' : '#517a47');
       }
     },
   ],
@@ -198,7 +204,7 @@ const arboretum: ThemeDef = {
   side: (ctx, r) => {
     const h = STEP_TEXELS;
     speckle(ctx, r, '#4e5650', '#454c47', '#58605a', TEXELS, h, 0.12, 0.06);
-    px(ctx, 0, h / 2, '#3c423e', TEXELS, 1);
+    px(ctx, 0, HALF_STEP, '#3c423e', TEXELS, 1);
     px(ctx, 0, 0, '#3d6a2c', TEXELS, 1);
     for (let x = 0; x < TEXELS; x++) {
       if (r() < 0.45) {
@@ -293,8 +299,8 @@ export function makeBlockTextures(theme: string): { side: THREE.CanvasTexture; t
       side: paint((ctx, r) => {
         speckle(ctx, r, '#59616c', '#525a64', '#636b76', TEXELS, TEXELS, 0.1, 0.05);
         px(ctx, 0, 0, '#7a838f', TEXELS, 1);
-        px(ctx, 2, 2, '#3c424a', TEXELS - 4, 9);
-        px(ctx, 3, 3, '#484f58', TEXELS - 6, 7);
+        px(ctx, 2, 2, '#3c424a', TEXELS - 4, tx(9));
+        px(ctx, 3, 3, '#484f58', TEXELS - 6, tx(9) - 2);
         px(ctx, 3, 3, '#5d6570', TEXELS - 6, 1);
         px(ctx, TEXELS - 5, 4, '#5ff2ff');
         for (let x = 0; x < TEXELS; x++)
@@ -308,8 +314,10 @@ export function makeBlockTextures(theme: string): { side: THREE.CanvasTexture; t
         px(ctx, 0, 0, '#4c535c', 1, TEXELS);
         px(ctx, 0, TEXELS - 1, '#454b54', TEXELS, 1);
         px(ctx, TEXELS - 1, 0, '#454b54', 1, TEXELS);
-        px(ctx, 5, 5, '#2a2f36', 6, 6);
-        for (let y = 6; y < 11; y += 2) px(ctx, 5, y, '#5c646e', 6, 1);
+        const v0 = tx(5),
+          vs = TEXELS - 2 * v0; // centred vent
+        px(ctx, v0, v0, '#2a2f36', vs, vs);
+        for (let y = v0 + 1; y < v0 + vs - 1; y += 2) px(ctx, v0, y, '#5c646e', vs, 1);
       }, 67),
     };
   if (theme === 'arboretum')
@@ -318,11 +326,13 @@ export function makeBlockTextures(theme: string): { side: THREE.CanvasTexture; t
       side: paint((ctx, r) => {
         // darker than the moss floor so walls stand out, with a pale metal planter
         speckle(ctx, r, '#26421f', '#1b3117', '#355a2c', TEXELS, TEXELS, 0.3, 0.15);
-        for (let i = 0; i < 8; i++) px(ctx, Math.floor(r() * TEXELS), Math.floor(r() * 10), '#4a7a3c');
-        px(ctx, 0, 10, '#8a939c', TEXELS, 6);
-        px(ctx, 0, 10, '#aab3bc', TEXELS, 1);
+        const planter = tx(10);
+        for (let i = 0; i < many(8); i++)
+          px(ctx, Math.floor(r() * TEXELS), Math.floor(r() * planter), '#4a7a3c');
+        px(ctx, 0, planter, '#8a939c', TEXELS, TEXELS - planter);
+        px(ctx, 0, planter, '#aab3bc', TEXELS, 1);
         px(ctx, 0, TEXELS - 1, '#4e555c', TEXELS, 1);
-        for (let x = 1; x < TEXELS; x += 5) px(ctx, x, 13, '#c3ccd5');
+        for (let x = 1; x < TEXELS; x += 5) px(ctx, x, tx(13), '#c3ccd5');
       }, 71),
       top: paint((ctx, r) => {
         // clipped top, lighter than the sides so the block reads as a solid
@@ -332,11 +342,11 @@ export function makeBlockTextures(theme: string): { side: THREE.CanvasTexture; t
   // rock (legacy themes): the same speckled stone with mortar lines on every face
   const rock: Painter = (ctx, r) => {
     speckle(ctx, r, '#9a9ea6', '#80848c', '#b0b4bc', TEXELS, TEXELS, 0.11, 0.11);
-    px(ctx, 0, 5, '#6a6e76', TEXELS, 1);
-    px(ctx, 0, 11, '#6a6e76', TEXELS, 1);
-    px(ctx, 6, 0, '#6a6e76', 1, 5);
-    px(ctx, 11, 6, '#6a6e76', 1, 5);
-    px(ctx, 3, 12, '#6a6e76', 1, 4);
+    px(ctx, 0, tx(5), '#6a6e76', TEXELS, 1);
+    px(ctx, 0, tx(11), '#6a6e76', TEXELS, 1);
+    px(ctx, tx(6), 0, '#6a6e76', 1, tx(5));
+    px(ctx, tx(11), tx(6), '#6a6e76', 1, tx(5));
+    px(ctx, tx(3), tx(12), '#6a6e76', 1, TEXELS - tx(12));
   };
   return { side: paint(rock, 3), top: paint(rock, 5) };
 }

@@ -11,9 +11,9 @@ const { UnitLayer } = await import('../../src/ui/renderer/three/units.ts');
 const { pickWithRay, shadowChanges } = await import('../../src/ui/renderer/three/ThreeRenderer.ts');
 const { isOccluded } = await import('../../src/ui/renderer/three/occlusion.ts');
 const { cellsAlong, heightRegions, labelCellCosts } = await import('../../src/ui/renderer/three/regions.ts');
-const { AZIMUTHS, PITCH_TACTICAL, ROTATE_MS, STEP, TEXELS } =
+const { AZIMUTHS, PITCH_MAX, PITCH_MIN, PITCH_TACTICAL, ROTATE_MS, SHADOW_STRETCH, STEP, TEXELS } =
   await import('../../src/ui/renderer/three/constants.ts');
-const { viewOptionsFromPrefs, turnAzimuth } = await import('../../src/ui/viewPrefs.ts');
+const { viewOptionsFromPrefs, turnYaw, homeAngles, anglePrefs } = await import('../../src/ui/viewPrefs.ts');
 const { findLedges, SKIRT_TOP } = await import('../../src/ui/renderer/three/ledges.ts');
 const { SkirtLayer, skirtDistances, skirtFade, maxPropHeight, SKIRT_RINGS } =
   await import('../../src/ui/renderer/three/skirt.ts');
@@ -22,6 +22,10 @@ const { BOARD_THEME_IDS, TOP_VARIANTS, makeTopAtlas, topVariant } =
   await import('../../src/ui/renderer/three/tileThemes.ts');
 const { BOARD_THEMES, DEFAULT_BOARD_THEME } = await import('../../src/ui/boardThemes.ts');
 const { THEME_PROPS } = await import('../../src/ui/renderer/three/skirt.ts');
+const { WheelZoom, EVENTS_PER_STEP, IDLE_RESET_MS } =
+  await import('../../src/ui/renderer/three/wheelZoom.ts');
+const { SPRITE_CELL, STEP_TEXELS, tx } = await import('../../src/ui/renderer/three/constants.ts');
+const { makeSideTexture } = await import('../../src/ui/renderer/three/tileThemes.ts');
 const { LightLayer, lightTweenLevel, ambientLevels } = await import('../../src/ui/renderer/three/lights.ts');
 
 const W = 1200,
@@ -114,11 +118,15 @@ const raisedScene = () =>
     }
   });
 
-function setup(vm: BoardVM, azimuth: 0 | 1 | 2 | 3 = 0) {
+const DEG = Math.PI / 180;
+
+/** heading: a home-heading index (0..3), or { yaw, pitch } in degrees for a free angle */
+function setup(vm: BoardVM, heading: 0 | 1 | 2 | 3 | { yaw: number; pitch: number } = 0) {
   const tiles = new TileLayer();
   tiles.update(vm);
   const cam = new TacticalCamera();
-  cam.setAzimuth(azimuth);
+  if (typeof heading === 'number') cam.setAngles(AZIMUTHS[heading] as number, PITCH_TACTICAL);
+  else cam.setAngles(heading.yaw * DEG, heading.pitch * DEG);
   cam.setViewport(W, H);
   cam.fit(tiles.bounds);
   const ray = new THREE.Raycaster();
@@ -129,6 +137,9 @@ function setup(vm: BoardVM, azimuth: 0 | 1 | 2 | 3 = 0) {
 }
 
 const HEADINGS = [0, 1, 2, 3] as const;
+/** free angles (degrees): off-grid yaws across the whole tilt range */
+const ANGLES = [0, 17, 30, 133, 301].flatMap((yaw) => [30, 40, 52, 60].map((pitch) => ({ yaw, pitch })));
+const angleName = (a: { yaw: number; pitch: number }) => `yaw ${a.yaw}° pitch ${a.pitch}°`;
 const whole = (v: number) => Math.abs(v - Math.round(v)) < 1e-3;
 
 describe('tactical camera: crisp pixels at every heading', () => {
@@ -221,7 +232,7 @@ describe('tactical camera: crisp pixels at every heading', () => {
     const { cam } = setup(raisedScene(), 3);
     const centre = cam.groundAt(W / 2, H / 2);
     const start = cam.headingAngle;
-    cam.setAzimuth(0, 1000);
+    cam.setAngles(AZIMUTHS[0] as number, PITCH_TACTICAL, 1000);
     expect(cam.turning).toBe(true);
     cam.tick(1000 + ROTATE_MS / 2);
     expect(cam.headingAngle).toBeGreaterThan(start);
@@ -240,6 +251,99 @@ describe('tactical camera: crisp pixels at every heading', () => {
       expect(Math.abs(Math.cos(a))).toBeGreaterThan(0.3);
       expect(a - (AZIMUTHS[0] as number)).toBeCloseTo((k * Math.PI) / 2);
     }
+  });
+});
+
+describe('free camera: orbit and tilt', () => {
+  it.each(ANGLES.map((a) => [angleName(a), a] as const))(
+    '%s: whole-pixel origin after pans, exact pan shifts, 1:1 texels, snapped corners',
+    (_name, angle) => {
+      const { cam } = setup(raisedScene(), angle);
+      for (const [dx, dy] of [
+        [0.3, 0.7],
+        [13.37, -2.2],
+        [-101.9, 44.4],
+      ]) {
+        cam.pan(dx ?? 0, dy ?? 0);
+        const p = cam.project(new THREE.Vector3(0, 0, 0));
+        expect(whole(p.x) && whole(p.y), `after pan ${dx},${dy}: ${p.x},${p.y}`).toBe(true);
+      }
+      const pt = new THREE.Vector3(6.71, STEP * 2, 1.05);
+      const before = cam.project(pt);
+      cam.pan(37, -23);
+      const after = cam.project(pt);
+      expect(after.x - before.x).toBeCloseTo(37, 4);
+      expect(after.y - before.y).toBeCloseTo(-23, 4);
+      // an upright billboard texel, stretched for this tilt, is exactly `zoom` pixels square
+      const a = cam.project(pt);
+      const b = cam.project(pt.clone().addScaledVector(cam.right, 1 / TEXELS));
+      const top = cam.project(pt.clone().add(new THREE.Vector3(0, (1 / TEXELS) * cam.spriteStretch, 0)));
+      expect(b.x - a.x).toBeCloseTo(cam.zoom, 5);
+      expect(a.y - top.y).toBeCloseTo(cam.zoom, 5);
+      expect(top.x - a.x).toBeCloseTo(0, 5);
+      const corner = new THREE.Vector3(3.37, 0.123, 2.81);
+      corner.add(cam.pixelSnap(corner));
+      const q = cam.project(corner);
+      expect(whole(q.x) && whole(q.y)).toBe(true);
+    },
+  );
+
+  it('right-drag turns the heading and tilts, hard-stopping at the tilt limits', () => {
+    const { cam } = setup(raisedScene());
+    const yaw0 = cam.headingAngle;
+    cam.orbit(50, 0);
+    expect(cam.headingAngle).toBeLessThan(yaw0); // dragging right swings the camera to its left
+    expect(cam.pitch).toBeCloseTo(PITCH_TACTICAL, 6);
+    cam.orbit(0, 10_000);
+    expect(cam.pitch).toBeCloseTo(PITCH_MAX, 6);
+    cam.orbit(0, -10_000);
+    expect(cam.pitch).toBeCloseTo(PITCH_MIN, 6);
+    // top-down only turns
+    cam.setMode('top');
+    cam.orbit(0, 500);
+    cam.setMode('tactical');
+    expect(cam.pitch).toBeCloseTo(PITCH_MIN, 6);
+    // far round and back: the saved angle is wrapped to [0, 360)
+    cam.orbit(-5000, 0);
+    expect(cam.angles.yaw).toBeGreaterThanOrEqual(0);
+    expect(cam.angles.yaw).toBeLessThan(360);
+  });
+
+  it('orbiting keeps the ground point at the centre of the view in place', () => {
+    const { cam } = setup(raisedScene());
+    const centre = cam.groundAt(W / 2, H / 2);
+    cam.orbit(123, 37);
+    expect(cam.groundAt(W / 2, H / 2).distanceTo(centre)).toBeLessThan(2 / cam.ppu);
+  });
+
+  it('a requested angle tweens there the short way, tilt included; repeating it is a no-op', () => {
+    const { cam } = setup(raisedScene(), { yaw: 350, pitch: 35 });
+    const start = cam.headingAngle;
+    expect(cam.setAngles(10 * DEG, 55 * DEG, 0)).toBe(true);
+    cam.tick(ROTATE_MS / 2);
+    // forward 20° through 360, not back 340° through 180
+    expect(cam.headingAngle).toBeGreaterThan(start);
+    expect(cam.headingAngle).toBeLessThan(start + 20 * DEG);
+    expect(cam.pitch).toBeGreaterThan(35 * DEG);
+    expect(cam.pitch).toBeLessThan(55 * DEG);
+    cam.tick(ROTATE_MS + 1);
+    expect(cam.turning).toBe(false);
+    expect(cam.headingAngle).toBeCloseTo(start + 20 * DEG, 6);
+    expect(cam.pitch).toBeCloseTo(55 * DEG, 6);
+    expect(cam.angles).toEqual({ yaw: 10, pitch: 55 });
+    expect(cam.setAngles(10 * DEG, 55 * DEG, 5000)).toBe(false);
+    // out-of-range tilts are clamped
+    cam.setAngles(10 * DEG, 85 * DEG);
+    expect(cam.pitch).toBeCloseTo(PITCH_MAX, 6);
+  });
+
+  it('two quick 90° turns add up: the second starts from where the first is heading', () => {
+    const { cam } = setup(raisedScene(), { yaw: 47, pitch: 40 });
+    cam.setAngles(137 * DEG, 40 * DEG, 0);
+    cam.tick(50);
+    cam.setAngles(227 * DEG, 40 * DEG, 50);
+    cam.tick(50 + ROTATE_MS + 1);
+    expect(cam.angles.yaw).toBeCloseTo(227, 6);
   });
 });
 
@@ -375,6 +479,39 @@ describe('picking: screen point -> (r, c)', () => {
     it.each(HEADINGS)('heading %i: the sprite in front wins when its texel is opaque', (az) => {
       const { hit, front } = run(true, az);
       expect(hit).toEqual({ cell: front, unitId: 'front' });
+    });
+
+    it('tilting re-stretches sprites to stay 1:1 on screen, while their shadow casters keep one height', () => {
+      const vm = boardVm(8, 8);
+      vm.units = [unit('a', 3, 3)];
+      const s = setup(vm);
+      const units = layer(s, vm, true);
+      const g = units.get('a');
+      if (!g) throw new Error('no unit');
+      const casters = () => {
+        s.scene.updateMatrixWorld(true);
+        return g.root.children.filter((o): o is THREE.Mesh => o instanceof THREE.Mesh && o.castShadow);
+      };
+      const casterHeight = () => {
+        const [m] = casters();
+        if (!m) throw new Error('no shadow caster');
+        return new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()).y;
+      };
+      expect(casters()).toHaveLength(1); // the twin, not the drawn body
+      const shadowH = casterHeight();
+      expect(shadowH).toBeCloseTo((24 / TEXELS) * SHADOW_STRETCH, 5);
+      for (const dy of [400, -800]) {
+        s.cam.orbit(0, dy);
+        units.setStretch(s.cam.spriteStretch);
+        const a = units.anchors('a');
+        if (!a) throw new Error('no anchors');
+        const feet = s.cam.project(a.feet),
+          head = s.cam.project(a.head);
+        expect(feet.y - head.y).toBeCloseTo(24 * s.cam.zoom, 4); // 24 texels tall on screen at any tilt
+        expect(casterHeight()).toBeCloseTo(shadowH, 5);
+      }
+      // the twin is never picked
+      expect(units.pickables()).toHaveLength(1);
     });
 
     it('a unit hidden in a deep pit is picked through its silhouette, ahead of the rim in front', () => {
@@ -538,7 +675,7 @@ describe('ledges, side shading and the scenery skirt', () => {
   it('keeps tall props far enough out that they never cover a board tile on screen', () => {
     // a prop of height h at ground distance d covers h / tan(pitch) of ground behind it on screen
     for (const d of [2, 3, 4, 6]) {
-      const covered = maxPropHeight(d) / Math.tan(PITCH_TACTICAL);
+      const covered = maxPropHeight(d) / Math.tan(PITCH_MIN); // the shallowest tilt covers the most
       expect(d - covered).toBeGreaterThan(1); // still short of the nearest board cell's centre band
     }
     expect(maxPropHeight(1)).toBe(0);
@@ -734,39 +871,120 @@ describe('view preferences', () => {
   it('defaults: DM blur on, player blur off; both tactical with bloom', () => {
     expect(viewOptionsFromPrefs({}, 'dm')).toEqual({
       camera: 'tactical',
-      azimuth: 0,
+      yaw: 30,
+      pitch: 40,
       blur: true,
       bloom: true,
     });
     expect(viewOptionsFromPrefs({}, 'player')).toEqual({
       camera: 'tactical',
-      azimuth: 0,
+      yaw: 30,
+      pitch: 40,
       blur: false,
       bloom: true,
     });
   });
-  it('reads board.* and board.player.* keys independently', () => {
+  it('reads board.* and board.player.* toggles independently; the player mirrors the DM angle', () => {
     const prefs = {
       'board.camera': 'top',
       'board.blur': 'false',
       'board.player.bloom': 'false',
-      'board.player.azimuth': '2',
+      'board.yaw': '117.5',
+      'board.pitch': '52',
     };
     expect(viewOptionsFromPrefs(prefs, 'dm')).toEqual({
       camera: 'top',
-      azimuth: 0,
+      yaw: 117.5,
+      pitch: 52,
       blur: false,
       bloom: true,
     });
     expect(viewOptionsFromPrefs(prefs, 'player')).toEqual({
       camera: 'tactical',
-      azimuth: 2,
+      yaw: 117.5,
+      pitch: 52,
       blur: false,
       bloom: false,
     });
     expect(viewOptionsFromPrefs({ 'board.camera': 'weird' }, 'dm').camera).toBe('tactical');
-    expect(viewOptionsFromPrefs({ 'board.azimuth': '7' }, 'dm').azimuth).toBe(0);
-    expect([turnAzimuth(3, 1), turnAzimuth(0, -1), turnAzimuth(1, 1)]).toEqual([0, 3, 2]);
+  });
+  it('migrates the old heading index, clamps the tilt, wraps the heading', () => {
+    expect(viewOptionsFromPrefs({ 'board.azimuth': '2' }, 'dm').yaw).toBe(210);
+    expect(viewOptionsFromPrefs({ 'board.azimuth': '2', 'board.yaw': '45' }, 'dm').yaw).toBe(45);
+    expect(viewOptionsFromPrefs({ 'board.azimuth': '7' }, 'dm').yaw).toBe(30);
+    expect(viewOptionsFromPrefs({ 'board.yaw': '-90' }, 'dm').yaw).toBe(270);
+    expect(viewOptionsFromPrefs({ 'board.yaw': 'x' }, 'dm').yaw).toBe(30);
+    expect(viewOptionsFromPrefs({ 'board.pitch': '89' }, 'dm').pitch).toBeCloseTo(60, 6);
+    expect(viewOptionsFromPrefs({ 'board.pitch': '5' }, 'dm').pitch).toBeCloseTo(30, 6);
+  });
+  it('turns 90° from any heading; reset lands on the nearest home heading at the default tilt', () => {
+    expect([turnYaw(300, 1), turnYaw(30, -1), turnYaw(47.5, 1)]).toEqual([30, 300, 137.5]);
+    expect(homeAngles(47)).toEqual({ yaw: 30, pitch: 40 });
+    expect(homeAngles(100)).toEqual({ yaw: 120, pitch: 40 });
+    expect(homeAngles(350)).toEqual({ yaw: 30, pitch: 40 });
+    expect(anglePrefs({ yaw: 12, pitch: 50 })).toMatchObject({
+      'board.yaw': '12',
+      'board.pitch': '50',
+      'board.azimuth': null,
+    });
+  });
+});
+
+describe('wheel zoom', () => {
+  const run = (w: InstanceType<typeof WheelZoom>, deltas: number[], t0 = 0, dt = 16) =>
+    deltas.map((d, i) => w.feed(d, t0 + i * dt));
+
+  it('a level every 5 wheel events in one direction, whatever their size (wheel or pinch)', () => {
+    expect(EVENTS_PER_STEP).toBe(5);
+    const w = new WheelZoom();
+    expect(run(w, Array<number>(10).fill(-2))).toEqual([0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+    expect(run(w, Array<number>(5).fill(300), 1000)).toEqual([0, 0, 0, 0, -1]);
+  });
+
+  it('slow mouse notches still add up', () => {
+    const w = new WheelZoom();
+    expect(run(w, Array<number>(5).fill(-100), 0, IDLE_RESET_MS - 50)).toEqual([0, 0, 0, 0, 1]);
+  });
+
+  it('a direction change or a long pause starts the count over', () => {
+    const w = new WheelZoom();
+    run(w, [-1, -1, -1, -1]);
+    expect(w.feed(1, 100)).toBe(0); // reversed: 1 of 5 outward
+    expect(run(w, [-1, -1, -1, -1], 200)).toEqual([0, 0, 0, 0]);
+    expect(w.feed(-1, 200 + IDLE_RESET_MS * 2)).toBe(0); // after a pause: 1 of 5
+  });
+});
+
+describe('tile density', () => {
+  it('tiles are 20 texels with the 5 ft step at 3/4 of a cell; sprites keep 1 texel = zoom px', () => {
+    expect(TEXELS).toBe(20);
+    expect(STEP_TEXELS).toBe(15);
+    expect(STEP).toBeCloseTo(0.75, 6);
+    expect([tx(8), tx(16), tx(12)]).toEqual([10, 20, 15]);
+    const top = makeTopAtlas('facility');
+    const side = makeSideTexture('facility');
+    const size = (t: { image: unknown }) => t.image as { width: number; height: number };
+    expect(size(top)).toMatchObject({ width: TEXELS * TOP_VARIANTS, height: TEXELS });
+    expect(size(side)).toMatchObject({ width: TEXELS, height: STEP_TEXELS });
+  });
+
+  it('cell-sized billboards (initials tokens) shrink with the denser tiles, so they keep their screen size', () => {
+    expect(SPRITE_CELL).toBeCloseTo(0.8, 6);
+    const vm = boardVm(4, 4);
+    const u = unit('t', 1, 1);
+    u.spritePath = null;
+    const layer = new UnitLayer();
+    layer.update([u], {
+      topY: () => 0,
+      surface: () => new THREE.Matrix4(),
+      mode: 'tactical',
+      stretch: 1,
+      view: 'dm',
+      library: { get: () => null } as never,
+      now: 0,
+    });
+    expect(vm.rows).toBe(4);
+    expect(layer.get('t')?.w).toBeCloseTo(0.8 * SPRITE_CELL, 6);
   });
 });
 
