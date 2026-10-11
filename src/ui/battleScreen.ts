@@ -3,7 +3,7 @@
  * Java BattleView/BattleGridCanvas/TimelinePane/DiceRollPanel did, minus the
  * styling, driven by store commands and session modes.
  */
-import type { AssetBundle } from '../assets/types.ts';
+import type { AssetBundle, SpellDef } from '../assets/types.ts';
 import { DICE_PROGRESSION, dieMax, formatDiceList } from '../engine/dice.ts';
 import { ammoCompatible, isRanged } from '../engine/rules/combat.ts';
 import { actionAvailability } from '../engine/selectors/actions.ts';
@@ -41,7 +41,12 @@ import { mountBoardToolbar } from './panels/boardToolbar.ts';
 
 export interface BattleScreenDeps {
   store: Store;
-  bundle: AssetBundle;
+  /** current assets (the editors can change them while a battle runs) */
+  getBundle: () => AssetBundle;
+  /** Manage → Character Sheets (R1.3); Back returns to this battle */
+  onOpenSheets: () => void;
+  /** the spell picker's Edit Spell (opens the shared Spell Editor; `onSaved` reopens the picker) */
+  editSpell?: (name: string, onSaved: () => void) => void;
   prefs: PrefsStore;
   renderer: BoardRenderer;
   onVictoryShown?: (party: { name: string; hp: number; maxHp: number; statuses: string[] }[] | null) => void;
@@ -55,8 +60,8 @@ export interface BattleScreenDeps {
 const STAT_COLORS = ['#d75f5f', '#4CAF50', '#2196F3', '#FF9800', '#4ec9b0', '#c586c0'];
 
 export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): () => void {
-  const { store, bundle, prefs, renderer } = deps;
-  const assets = store.ctx.assets;
+  const { store, prefs, renderer } = deps;
+  // read live: the editors can replace the assets while a battle runs
 
   // ---- layout ----
   const phaseEl = h('div', { class: 'phase', dataset: { testid: 'phase' } });
@@ -147,7 +152,7 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
       return;
     }
     if (s.mode.kind === 'cast') {
-      const spell = assets.spells[s.mode.spellName];
+      const spell = store.ctx.assets.spells[s.mode.spellName];
       const caster = combatantById(b, s.mode.unitId);
       if (!spell || !caster) return store.dispatchSession({ type: 'cancelMode' });
       if (spell.area !== 'NONE') {
@@ -237,7 +242,7 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
   function toggleMode(kind: 'move' | 'attack' | 'pickup'): void {
     const u = selectedCombatant();
     if (!u) return;
-    const avail = actionAvailability(battle(), u.id, assets);
+    const avail = actionAvailability(battle(), u.id, store.ctx.assets);
     if (!avail[kind === 'move' ? 'move' : kind === 'attack' ? 'attack' : 'pickup']) return;
     const m = session().mode;
     if (m.kind === kind && 'unitId' in m && m.unitId === u.id)
@@ -267,11 +272,11 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
   }
   function triggerCast(): void {
     const u = selectedCombatant();
-    if (!u || u.kind !== 'entity' || !actionAvailability(battle(), u.id, assets).cast) return;
+    if (!u || u.kind !== 'entity' || !actionAvailability(battle(), u.id, store.ctx.assets).cast) return;
     if (session().mode.kind === 'cast') return store.dispatchSession({ type: 'cancelMode' });
     store.dispatchSession({ type: 'cancelMode' });
     const spells = u.sheet.knownSpells
-      .map((n) => assets.spells[n])
+      .map((n) => store.ctx.assets.spells[n])
       .filter((s): s is NonNullable<typeof s> => !!s)
       .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
     if (!u.sheet.spellcastingStat || spells.length === 0) {
@@ -281,7 +286,10 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
       );
       return;
     }
-    spellPickerDialog(u, spells, (spell, slot) => {
+    const onEdit = deps.editSpell
+      ? (spell: SpellDef) => deps.editSpell?.(spell.name, () => triggerCast())
+      : undefined;
+    spellPickerDialog(u, spells, onEdit, (spell, slot) => {
       if (spell.area !== 'NONE' && spell.area === 'BURST' && spell.range === 0) {
         const res = dispatch({ type: 'CAST_SPELL', casterId: u.id, spellName: spell.name, slotLevel: slot });
         const p = res.ok ? res.state.pending : null;
@@ -320,14 +328,15 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
   }
   function triggerUseItem(): void {
     const u = selectedCombatant();
-    if (!u || u.kind !== 'entity' || !actionAvailability(battle(), u.id, assets).useItem) return;
+    if (!u || u.kind !== 'entity' || !actionAvailability(battle(), u.id, store.ctx.assets).useItem) return;
     const items = u.sheet.inventory.filter((i) => i.kind === 'consumable');
     if (items.length === 0) return alertDialog('No Items', 'No consumable items in inventory.');
     useItemDialog(items, (name) => dispatch({ type: 'USE_CONSUMABLE', unitId: u.id, itemName: name }));
   }
   function triggerSwap(): void {
     const u = selectedCombatant();
-    if (u && actionAvailability(battle(), u.id, assets).swap) dispatch({ type: 'SWAP_WEAPON', unitId: u.id });
+    if (u && actionAvailability(battle(), u.id, store.ctx.assets).swap)
+      dispatch({ type: 'SWAP_WEAPON', unitId: u.id });
   }
 
   // ---- keyboard (R16.1) ----
@@ -520,7 +529,7 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
 
   function renderSelected(b: BattleState): HTMLElement {
     const u = selectedCombatant();
-    const avail = actionAvailability(b, u?.id ?? null, assets);
+    const avail = actionAvailability(b, u?.id ?? null, store.ctx.assets);
     const parts: (HTMLElement | null)[] = [
       h('div', { class: 'header' }, 'Selected'),
       h('div', { style: 'font-weight:700', dataset: { testid: 'sel-name' } }, u ? unitName(u) : '--'),
@@ -1001,7 +1010,7 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
     );
     switch (s.drawerCategory) {
       case 'party':
-        cards = Object.values(bundle.party)
+        cards = Object.values(deps.getBundle().party)
           .filter((cs) => cs.isParty && !onField.has(cs.name))
           .map((cs) =>
             hcard(
@@ -1016,7 +1025,7 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
           );
         break;
       case 'enemies':
-        cards = Object.entries(bundle.enemies).map(([stem, e]) =>
+        cards = Object.entries(deps.getBundle().enemies).map(([stem, e]) =>
           hcard(
             `enemy:${stem}`,
             e.name,
@@ -1029,21 +1038,23 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
         );
         break;
       case 'terrain':
-        cards = bundle.terrain.map((t) =>
-          hcard(
-            `terrain:${t.type}`,
-            t.type,
-            t.color,
-            `HP ${t.health}`,
-            '#8a8a8a',
-            `${t.type}\nHP: ${t.health}`,
-            () => place(`terrain:${t.type}`, t.type),
-          ),
-        );
+        cards = deps
+          .getBundle()
+          .terrain.map((t) =>
+            hcard(
+              `terrain:${t.type}`,
+              t.type,
+              t.color,
+              `HP ${t.health}`,
+              '#8a8a8a',
+              `${t.type}\nHP: ${t.health}`,
+              () => place(`terrain:${t.type}`, t.type),
+            ),
+          );
         break;
       case 'pickups':
         cards = [
-          ...Object.values(bundle.weapons).map((w) =>
+          ...Object.values(deps.getBundle().weapons).map((w) =>
             hcard(
               `pickup:weapon:${w.name}`,
               w.name,
@@ -1054,7 +1065,7 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
               () => place(`pickup:weapon:${w.name}`, w.name),
             ),
           ),
-          ...Object.values(bundle.accessories).map((a) =>
+          ...Object.values(deps.getBundle().accessories).map((a) =>
             hcard(
               `pickup:accessory:${a.name}`,
               a.name,
@@ -1065,7 +1076,7 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
               () => place(`pickup:accessory:${a.name}`, a.name),
             ),
           ),
-          ...Object.values(bundle.consumables).map((cn) =>
+          ...Object.values(deps.getBundle().consumables).map((cn) =>
             hcard(
               `pickup:consumable:${cn.name}`,
               cn.name,
@@ -1142,9 +1153,7 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
       'div',
       { class: 'col' },
       h('div', { class: 'header' }, 'Manage'),
-      button('Character Sheets', () =>
-        alertDialog('Character Sheets', 'The sheet editor is ported after Phase 4 (FEATURES.md §14).'),
-      ),
+      button('Character Sheets', () => deps.onOpenSheets(), { dataset: { testid: 'open-sheets' } }),
       button('Add Objects', () => store.dispatchSession({ type: 'drawer', open: !s.drawerOpen }), {
         disabled: placing,
         dataset: { testid: 'add-objects' },
@@ -1263,8 +1272,8 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
     replaceChildren(sideEl, tabs, body);
   }
 
-  let currentVm: BoardVM = buildBoardViewModel(store.battle, store.session, assets);
-  const debug = mountDebugPanel(store, bundle, prefs, deps.persisterReadOnly);
+  let currentVm: BoardVM = buildBoardViewModel(store.battle, store.session, store.ctx.assets);
+  const debug = mountDebugPanel(store, deps.getBundle, prefs, deps.persisterReadOnly);
 
   function handleEvents(events: BattleEvent[]): void {
     for (const ev of events) {
@@ -1276,7 +1285,7 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
 
   function renderAll(): void {
     const b = store.battle;
-    currentVm = buildBoardViewModel(b, store.session, assets, computeLighting(b));
+    currentVm = buildBoardViewModel(b, store.session, store.ctx.assets, computeLighting(b));
     renderer.render(currentVm);
     renderTop(b);
     renderSide(b);
@@ -1309,7 +1318,7 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
     lastSession = doc.session;
     // Hover only moves the area template / tooltip: redraw the board, keep the panels (and their inputs) intact.
     if (source === 'session' && prev.hover !== doc.session.hover && sameExceptHover(prev, doc.session)) {
-      currentVm = buildBoardViewModel(doc.battle, doc.session, assets, computeLighting(doc.battle));
+      currentVm = buildBoardViewModel(doc.battle, doc.session, store.ctx.assets, computeLighting(doc.battle));
       renderer.render(currentVm);
       return;
     }

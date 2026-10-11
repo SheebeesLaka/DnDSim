@@ -76,6 +76,38 @@ export function safeName(name: string): string {
  * sprite folders, refusing traversal, hidden folders and non-image extensions.
  * Returns every candidate absolute path in search order.
  */
+/** Folders the editors upload sprites into (Java copied picked images into the same ones). */
+export const SPRITE_UPLOAD_FOLDERS = ['party', 'enemies', 'terrain'] as const;
+export const MAX_SPRITE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Where an uploaded sprite goes: resources/sprites/<folder>/<sanitised file name>,
+ * with _2, _3 … appended when that name exists in any sprite folder, so an upload
+ * never overwrites or shadows existing art.
+ */
+export function spriteUploadTarget(
+  folder: string,
+  fileName: string,
+  exists: (abs: string) => boolean = () => false,
+): { abs: string; rel: string } {
+  if (!(SPRITE_UPLOAD_FOLDERS as readonly string[]).includes(folder))
+    throw new PathError(`sprites can be uploaded to ${SPRITE_UPLOAD_FOLDERS.join(', ')} only`, 403);
+  const dot = fileName.lastIndexOf('.');
+  const ext = dot >= 0 ? fileName.slice(dot).toLowerCase() : '';
+  if (!(SPRITE_EXTENSIONS as readonly string[]).includes(ext))
+    throw new PathError('only image files are accepted');
+  const stem =
+    fileName
+      .slice(0, dot)
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .replace(/^_+/, '') || 'sprite';
+  for (let n = 1; ; n++) {
+    const name = n === 1 ? `${stem}${ext}` : `${stem}_${n}${ext}`;
+    if (SPRITES_DIRS.some((d) => exists(resolve(d, folder, name)))) continue;
+    return { abs: resolve(SPRITES_DIRS[0] as string, folder, name), rel: `${folder}/${name}` };
+  }
+}
+
 export function resolveSpritePaths(rel: string): string[] {
   const clean = rel.replace(/\\/g, '/').replace(/^\/+/, '');
   if (!clean || clean.includes('\0')) throw new PathError('empty path');

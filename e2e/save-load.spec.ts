@@ -28,6 +28,7 @@ test('save a battle to saves/battles and load it back', async ({ page }) => {
     expect(after.turn.order).toEqual(before.turn.order);
     // the setup screen also lists it
     await page.goto('/');
+    await page.click('[data-testid=menu-battle]');
     await expect(page.locator('[data-testid=load-saved]')).toBeVisible();
   } finally {
     if (existsSync(file)) rmSync(file);
@@ -36,6 +37,8 @@ test('save a battle to saves/battles and load it back', async ({ page }) => {
 
 test('a fresh board from the setup screen runs party placement', async ({ page }) => {
   await page.goto('/');
+  await expect(page.locator('[data-testid=menu]')).toBeVisible();
+  await page.click('[data-testid=menu-battle]');
   await page.click('[data-testid=shape-CIRCLE]');
   await page.fill('[data-testid=rows]', '6');
   await page.fill('[data-testid=cols]', '6');

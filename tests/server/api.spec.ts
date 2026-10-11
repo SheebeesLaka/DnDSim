@@ -1,3 +1,5 @@
+import { existsSync, readdirSync, rmSync, rmdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../../server/src/app.ts';
 import { resolveSavesPath, resolveSpritePaths } from '../../server/src/paths.ts';
@@ -33,7 +35,51 @@ describe('server api', () => {
     expect(() => resolveSpritePaths('../package.json')).toThrow();
     expect(() => resolveSpritePaths('party/../../x.png')).toThrow(/escapes/);
     expect(resolveSpritePaths('party/testsprites.png')).toHaveLength(2);
-    expect((await app.request('/api/sprites/party/testsprites.png', { method: 'PUT' })).status).toBe(404);
+    // an empty upload is refused; a real one never replaces existing art (see the upload test)
+    expect((await app.request('/api/sprites/party/testsprites.png', { method: 'PUT' })).status).toBe(400);
+  });
+
+  it('lists sprites and accepts uploads into resources/sprites/<folder>/ only', async () => {
+    const list = (await (await app.request('/api/sprites')).json()) as { paths: string[] };
+    expect(list.paths).toContain('party/testsprites.png');
+    expect(list.paths.some((p) => p.includes('_source'))).toBe(false);
+    // 1x1 PNG
+    const png = Uint8Array.from(
+      atob(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAwS2OUAAAAABJRU5ErkJggg==',
+      ),
+      (ch) => ch.charCodeAt(0),
+    );
+    const root = join(process.cwd(), 'resources');
+    const hadRoot = existsSync(root);
+    try {
+      const up = await app.request('/api/sprites/terrain/zz%20test-upload.png', { method: 'PUT', body: png });
+      expect(up.status).toBe(200);
+      expect(((await up.json()) as { path: string }).path).toBe('terrain/zz_test-upload.png');
+      expect((await app.request('/api/sprites/terrain/zz_test-upload.png')).status).toBe(200);
+      expect(((await (await app.request('/api/sprites')).json()) as { paths: string[] }).paths).toContain(
+        'terrain/zz_test-upload.png',
+      );
+      const clash = await app.request('/api/sprites/party/testsprites.png', { method: 'PUT', body: png });
+      expect(((await clash.json()) as { path: string }).path).toBe('party/testsprites_2.png');
+      expect((await app.request('/api/sprites/secret/x.png', { method: 'PUT', body: png })).status).toBe(403);
+      expect((await app.request('/api/sprites/party/x.exe', { method: 'PUT', body: png })).status).toBe(400);
+      expect(
+        (await app.request('/api/sprites/party/x.png', { method: 'PUT', body: new Uint8Array(0) })).status,
+      ).toBe(400);
+    } finally {
+      rmSync(join(root, 'sprites', 'terrain', 'zz_test-upload.png'), { force: true });
+      rmSync(join(root, 'sprites', 'party', 'testsprites_2.png'), { force: true });
+      if (!hadRoot) {
+        for (const dir of [
+          join(root, 'sprites', 'terrain'),
+          join(root, 'sprites', 'party'),
+          join(root, 'sprites'),
+          root,
+        ])
+          if (existsSync(dir) && readdirSync(dir).length === 0) rmdirSync(dir);
+      }
+    }
   });
 
   it('refuses traversal and non-whitelisted paths', async () => {

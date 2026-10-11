@@ -33,6 +33,7 @@ const ALWAYS_ALLOWED = new Set<Command['type']>([
   'SET_THEME',
   'SET_TERRAIN_BLOCKS_LIGHT',
   'SET_COMPAT',
+  'REPLACE_SHEET', // a Character Sheets edit; Java applies those whenever they happen
   'SUBMIT_ROLL',
   'AUTO_FILL_AREA_ROLLS',
   'CONFIRM_PENDING',

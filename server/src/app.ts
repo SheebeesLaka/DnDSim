@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { promises as fs } from 'node:fs';
+import { existsSync, type Dirent } from 'node:fs';
 import { join } from 'node:path';
 import {
   BATTLES_DIR,
@@ -7,8 +8,12 @@ import {
   SAVES_DIR,
   SCENARIOS_DIR,
   resolveSavesPath,
+  MAX_SPRITE_BYTES,
+  SPRITES_DIRS,
+  SPRITE_EXTENSIONS,
   resolveSpritePaths,
   safeName,
+  spriteUploadTarget,
 } from './paths.ts';
 import { listJsonStems, readJsonFolder, readText, writeJsonAtomic } from './files.ts';
 
@@ -105,7 +110,44 @@ export function createApp(): Hono {
     return c.body(text, 200, { 'content-type': 'application/json; charset=utf-8' });
   });
 
-  /** Read-only sprite art (sheets and single images). Immutable-cached: art changes come with a reload. */
+  /** Every sprite image the app can show, as sprites-relative paths (picker list). */
+  app.get('/api/sprites', async (c) => {
+    const found = new Set<string>();
+    const walk = async (dir: string, rel: string): Promise<void> => {
+      let entries: Dirent[];
+      try {
+        entries = await fs.readdir(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        if (e.name.startsWith('_') || e.name.startsWith('.')) continue;
+        const childRel = rel ? `${rel}/${e.name}` : e.name;
+        if (e.isDirectory()) await walk(join(dir, e.name), childRel);
+        else if ((SPRITE_EXTENSIONS as readonly string[]).some((x) => e.name.toLowerCase().endsWith(x)))
+          found.add(childRel);
+      }
+    };
+    for (const dir of SPRITES_DIRS) await walk(dir, '');
+    return c.json({ paths: [...found].sort() });
+  });
+
+  /** Upload a picked image (Java copied it into resources/sprites/<folder>/). */
+  app.put('/api/sprites/:folder/:file', async (c) => {
+    const target = spriteUploadTarget(
+      c.req.param('folder'),
+      decodeURIComponent(c.req.param('file')),
+      existsSync,
+    );
+    const bytes = new Uint8Array(await c.req.arrayBuffer());
+    if (bytes.length === 0) throw new PathError('empty upload');
+    if (bytes.length > MAX_SPRITE_BYTES) throw new PathError('sprite larger than 5 MB');
+    await fs.mkdir(join(target.abs, '..'), { recursive: true });
+    await fs.writeFile(target.abs, bytes);
+    return c.json({ ok: true, path: target.rel });
+  });
+
+  /** Sprite art (sheets and single images); revalidated so a re-uploaded image shows at once. */
   app.get('/api/sprites/*', async (c) => {
     const rel = c.req.path.slice('/api/sprites/'.length);
     const candidates = resolveSpritePaths(decodeURIComponent(rel));
@@ -125,7 +167,7 @@ export function createApp(): Hono {
       const type = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
       return c.body(new Uint8Array(bytes), 200, {
         'content-type': type,
-        'cache-control': 'public, max-age=3600',
+        'cache-control': 'no-cache',
       });
     }
     return c.json({ error: 'not found' }, 404);

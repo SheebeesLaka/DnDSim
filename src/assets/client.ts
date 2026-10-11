@@ -28,6 +28,14 @@ export async function putFile(relPath: string, text: string, base = ''): Promise
   );
 }
 
+export async function deleteFile(relPath: string, base = ''): Promise<void> {
+  await okJson(
+    await fetch(`${base}/api/files/${relPath.split('/').map(encodeURIComponent).join('/')}`, {
+      method: 'DELETE',
+    }),
+  );
+}
+
 export async function getFile<T = unknown>(relPath: string, base = ''): Promise<T | null> {
   const res = await fetch(`${base}/api/files/${relPath.split('/').map(encodeURIComponent).join('/')}`);
   if (res.status === 404) return null;

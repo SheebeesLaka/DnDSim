@@ -4,7 +4,8 @@ import { err } from '../errors.ts';
 import { syncSheetAttributes } from '../rules/statuses.ts';
 import { combatantById } from '../selectors/board.ts';
 import { damageDice } from '../selectors/stats.ts';
-import type { Combatant } from '../types.ts';
+import type { CharSheetDef } from '../../assets/types.ts';
+import type { Combatant, EntityUnit } from '../types.ts';
 import { log, type Emit, type HandlerMap } from './_shared.ts';
 
 function setHp(u: Combatant, hp: number, emit: Emit): void {
@@ -63,6 +64,32 @@ export const adjustHandlers: HandlerMap = {
     syncSheetAttributes(u.sheet);
     emit({ type: 'sheetChanged', sourceName: u.sourceName });
     log(draft, `${u.sheet.name} swaps to ${u.sheet.weapons[0]?.name ?? 'unarmed'}`);
+    return undefined;
+  },
+  /**
+   * The Java battle and the Character Sheets screen share one CharSheet object, so a sheet edit
+   * shows on the combatant at once. Here the edited sheet replaces the copy held by every unit
+   * (on the board or in the graveyard) drawn from it; a rename follows through to the source name
+   * and the placement queue. Battle-only tweaks (AC/stat/dice adjustments) are kept.
+   */
+  REPLACE_SHEET(draft, cmd, _ctx, emit) {
+    const next = cmd.sheet.name;
+    if (!next) return err('badSheet', 'a sheet needs a name');
+    let found = false;
+    const apply = (u: EntityUnit) => {
+      if (u.sourceName !== cmd.sourceName) return;
+      found = true;
+      u.sheet = JSON.parse(JSON.stringify(cmd.sheet)) as CharSheetDef;
+      u.sourceName = next;
+      syncSheetAttributes(u.sheet);
+      emit({ type: 'sheetChanged', sourceName: next });
+    };
+    for (const u of draft.units) if (u.kind === 'entity') apply(u);
+    for (const g of draft.graveyard) apply(g);
+    if (next !== cmd.sourceName)
+      draft.turn.placementQueue = draft.turn.placementQueue.map((n) => (n === cmd.sourceName ? next : n));
+    if (!found && !draft.turn.placementQueue.includes(next))
+      return err('unknownSheet', `${cmd.sourceName} is not in this battle`);
     return undefined;
   },
 };

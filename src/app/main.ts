@@ -1,17 +1,39 @@
-/** DM window entry: load assets, pick a scenario/saved battle/fresh grid, mount the battle screen. */
+/**
+ * DM window entry. Loads assets once into the editors' AssetStore, then
+ * navigates like AppController: main menu → battle setup → battle, Character
+ * Sheets, Asset Editor. A running battle stays mounted (hidden) while the
+ * Character Sheets screen is open over it, and sheet edits reach it at once.
+ *
+ * URL options: ?scenario=<name> (fixture: nothing is written), ?battle=<name>,
+ * ?view=menu|setup|sheets|assets, ?readonly=1, ?seed=, ?bench=1, ?renderer=2d.
+ */
 import '../ui/styles.css';
 import { SAVE_PATHS } from '../assets/filenames.ts';
 import { gridShapePresetToJson, stringifyLike } from '../assets/write.ts';
 import { createBattle } from '../engine/createBattle.ts';
 import { parseBattle, serializeBattle } from '../engine/serialize.ts';
+import { partySheetsToPersist } from '../engine/selectors/persistence.ts';
 import type { BattleState, GridSetup } from '../engine/types.ts';
 import { buildBoardViewModel } from '../engine/view/boardViewModel.ts';
+import { AssetStore } from '../editors/assetStore.ts';
+import { mountAssetEditor } from '../ui/editors/assetEditor.ts';
+import { openSpellEditor } from '../ui/editors/spellEditor.ts';
+import { mountSheetsScreen } from '../ui/editors/sheetsScreen.ts';
 import { mountBattleScreen } from '../ui/battleScreen.ts';
+import { mountMenuScreen } from '../ui/menuScreen.ts';
 import { alertDialog } from '../ui/panels/dialogs.ts';
 import { pickRenderer } from '../ui/renderer/pickRenderer.ts';
 import { viewOptionsFromPrefs } from '../ui/viewPrefs.ts';
 import { mountSetupScreen } from '../ui/setupScreen.ts';
-import { fetchAssets, getBattle, getScenario, listBattles, putBattle, putFile } from '../assets/client.ts';
+import {
+  deleteFile,
+  fetchAssets,
+  getBattle,
+  getScenario,
+  listBattles,
+  putBattle,
+  putFile,
+} from '../assets/client.ts';
 import { createSheetPersister, renderUiPrefs, uiPrefsPath } from './persistence.ts';
 import { PrefsStore } from './prefs.ts';
 import { publishStore } from './replica.ts';
@@ -22,21 +44,27 @@ import { broadcastChannelTransport } from './transport/broadcastChannel.ts';
 const root = document.getElementById('app') as HTMLElement;
 const params = new URLSearchParams(location.search);
 
+interface ActiveBattle {
+  store: Store;
+  host: HTMLElement;
+  /** write pending party sheets now */
+  flush: () => Promise<void>;
+}
+
 async function boot(): Promise<void> {
   const loaded = await fetchAssets();
   let bundle = loaded.bundle;
   if (bundle.problems.length) console.warn('asset problems', bundle.problems);
-  // Fixture scenarios and ?readonly=1 keep prefs in memory only, like party sheets.
-  let prefsReadOnly = params.get('readonly') === '1';
+  // Fixture scenarios and ?readonly=1 keep prefs, sheets and assets in memory only.
+  let readOnly = params.get('readonly') === '1';
   const prefs = new PrefsStore(bundle.uiPrefs, (p) =>
-    prefsReadOnly ? Promise.resolve() : putFile(uiPrefsPath, renderUiPrefs(p)),
+    readOnly ? Promise.resolve() : putFile(uiPrefsPath, renderUiPrefs(p)),
   );
   const rng = rngFromParams(params);
 
   const scenarioName = params.get('scenario');
   const battleName = params.get('battle');
   let initial: BattleState | null = null;
-  let fixtureAssets = false;
   if (scenarioName) {
     const sc = await getScenario<Scenario>(scenarioName);
     if (!sc) alertDialog('Scenario', `No scenario named ${scenarioName}`);
@@ -44,31 +72,115 @@ async function boot(): Promise<void> {
       const applied = applyScenario(sc, bundle);
       bundle = applied.bundle;
       initial = applied.battle;
-      fixtureAssets = sc.assets !== undefined; // inline fixture sheets must never overwrite saves/entities/party
-      if (fixtureAssets) prefsReadOnly = true;
+      if (sc.assets !== undefined) readOnly = true; // inline fixture assets must never overwrite saves/
     }
   } else if (battleName) {
     const saved = await getBattle(battleName);
     if (saved) initial = parseBattle(saved);
   }
 
-  const startBattle = (battle: BattleState) => {
-    const assets = engineAssetsOf(bundle);
-    const store = new Store(battle, { rng, assets });
+  const assets = new AssetStore(bundle, loaded.raw, { put: putFile, del: deleteFile }, { readOnly });
+  assets.onError = (err) => alertDialog('Save Failed', String(err));
+
+  // ---- layout: the battle lives in its own host so a page can cover it ----
+  const battleHost = document.createElement('div');
+  battleHost.className = 'host';
+  const pageHost = document.createElement('div');
+  pageHost.className = 'host';
+  root.replaceChildren(battleHost, pageHost);
+  let unmountPage: (() => void) | null = null;
+  let battle: ActiveBattle | null = null;
+
+  const showPage = (mount: (el: HTMLElement) => () => void) => {
+    unmountPage?.();
+    battleHost.style.display = 'none';
+    pageHost.style.display = '';
+    unmountPage = mount(pageHost);
+  };
+  const showBattle = () => {
+    unmountPage?.();
+    unmountPage = null;
+    pageHost.style.display = 'none';
+    battleHost.style.display = '';
+  };
+
+  // keep the engine's view of the assets current, and push sheet edits into a running battle
+  assets.subscribe((change) => {
+    if (!battle) return;
+    battle.store.ctx.assets = engineAssetsOf(assets.bundle);
+    if (change.kind !== 'sheet' || !change.sheet) return;
+    const sourceName = change.oldName ?? change.sheet.name;
+    const b = battle.store.battle;
+    const inBattle =
+      b.units.some((u) => u.kind === 'entity' && u.sourceName === sourceName) ||
+      b.graveyard.some((g) => g.sourceName === sourceName) ||
+      b.turn.placementQueue.includes(sourceName);
+    if (inBattle) battle.store.dispatch({ type: 'REPLACE_SHEET', sourceName, sheet: change.sheet });
+  });
+
+  const go = {
+    menu: () =>
+      showPage((el) =>
+        mountMenuScreen(el, {
+          onBattle: () => go.setup(),
+          onSheets: () => go.sheets(),
+          onAssets: () => go.assets(),
+          readOnly,
+        }),
+      ),
+    setup: () => {
+      void listBattles().then((battles) =>
+        showPage((el) => {
+          mountSetupScreen(el, {
+            presets: assets.bundle.gridshapes,
+            savePreset: (p) =>
+              putFile(SAVE_PATHS.gridshape(p.name), stringifyLike('gridshape', gridShapePresetToJson(p))),
+            deletePreset: (name) => deleteFile(SAVE_PATHS.gridshape(name)),
+            battles,
+            onStart: (setup: GridSetup) =>
+              startBattle(
+                createBattle(setup, engineAssetsOf(assets.bundle), { partyList: assets.bundle.partyList }),
+              ),
+            onLoadBattle: (name) => {
+              void getBattle(name).then((saved) => saved && startBattle(parseBattle(saved)));
+            },
+            onBack: () => go.menu(),
+          });
+          return () => el.replaceChildren();
+        }),
+      );
+    },
+    sheets: () => {
+      // a running battle has the freshest sheets (damage, statuses, slots)
+      if (battle) assets.adoptSheets(partySheetsToPersist(battle.store.battle));
+      showPage((el) =>
+        mountSheetsScreen(el, {
+          assets,
+          prefs,
+          inBattle: battle !== null,
+          onBack: () => (battle ? showBattle() : go.menu()),
+        }),
+      );
+    },
+    assets: () => showPage((el) => mountAssetEditor(el, { assets, onBack: () => go.menu() })),
+  };
+
+  const startBattle = (state: BattleState) => {
+    const store = new Store(state, { rng, assets: engineAssetsOf(assets.bundle) });
     const persister = createSheetPersister({
       rawParty: loaded.raw.party ?? {},
-      partyStems: bundle.partyStems,
+      partyStems: assets.bundle.partyStems,
       putFile,
       onError: (e) => console.warn('sheet save failed', e),
     });
-    persister.readOnly = params.get('readonly') === '1' || fixtureAssets;
+    persister.readOnly = readOnly;
     const transport = broadcastChannelTransport();
     const pub = publishStore(
       transport,
-      () => buildBoardViewModel(store.battle, store.session, assets),
+      () => buildBoardViewModel(store.battle, store.session, store.ctx.assets),
       () => prefs.all,
     );
-    prefs.subscribe(() => pub.publishPrefs());
+    const unsubPrefs = prefs.subscribe(() => pub.publishPrefs());
     store.subscribe((doc, events) => {
       persister.onState(doc.battle);
       pub.publish(events);
@@ -76,18 +188,31 @@ async function boot(): Promise<void> {
     window.addEventListener('beforeunload', () => void persister.flush());
     pub.publish([]);
     const renderer = pickRenderer(params, { view: viewOptionsFromPrefs(prefs.all, 'dm') });
-    const unmount = mountBattleScreen(root, {
+    battle = { store, host: battleHost, flush: () => persister.flush() };
+    showBattle();
+    const unmount = mountBattleScreen(battleHost, {
       store,
-      bundle,
+      getBundle: () => assets.bundle,
       prefs,
       renderer,
       onVictoryShown: (party) => pub.publishVictory(party),
+      onOpenSheets: () => go.sheets(),
+      editSpell: (name, onSaved) => {
+        const spell = assets.bundle.spells[name];
+        if (spell) openSpellEditor(assets, spell, onSaved);
+      },
       onLeave: () => {
         pub.publishVictory(null);
         unmount();
+        unsubPrefs();
         pub.stop();
         transport.close();
-        void persister.flush().then(() => showSetup());
+        const finished = store.battle;
+        battle = null;
+        void persister.flush().then(() => {
+          assets.adoptSheets(partySheetsToPersist(finished));
+          go.menu();
+        });
       },
       saveBattle: async (name) => {
         await putBattle(name, serializeBattle(store.battle));
@@ -100,30 +225,28 @@ async function boot(): Promise<void> {
       listBattles,
       persisterReadOnly: { get: () => persister.readOnly, set: (v) => (persister.readOnly = v) },
     });
-    // expose for e2e/debugging
-    (window as unknown as { dndsim: unknown }).dndsim = { store, bundle, prefs, renderer };
+    expose({ store, renderer });
   };
 
-  const showSetup = async () => {
-    const battles = await listBattles();
-    mountSetupScreen(root, {
-      presets: bundle.gridshapes,
-      savePreset: (p) =>
-        putFile(SAVE_PATHS.gridshape(p.name), stringifyLike('gridshape', gridShapePresetToJson(p))),
-      deletePreset: async (name) => {
-        await fetch(`/api/files/${SAVE_PATHS.gridshape(name)}`, { method: 'DELETE' });
+  const expose = (extra: Record<string, unknown> = {}) => {
+    (window as unknown as { dndsim: unknown }).dndsim = {
+      assets,
+      prefs,
+      get bundle() {
+        return assets.bundle;
       },
-      battles,
-      onStart: (setup: GridSetup) =>
-        startBattle(createBattle(setup, engineAssetsOf(bundle), { partyList: bundle.partyList })),
-      onLoadBattle: (name) => {
-        void getBattle(name).then((saved) => saved && startBattle(parseBattle(saved)));
-      },
-    });
+      ...extra,
+    };
   };
+  expose();
 
-  if (initial) startBattle(initial);
-  else await showSetup();
+  const view = params.get('view');
+  if (view === 'sheets') go.sheets();
+  else if (view === 'assets') go.assets();
+  else if (view === 'menu') go.menu();
+  else if (view === 'setup') go.setup();
+  else if (initial) startBattle(initial);
+  else go.menu();
 }
 
 boot().catch((err: unknown) => {

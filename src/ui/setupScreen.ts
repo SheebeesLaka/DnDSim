@@ -11,6 +11,8 @@ export interface SetupDeps {
   battles: string[];
   onStart: (setup: GridSetup) => void;
   onLoadBattle: (name: string) => void;
+  /** back to the main menu (GridSetupDialog Cancel) */
+  onBack?: () => void;
 }
 
 export function mountSetupScreen(root: HTMLElement, deps: SetupDeps): void {
@@ -153,6 +155,7 @@ export function mountSetupScreen(root: HTMLElement, deps: SetupDeps): void {
       h(
         'div',
         { class: 'col', style: 'width:200px' },
+        deps.onBack && button('← Back', () => deps.onBack?.(), { dataset: { testid: 'setup-back' } }),
         h('div', { class: 'header' }, 'Battle Setup'),
         h('div', { class: 'muted small' }, 'Choose a battle grid shape and size'),
         shapesEl,

@@ -3,6 +3,7 @@ import type { SpellDef } from '../../assets/types.ts';
 import { spellSlotsRemaining, maxSpellSlots, MAX_SPELL_LEVEL } from '../../engine/rules/spellSlots.ts';
 import type { EntityUnit } from '../../engine/types.ts';
 import { entitySpellAttackModifier, entitySpellSaveDC } from '../../engine/selectors/stats.ts';
+import { spellSummary } from '../../assets/spellLabels.ts';
 import { button, h, replaceChildren } from '../dom.ts';
 
 export function modal(
@@ -92,6 +93,7 @@ export function tieDialog(
 export function spellPickerDialog(
   caster: EntityUnit,
   spells: SpellDef[],
+  onEdit: ((spell: SpellDef) => void) | undefined,
   onCast: (spell: SpellDef, slot: number) => void,
 ): void {
   const sheet = caster.sheet;
@@ -116,34 +118,7 @@ export function spellPickerDialog(
     Array.from({ length: MAX_SPELL_LEVEL - s.level + 1 }, (_, i) => s.level + i).some(
       (l) => spellSlotsRemaining(sheet, l) > 0,
     );
-  const summary = (s: SpellDef) => {
-    const res =
-      s.resolution === 'SAVE'
-        ? `${s.saveStat.slice(0, 3)} save${s.onSave === 'HALF' ? ' (half)' : ''}`
-        : s.resolution === 'HEAL'
-          ? 'Heal'
-          : s.resolution === 'BUFF'
-            ? 'Buff'
-            : s.resolution === 'AUTO'
-              ? 'Auto-hit'
-              : 'Spell attack';
-    const where =
-      s.area !== 'NONE'
-        ? `${s.area[0]}${s.area.slice(1).toLowerCase()} ${s.areaSize}${s.area === 'BURST' ? (s.range === 0 ? ' around you' : ` @ ${s.range} tiles`) : ''}`
-        : s.range === 0
-          ? 'Self'
-          : s.range === 1
-            ? 'Touch'
-            : `${s.range} tiles`;
-    const dice =
-      s.damageDice.some(Boolean) && s.resolution !== 'BUFF'
-        ? ` · ${s.damageDice.map((d) => d ?? '-').join(' / ')}${s.flatDamage ? ` ${s.flatDamage > 0 ? '+' : ''}${s.flatDamage}` : ''}`
-        : '';
-    const rider = s.riderStatus
-      ? ` · ${s.riderStatus.name}${s.resolution !== 'HEAL' && s.resolution !== 'BUFF' && s.riderMinTier > 1 ? ` (T${s.riderMinTier}+)` : ''}`
-      : '';
-    return `${res} · ${where}${dice}${rider}`;
-  };
+  const summary = spellSummary;
   const render = () => {
     replaceChildren(
       list,
@@ -230,7 +205,20 @@ export function spellPickerDialog(
       desc,
       slotRow,
     ),
-    [castBtn, button('Cancel', () => m.close())],
+    [
+      onEdit &&
+        button(
+          '✎ Edit Spell',
+          () => {
+            if (!selected) return;
+            m.close();
+            onEdit(selected);
+          },
+          { dataset: { testid: 'edit-spell' }, title: 'Changes apply to everyone who knows it' },
+        ),
+      castBtn,
+      button('Cancel', () => m.close()),
+    ].filter((b): b is HTMLButtonElement => Boolean(b)),
   );
 }
 

@@ -255,12 +255,13 @@ export function normalizeInventoryItem(input: unknown): ItemDef {
       return normalizeAmmunition(input);
     case 'Crafting Item':
     case 'CraftingItem':
+    case 'Crafting': // what the Java asset editor wrote; its own adapter dropped it to a plain Item (F-47)
       return normalizeCraftingItem(input);
     case 'Key Item':
     case 'KeyItem':
       return normalizeKeyItem(input);
     default:
-      // includes the editor's "Crafting" (F-47) and anything unrecognised
+      // anything unrecognised
       return normalizePlainItem(input);
   }
 }

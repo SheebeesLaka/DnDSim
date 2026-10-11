@@ -8,7 +8,7 @@ import { button, h, numberInput, readInt, replaceChildren } from '../dom.ts';
 
 export function mountDebugPanel(
   store: Store,
-  bundle: AssetBundle,
+  getBundle: () => AssetBundle,
   prefs: PrefsStore,
   readOnly: { get: () => boolean; set: (v: boolean) => void },
 ): { render: (open: boolean) => void; destroy: () => void } {
@@ -46,9 +46,9 @@ export function mountDebugPanel(
     const spawnSel = h(
       'select',
       { dataset: { testid: 'dbg-spawn' } },
-      ...Object.keys(bundle.enemies).map((k) => h('option', { value: `enemy:${k}` }, `enemy ${k}`)),
-      ...Object.keys(bundle.party).map((k) => h('option', { value: `party:${k}` }, `party ${k}`)),
-      ...bundle.terrain.map((t) => h('option', { value: `terrain:${t.type}` }, `terrain ${t.type}`)),
+      ...Object.keys(getBundle().enemies).map((k) => h('option', { value: `enemy:${k}` }, `enemy ${k}`)),
+      ...Object.keys(getBundle().party).map((k) => h('option', { value: `party:${k}` }, `party ${k}`)),
+      ...getBundle().terrain.map((t) => h('option', { value: `terrain:${t.type}` }, `terrain ${t.type}`)),
     );
     const lightSel = h(
       'select',

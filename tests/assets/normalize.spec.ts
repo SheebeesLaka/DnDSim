@@ -135,7 +135,7 @@ describe('Gson default semantics', () => {
     expect(normalizeCharSheet({ name: 'A', weapons: [null] }).weapons).toEqual([null, null]);
   });
 
-  it('inventory items dispatch on `type` like ItemTypeAdapter (Crafting → plain Item, F-47)', () => {
+  it('inventory items dispatch on `type` like ItemTypeAdapter; the editor\'s "Crafting" loads as crafting (F-47 fixed)', () => {
     expect(normalizeInventoryItem({ name: 'a', type: 'Weapon' }).kind).toBe('weapon');
     expect(normalizeInventoryItem({ name: 'a', type: 'Armor' }).kind).toBe('accessory');
     expect(normalizeInventoryItem({ name: 'a', type: 'Crafting Item' }).kind).toBe('crafting');
@@ -143,7 +143,7 @@ describe('Gson default semantics', () => {
     expect(normalizeInventoryItem({ name: 'a', type: 'KeyItem' }).kind).toBe('keyitem');
     expect(
       normalizeInventoryItem({ name: 'a', type: 'Crafting', craftingCategory: 'Reagent' }),
-    ).toMatchObject({ kind: 'item', extra: { craftingCategory: 'Reagent' } });
+    ).toMatchObject({ kind: 'crafting', type: 'Crafting', craftingCategory: 'Reagent' });
     expect(normalizeInventoryItem({ name: 'a' }).kind).toBe('item');
   });
 

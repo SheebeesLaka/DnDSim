@@ -309,6 +309,8 @@ export type Command =
   | { type: 'ADJUST_STAT'; unitId: UnitId; attribute: number; delta: number }
   | { type: 'ADJUST_DICE'; unitId: UnitId; tier: number; direction: number }
   | { type: 'SWAP_WEAPON'; unitId: UnitId }
+  /** Character Sheets edited a party sheet mid-battle (Java shares the sheet object with the combatant). */
+  | { type: 'REPLACE_SHEET'; sourceName: string; sheet: CharSheetDef }
   // actions
   | { type: 'MOVE_UNIT'; unitId: UnitId; r: number; c: number }
   | { type: 'ATTACK'; attackerId: UnitId; targetId: UnitId }
