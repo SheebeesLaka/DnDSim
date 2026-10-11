@@ -17,6 +17,7 @@ import {
   normalizeTerrain,
   normalizeWeapon,
 } from '../assets/normalize.ts';
+import { fromLegacyIndex } from '../assets/color.ts';
 import { enemyStem } from '../assets/filenames.ts';
 import type {
   AccessoryDef,
@@ -141,23 +142,23 @@ export function newTerrain(): TerrainDef {
   });
 }
 
-/** CharacterSheetView "+ Enemy" defaults. */
+/** CharacterSheetView "+ Enemy" defaults: HP 10, MOB 3, AC 10, DEX 2, every save 2, d4/d4/d6. */
 export function newEnemy(): EnemyDef {
   return normalizeEnemy(
     {
-      name: '',
+      name: 'New Enemy',
       health: 10,
       maxHealth: 10,
       mobility: 3,
       armorClass: 10,
       damageDice: ['d4', 'd4', 'd6'],
-      dexterity: 0,
-      color: '#d75f5f',
+      dexterity: 2,
+      color: fromLegacyIndex(0),
       tags: [],
-      attributes: [0, 0, 0, 0, 0, 0],
+      attributes: [2, 2, 2, 2, 2, 2],
       instanceNumber: 0,
     },
-    enemyStem(''),
+    enemyStem('New Enemy'),
   );
 }
 

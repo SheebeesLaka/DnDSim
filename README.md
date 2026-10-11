@@ -15,6 +15,7 @@ npm start          # builds if needed, serves http://127.0.0.1:8787 and opens th
   second browser window/tab of the same browser; it mirrors the DM board live).
 - The app reads and writes the repo-root `saves/` folder through a small local server, so your
   existing JSON files keep working and party sheets are written back like the Java app did.
+- It opens on a menu: **Battle** (grid setup), **Character Sheets** and **Asset Editor**.
 
 ## Develop
 
@@ -28,7 +29,16 @@ node scripts/smoke-ui.mjs   # drive the real UI headlessly, screenshots in docs/
 Dev URLs: `/?scenario=test&seed=1` loads `scenarios/test.json` (self-contained fixture: party sheets
 and prefs are *not* written back); `/?scenario=perf` is the 25×25 / 40 units / 20 lights stress
 scene; `/?battle=<name>` loads `saves/battles/<name>.json`; `/?readonly=1` never writes party sheets
-or prefs. Press `` ` `` in the DM window for the debug panel.
+or prefs. `?view=menu|setup|sheets|assets` opens a page directly. Press `` ` `` in the DM window for
+the debug panel.
+
+## The editors
+
+Character Sheets (characters, groups, party order, enemies), the Asset Editor (items, terrain,
+spells) and the Spell Editor write the same JSON files as the Java app, as you edit (no Save
+button). A sheet edited during a battle (**Manage → Character Sheets**) updates the battle too.
+What's there, the Java editor bugs fixed along the way (F-44..F-59) and the limits:
+`docs/EDITORS.md`.
 
 ## The board (HD-2D)
 
@@ -53,9 +63,12 @@ tethered line. Details, the brief-to-implementation map and known limits: `docs/
 server/src     Hono API over saves/ (assets bundle, whitelisted file read/write, battles, scenarios)
 src/engine     PURE rules engine: reduce(state, command, ctx) → { state, events }  (no DOM, IO, clock)
 src/assets     loaders/normalisers/writers for every saves/ JSON format
+src/editors    the editable asset store (save/rename/delete) and pure sheet/form/browser logic
 src/app        store, session, transports, player replica, persistence, prefs, entry points
 src/ui         panels (plain DOM) + the board behind the BoardRenderer interface:
-                 renderer/three/ HD-2D board, renderer/canvas2d.ts fallback, sprites/ sheet slicer
-docs/visual-directions   Phase 3 proposals and mockups · docs/PHASE-4.md the HD-2D board
+                 renderer/three/ HD-2D board, renderer/canvas2d.ts fallback, sprites/ sheet slicer,
+                 editors/ Character Sheets, Asset Editor, Spell Editor
+docs/visual-directions   Phase 3 proposals and mockups · docs/PHASE-4.md the HD-2D board ·
+docs/EDITORS.md the editors
 tests/, e2e/   Vitest rule/golden/app tests and Playwright suites
 ```

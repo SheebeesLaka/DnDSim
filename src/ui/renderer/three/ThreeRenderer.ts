@@ -89,8 +89,23 @@ export class ThreeRenderer implements BoardRenderer {
   private lastY = 0;
   private unsubLibrary: (() => void) | null = null;
   private destroyed = false;
+  private pausedAt: number | null = null;
   /** freeze idle animation (screenshot comparisons) */
-  animationPaused = false;
+  get animationPaused(): boolean {
+    return this.pausedAt !== null;
+  }
+  set animationPaused(on: boolean) {
+    if (!on) this.pausedAt = null;
+    else if (this.pausedAt === null) {
+      this.pausedAt = performance.now();
+      // the frame on screen may lag the clock by a slow frame: show the frozen one now
+      if (this.units.tick(this.pausedAt)) this.dirty = true;
+    }
+  }
+  /** The idle-animation clock: stopped while paused, so rebuilt billboards keep their frame too. */
+  private animNow(): number {
+    return this.pausedAt ?? performance.now();
+  }
   private readonly benchmark: boolean;
   private benchFrames: number[] = [];
 
@@ -149,7 +164,7 @@ export class ThreeRenderer implements BoardRenderer {
       stretch: this.cam.spriteStretch,
       view: vm.view,
       library: this.library,
-      now: performance.now(),
+      now: this.animNow(),
     });
     this.lights.update(
       vm,
@@ -299,7 +314,7 @@ export class ThreeRenderer implements BoardRenderer {
     const now = performance.now();
     // idle frames only swap UVs; walk-frame silhouettes differ by a texel or two, so the
     // (expensive) shadow maps are refreshed on board changes only
-    if (!this.animationPaused && this.units.tick(now)) this.dirty = true;
+    if (!this.animationPaused && this.units.tick(this.animNow())) this.dirty = true;
     if (this.benchmark) {
       this.dirty = true;
       this.benchFrames.push(now);
