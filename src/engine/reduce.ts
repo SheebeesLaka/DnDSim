@@ -12,6 +12,7 @@ import { adjustHandlers } from './commands/adjust.ts';
 import { actionHandlers } from './commands/actions.ts';
 import { spellHandlers } from './commands/spells.ts';
 import { pendingHandlers } from './commands/pending.ts';
+import { dyingHandlers } from './commands/dying.ts';
 import { err } from './errors.ts';
 import type { BattleEvent, BattleState, Command, EngineContext, EngineError, ReduceResult } from './types.ts';
 import type { Handler, HandlerMap } from './commands/_shared.ts';
@@ -52,6 +53,7 @@ const registry: HandlerMap = {
   ...actionHandlers,
   ...spellHandlers,
   ...pendingHandlers,
+  ...dyingHandlers,
 };
 
 /** Later milestones register their handlers here (lifecycle, actions, spells…). */

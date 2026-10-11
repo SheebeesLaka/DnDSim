@@ -107,6 +107,8 @@ export const rawCharSheetSchema = z.looseObject({
   spellcastingStat: str.nullish(),
   knownSpells: z.array(str).nullish(),
   spellSlotsUsed: numArray.nullish(),
+  /** written only once the character has perished in battle */
+  dead: bool.nullish(),
 });
 export type RawCharSheet = z.infer<typeof rawCharSheetSchema>;
 

@@ -308,6 +308,34 @@ export class Canvas2DRenderer implements BoardRenderer {
       ctx.stroke();
     }
 
+    // tombstones where party members perished (under the units: they never block a tile)
+    for (const g of vm.graves ?? []) {
+      const gx = X(g.c) + cs / 2,
+        gy = Y(g.r) + cs / 2;
+      const w = cs * 0.34,
+        h = cs * 0.42;
+      ctx.fillStyle = '#4a3b2c';
+      ctx.fillRect(gx - cs * 0.24, gy + h * 0.15, cs * 0.48, cs * 0.12);
+      ctx.fillStyle = '#9aa0a8';
+      ctx.beginPath();
+      ctx.moveTo(gx - w / 2, gy + h * 0.3);
+      ctx.lineTo(gx - w / 2, gy - h * 0.3);
+      ctx.arc(gx, gy - h * 0.3, w / 2, Math.PI, 0);
+      ctx.lineTo(gx + w / 2, gy + h * 0.3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#5c6168';
+      ctx.fillRect(gx - cs * 0.025, gy - h * 0.45, cs * 0.05, h * 0.55);
+      ctx.fillRect(gx - cs * 0.08, gy - h * 0.32, cs * 0.16, cs * 0.045);
+      if (cs >= 30) {
+        ctx.font = `600 ${Math.max(9, cs * 0.16)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = '#c9ced6';
+        ctx.fillText(g.name, gx, gy + h * 0.32);
+      }
+    }
+
     // units: terrain & pickups, then ground tokens, then fliers
     const order = (u: UnitVM) => (u.kind === 'terrain' || u.kind === 'pickup' ? 0 : u.altitude > 0 ? 2 : 1);
     for (const u of [...vm.units].sort((a, b) => order(a) - order(b) || a.r - b.r))
@@ -458,7 +486,7 @@ export class Canvas2DRenderer implements BoardRenderer {
       ctx.font = `800 ${Math.max(9, cs * 0.2)}px sans-serif`;
       ctx.textBaseline = 'bottom';
       ctx.textAlign = 'center';
-      const txt = `Dying ${u.dying.failures}/3`;
+      const txt = 'Dying';
       const tw = ctx.measureText(txt).width + 6;
       ctx.fillStyle = 'rgba(200,40,40,0.92)';
       ctx.fillRect(cx - tw / 2, cy - r - d * 0.2 - cs * 0.24, tw, cs * 0.24);

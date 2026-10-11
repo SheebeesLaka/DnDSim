@@ -125,6 +125,11 @@ input[type='number'] {
   font-size: 15px;
   margin: 6px 0 2px;
 }
+.header.dying-header {
+  color: var(--danger);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 .sep {
   height: 1px;
   background: var(--line);
@@ -819,6 +824,28 @@ label.check {
 .sheet-row.on {
   border-color: var(--blue);
   background: #263a50;
+}
+/* perished in battle: greyed portrait, a cross before the name */
+.sheet-row.dead .party-icon {
+  filter: grayscale(1) brightness(0.8);
+}
+.sheet-row.dead .name {
+  color: var(--muted, #9aa0a8);
+}
+.dead-mark {
+  color: #c9ced6;
+}
+.dead-badge {
+  align-self: center;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #2a2d33;
+  border: 1px solid #555b64;
+  color: #c9ced6;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .sheet-row .name {
   font-weight: 700;

@@ -178,6 +178,8 @@ export interface CharSheetDef {
   spellcastingStat: string | null;
   knownSpells: string[];
   spellSlotsUsed: number[]; // length 9
+  /** perished in battle (marked by the "perish" choice for a dying hero); written only when true */
+  dead?: boolean;
   extra: Extra;
 }
 

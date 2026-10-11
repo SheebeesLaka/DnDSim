@@ -55,8 +55,9 @@ export interface EntityUnit extends UnitBase {
   diceOverride: DiceTiers;
   /**
    * F-14 (fixed): a party member at 0 HP stays on the board, dying, instead of
-   * leaving it. Absent/null = not dying. Death-save rolls are not automated yet;
-   * damage while dying counts failures and three failures remove them.
+   * leaving it, until the DM resolves it from the sidebar (RESOLVE_DYING:
+   * recover at 1 HP, hold on, or perish). Absent/null = not dying. The
+   * death-save tallies are reserved for automated rolls later.
    */
   dying?: DeathSaves | null;
 }
@@ -146,6 +147,17 @@ export interface Board {
   lightGroups: LightGroup[];
   ambient: LightLevel;
   dmReveal: boolean;
+  /** Tombstones where party members perished (decoration; never blocks a tile). */
+  graves?: Grave[];
+}
+
+/** Where a party member perished. */
+export interface Grave {
+  id: string;
+  r: number;
+  c: number;
+  /** display name of who died there */
+  name: string;
 }
 
 // ---------- turn order ----------
@@ -316,6 +328,8 @@ export type Command =
   | { type: 'LONG_REST' }
   // sidebar adjustments
   | { type: 'SET_HP'; unitId: UnitId; hp: number }
+  /** The DM decides a dying party member's fate (F-14 fixed). */
+  | { type: 'RESOLVE_DYING'; unitId: UnitId; outcome: 'recover' | 'hold' | 'perish' }
   | { type: 'ADJUST_HP'; unitId: UnitId; delta: number }
   | { type: 'ADJUST_AC'; unitId: UnitId; delta: number }
   | { type: 'ADJUST_STAT'; unitId: UnitId; attribute: number; delta: number }

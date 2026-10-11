@@ -176,6 +176,8 @@ export function charSheetToJson(s: CharSheetDef): Json {
       ['spellcastingStat', s.spellcastingStat],
       ['knownSpells', s.knownSpells],
       ['spellSlotsUsed', s.spellSlotsUsed],
+      // only once it happens, so sheets of the living round-trip byte for byte
+      ['dead', s.dead ? true : undefined],
     ],
     s.extra,
   );

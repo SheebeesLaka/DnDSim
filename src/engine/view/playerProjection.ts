@@ -63,6 +63,8 @@ export function projectForPlayer(
     ...vm,
     dmReveal: false,
     units,
+    // players only see a tombstone on a tile they can see
+    graves: (vm.graves ?? []).filter((g) => vm.cells[g.r]?.[g.c]?.light !== 'dark'),
     strip,
     showStrip: opts.turnStrip,
     banner: null,

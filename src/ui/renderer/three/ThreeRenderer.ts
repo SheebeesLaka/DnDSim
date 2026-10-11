@@ -24,6 +24,7 @@ import {
   ftLabel,
   type ViewOptions,
 } from './constants.ts';
+import { GraveLayer } from './graves.ts';
 import { LightLayer } from './lights.ts';
 import { MarkLayer, type Mark } from './marks.ts';
 import { Overlay } from './overlay.ts';
@@ -63,6 +64,7 @@ export class ThreeRenderer implements BoardRenderer {
   readonly cam = new TacticalCamera();
   readonly tiles = new TileLayer();
   readonly skirt = new SkirtLayer();
+  readonly graves = new GraveLayer();
   readonly units = new UnitLayer();
   readonly lights = new LightLayer();
   readonly marks = new MarkLayer();
@@ -119,7 +121,14 @@ export class ThreeRenderer implements BoardRenderer {
     this.library = opts.library ?? new SpriteLibrary();
     this.cam.setAzimuth(this.view.azimuth);
     this.scene.background = new THREE.Color('#0b0e14');
-    this.scene.add(this.tiles.group, this.skirt.group, this.units.group, this.lights.group, this.marks.group);
+    this.scene.add(
+      this.tiles.group,
+      this.skirt.group,
+      this.graves.group,
+      this.units.group,
+      this.lights.group,
+      this.marks.group,
+    );
   }
 
   // ---- BoardRenderer ----
@@ -158,6 +167,7 @@ export class ThreeRenderer implements BoardRenderer {
     this.vm = vm;
     const rebuilt = this.tiles.update(vm);
     this.skirt.update(vm);
+    this.graves.update(vm.graves ?? [], (r, c) => this.tiles.topY(r, c));
     if (rebuilt && !this.fitted) {
       this.fitted = true;
       this.cam.fit(this.tiles.bounds);
@@ -273,6 +283,7 @@ export class ThreeRenderer implements BoardRenderer {
     this.units.dispose();
     this.tiles.dispose();
     this.skirt.dispose();
+    this.graves.dispose();
     this.lights.dispose();
     this.marks.dispose();
     this.post?.dispose();
@@ -400,6 +411,7 @@ export class ThreeRenderer implements BoardRenderer {
   private applyHeading(): void {
     this.units.setHeading(this.cam.headingAngle);
     this.tiles.setHeading(this.cam.headingAngle);
+    this.graves.setHeading(this.cam.headingAngle);
     this.lights.setHeading(this.cam.headingAngle);
   }
 
@@ -479,8 +491,7 @@ export class ThreeRenderer implements BoardRenderer {
       const cellElev = vm.cells[u.r]?.[u.c]?.elevation ?? 0;
       let below = ringFront.y + size * 0.85;
       if (u.dying) {
-        const fails = '✖'.repeat(u.dying.failures) + '·'.repeat(Math.max(0, 3 - u.dying.failures));
-        this.overlay.chip(head.x, head.y - size * 1.4, `Dying ${fails}`, {
+        this.overlay.chip(head.x, head.y - size * 1.4, 'Dying', {
           size,
           bg: 'rgba(200,40,40,0.92)',
           fg: '#fff',
@@ -501,6 +512,16 @@ export class ThreeRenderer implements BoardRenderer {
       }
       if (u.showHpNumbers && u.maxHp > 0)
         this.overlay.label(ringFront.x, below, `${u.hp}/${u.maxHp}`, size - 1);
+    }
+    // who lies under each tombstone
+    for (const g of vm.graves ?? []) {
+      const p = project(this.graves.labelPoint(g, (r, c) => this.tiles.topY(r, c)));
+      this.overlay.chip(p.x, p.y + size * 0.6, `✝ ${g.name}`, {
+        size: size - 3,
+        bold: false,
+        bg: 'rgba(20,22,28,0.82)',
+        fg: '#c9ced6',
+      });
     }
     if (vm.banner) this.overlay.banner(vm.banner);
     if (this.benchmark) {

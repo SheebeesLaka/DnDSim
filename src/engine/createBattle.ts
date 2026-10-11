@@ -3,7 +3,10 @@ import { BATTLE_STATE_VERSION, type BattleState, type EngineAssets, type GridSet
 
 export interface CreateBattleOptions {
   compat?: Partial<CompatFlags>;
-  /** Party names to place one at a time (PartyConfig order); names without a sheet are skipped. */
+  /**
+   * Party names to place one at a time (PartyConfig order); names without a
+   * sheet are skipped, and so are characters whose sheet is marked dead.
+   */
   partyList?: string[];
 }
 
@@ -15,7 +18,10 @@ export function createBattle(
 ): BattleState {
   const rows = Math.max(1, Math.trunc(setup.rows));
   const cols = Math.max(1, Math.trunc(setup.cols));
-  const queue = (opts.partyList ?? []).filter((name) => name in assets.party);
+  const listed = (opts.partyList ?? []).filter((name) => name in assets.party);
+  // the fallen stay behind (a sheet marked dead by "Perish"; untick Perished to bring them back)
+  const fallen = listed.filter((name) => assets.party[name]?.dead === true);
+  const queue = listed.filter((name) => !fallen.includes(name));
   return {
     version: BATTLE_STATE_VERSION,
     rules: { compat: { ...DEFAULT_COMPAT, ...opts.compat } },
@@ -29,6 +35,7 @@ export function createBattle(
       theme: setup.theme || 'stone',
       lights: [],
       lightGroups: [],
+      graves: [],
       ambient: 'bright',
       dmReveal: true,
     },
@@ -49,6 +56,6 @@ export function createBattle(
       placementQueue: queue,
     },
     pending: null,
-    log: [],
+    log: fallen.map((name, i) => ({ n: i + 1, text: `${name} has perished and is not placed` })),
   };
 }

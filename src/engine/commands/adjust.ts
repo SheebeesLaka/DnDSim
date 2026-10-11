@@ -89,8 +89,11 @@ export const adjustHandlers: HandlerMap = {
     for (const g of draft.graveyard) apply(g);
     if (next !== cmd.sourceName)
       draft.turn.placementQueue = draft.turn.placementQueue.map((n) => (n === cmd.sourceName ? next : n));
-    if (!found && !draft.turn.placementQueue.includes(next))
-      return err('unknownSheet', `${cmd.sourceName} is not in this battle`);
+    // marked dead while still waiting to be placed: they stay behind
+    const queued = draft.turn.placementQueue.includes(next);
+    if (cmd.sheet.dead && queued)
+      draft.turn.placementQueue = draft.turn.placementQueue.filter((n) => n !== next);
+    if (!found && !queued) return err('unknownSheet', `${cmd.sourceName} is not in this battle`);
     return undefined;
   },
 };

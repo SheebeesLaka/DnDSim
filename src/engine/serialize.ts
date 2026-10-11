@@ -35,6 +35,7 @@ export function parseBattle(input: unknown): BattleState {
   state.board.ramps ??= [];
   state.board.lights ??= [];
   state.board.lightGroups ??= [];
+  state.board.graves ??= [];
   state.board.ambient ??= 'bright';
   state.board.dmReveal ??= true;
   state.turn.placementQueue ??= [];

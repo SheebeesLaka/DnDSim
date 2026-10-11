@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { LEGACY_COMPAT, withCompat } from '../../src/engine/compat.ts';
 import { applyDamage, applyHealing } from '../../src/engine/rules/apply.ts';
 import { actionAvailability } from '../../src/engine/selectors/actions.ts';
+import { canUnitStand } from '../../src/engine/selectors/board.ts';
+import { createBattle } from '../../src/engine/createBattle.ts';
+import { ctx, engineAssets, grid } from '../helpers/engine.ts';
 import { enemy, entity, run, started, step } from '../helpers/combat.ts';
 
 const kill = (attackerId: string, targetId: string) => [
@@ -159,18 +162,98 @@ describe('dying instead of leaving the board (F-14 fixed)', () => {
     expect(Object.values(actionAvailability(res.state, 'u1', c.assets)).some(Boolean)).toBe(false);
   });
 
-  it('each hit while dying is a failed death save; the third removes them like a defeat', () => {
+  it('more hits while dying change nothing: they stay until the DM decides', () => {
     const { state, c } = started(1, [], { entityNegativeHpPersists: false });
     let s = run(state, c, { type: 'SET_HP', unitId: 'u1', hp: 1 });
-    for (let failures = 0; failures <= 3; failures++) {
+    for (let i = 0; i < 4; i++) {
       const res = hit(s, c);
       expect(res.ok).toBe(true);
       if (!res.ok) return;
       s = res.state;
-      if (failures < 3) expect(entity(s, 'u1').dying?.failures).toBe(failures);
     }
-    expect(s.units.some((u) => u.id === 'u1')).toBe(false);
-    expect(s.graveyard[0]?.sheet.currentHP).toBe(0);
+    expect(entity(s, 'u1').dying).toEqual({ successes: 0, failures: 0 });
+    expect(entity(s, 'u1').sheet.currentHP).toBe(0);
+    expect(s.graveyard).toHaveLength(0);
+  });
+
+  describe('the DM resolves it (RESOLVE_DYING)', () => {
+    const dying = () => {
+      const { state, c } = started(1, [], { entityNegativeHpPersists: false });
+      const res = hit(run(state, c, { type: 'SET_HP', unitId: 'u1', hp: 3 }), c);
+      if (!res.ok) throw new Error('attack failed');
+      return { s: res.state, c };
+    };
+
+    it('recover: back up with 1 HP, no longer dying, sheet written', () => {
+      const { s, c } = dying();
+      const res = step(s, c, { type: 'RESOLVE_DYING', unitId: 'u1', outcome: 'recover' });
+      if (!res.ok) throw new Error(res.error.message);
+      expect(entity(res.state, 'u1').dying).toBeNull();
+      expect(entity(res.state, 'u1').sheet.currentHP).toBe(1);
+      expect(res.events).toContainEqual({ type: 'sheetChanged', sourceName: 'Henry Keaton' });
+      expect(Object.values(actionAvailability(res.state, 'u1', c.assets)).some(Boolean)).toBe(true);
+    });
+
+    it('hold on: still dying, nothing else changes', () => {
+      const { s, c } = dying();
+      const res = step(s, c, { type: 'RESOLVE_DYING', unitId: 'u1', outcome: 'hold' });
+      if (!res.ok) throw new Error(res.error.message);
+      expect(entity(res.state, 'u1').dying).not.toBeNull();
+      expect(res.state.units).toEqual(s.units);
+      expect(res.state.log.at(-1)?.text).toBe('Henry Keaton holds on');
+    });
+
+    it('perish: leaves the board and the order, a tombstone marks the tile, the sheet is marked dead', () => {
+      const { s, c } = dying();
+      const where = { r: entity(s, 'u1').r, c: entity(s, 'u1').c };
+      const res = step(s, c, { type: 'RESOLVE_DYING', unitId: 'u1', outcome: 'perish' });
+      if (!res.ok) throw new Error(res.error.message);
+      expect(res.state.units.some((u) => u.id === 'u1')).toBe(false);
+      expect(res.state.turn.order).not.toContain('u1');
+      expect(res.state.board.graves).toEqual([{ id: 'grave-u1', ...where, name: 'Henry Keaton' }]);
+      expect(res.state.graveyard[0]?.sheet.dead).toBe(true);
+      expect(res.events).toContainEqual({ type: 'unitRemoved', unitId: 'u1', reason: 'defeated' });
+      // the tombstone is decoration: the tile can be stood on again
+      expect(canUnitStand(res.state, where.r, where.c)).toBe(true);
+    });
+
+    it('the fallen stay behind: a new battle skips party members whose sheet is marked dead', () => {
+      const base = engineAssets();
+      const henry = base.party['Henry Keaton'];
+      if (!henry) throw new Error('fixture sheet missing');
+      // a copy: the shared fixture sheets must stay alive for the other tests
+      const assets = { ...base, party: { ...base.party, 'Henry Keaton': { ...henry, dead: true } } };
+      const s = createBattle(grid(), assets, { partyList: ['Henry Keaton', 'Dan Dixon'] });
+      expect(s.turn.placementQueue).toEqual(['Dan Dixon']);
+      expect(s.log.map((l) => l.text)).toEqual(['Henry Keaton has perished and is not placed']);
+      // the living are queued as before
+      expect(
+        createBattle(grid(), engineAssets(), { partyList: ['Henry Keaton', 'Dan Dixon'] }).turn
+          .placementQueue,
+      ).toEqual(['Henry Keaton', 'Dan Dixon']);
+    });
+
+    it('a sheet marked dead while waiting to be placed leaves the placement queue', () => {
+      const assets = engineAssets();
+      const c = ctx(1, assets);
+      const s = createBattle(grid(), assets, { partyList: ['Henry Keaton', 'Dan Dixon'] });
+      const henry = assets.party['Henry Keaton'];
+      if (!henry) throw new Error('fixture sheet missing');
+      const res = step(s, c, {
+        type: 'REPLACE_SHEET',
+        sourceName: 'Henry Keaton',
+        sheet: { ...henry, dead: true },
+      });
+      if (!res.ok) throw new Error(res.error.message);
+      expect(res.state.turn.placementQueue).toEqual(['Dan Dixon']);
+    });
+
+    it('refuses a unit that is not dying', () => {
+      const { state, c } = started(1, [], { entityNegativeHpPersists: false });
+      const res = step(state, c, { type: 'RESOLVE_DYING', unitId: 'u1', outcome: 'perish' });
+      expect(res.ok).toBe(false);
+      expect(step(state, c, { type: 'RESOLVE_DYING', unitId: 'u4', outcome: 'recover' }).ok).toBe(false);
+    });
   });
 
   it('any healing brings them back up', () => {

@@ -181,6 +181,16 @@ describe('writers', () => {
     expect(text.includes('\n')).toBe(false);
     expect(Object.keys(JSON.parse(text) as object)).toEqual(Object.keys(raw as object));
   });
+  it('the dead mark is written only once a character has perished, and reads back', () => {
+    const raw = readSave('entities/party/Henry_Keaton.json') as Record<string, unknown>;
+    const alive = normalizeCharSheet(raw);
+    expect(alive.dead).toBeUndefined();
+    expect('dead' in charSheetToJson(alive)).toBe(false);
+    const json = charSheetToJson({ ...alive, dead: true });
+    expect(json.dead).toBe(true);
+    expect(normalizeCharSheet(json).dead).toBe(true);
+    expect(normalizeCharSheet({ ...raw, dead: false }).dead).toBeUndefined();
+  });
   it('a sheet created in the port has the Java field order without a template', () => {
     const json = charSheetToJson(normalizeCharSheet({ name: 'Fresh', isParty: true }));
     expect(Object.keys(json)).toEqual([

@@ -25,6 +25,8 @@ import { makePickupTexture, makeSlabTexture, makeTokenTexture, pixelTexture } fr
 interface AtlasMaterials {
   texture: THREE.Texture;
   lit: THREE.MeshLambertMaterial;
+  /** the same, drained to grey: a dying hero */
+  grey: THREE.MeshLambertMaterial;
   depth: THREE.MeshDepthMaterial;
   distance: THREE.MeshDistanceMaterial;
   ghost: THREE.MeshBasicMaterial;
@@ -36,6 +38,7 @@ function cutoutMaterials(texture: THREE.Texture): AtlasMaterials {
   return {
     texture,
     lit: spriteLitMaterial(texture),
+    grey: spriteLitMaterial(texture, { grey: true }),
     depth: new THREE.MeshDepthMaterial({
       ...common,
       depthPacking: THREE.RGBADepthPacking,
@@ -54,7 +57,10 @@ function cutoutMaterials(texture: THREE.Texture): AtlasMaterials {
  * (the billboard origin) with an up-facing normal. Sprites still darken in
  * darkness and brighten under lamps, matching the tile under them.
  */
-export function spriteLitMaterial(texture: THREE.Texture): THREE.MeshLambertMaterial {
+export function spriteLitMaterial(
+  texture: THREE.Texture,
+  opts: { grey?: boolean } = {},
+): THREE.MeshLambertMaterial {
   const mat = new THREE.MeshLambertMaterial({
     map: texture,
     alphaTest: 0.5,
@@ -68,9 +74,16 @@ export function spriteLitMaterial(texture: THREE.Texture): THREE.MeshLambertMate
         '#include <project_vertex>',
         '#include <project_vertex>\n\tvProbeView = ( modelViewMatrix * vec4( 0.0, 0.45, 0.0, 1.0 ) ).xyz;',
       );
+    let frag = shader.fragmentShader;
+    // greyscale (a dying hero): luminance of the texel, a touch darker
+    if (opts.grey)
+      frag = frag.replace(
+        '#include <map_fragment>',
+        '#include <map_fragment>\n\tdiffuseColor.rgb = vec3( dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) ) ) * 0.85;',
+      );
     shader.fragmentShader =
       'varying vec3 vProbeView;\n' +
-      shader.fragmentShader.replace(
+      frag.replace(
         '#include <lights_fragment_begin>',
         THREE.ShaderChunk.lights_fragment_begin
           .replace('vec3 geometryPosition = - vViewPosition;', 'vec3 geometryPosition = vProbeView;')
@@ -80,7 +93,7 @@ export function spriteLitMaterial(texture: THREE.Texture): THREE.MeshLambertMate
           ),
       );
   };
-  mat.customProgramCacheKey = () => 'sprite-ground-probe';
+  mat.customProgramCacheKey = () => (opts.grey ? 'sprite-ground-probe-grey' : 'sprite-ground-probe');
   return mat;
 }
 
@@ -436,15 +449,12 @@ export class UnitLayer {
       n.ghost.visible = false;
       n.root.add(n.body, n.ghost);
     }
-    n.body.material = mats.lit;
+    n.body.material = u.dying ? mats.grey : mats.lit;
     n.body.customDepthMaterial = mats.depth;
     n.body.customDistanceMaterial = mats.distance;
     if (n.ghost) n.ghost.material = mats.ghost;
-    // a dying hero lies on the tile, like a downed unit in the classic tactics games
     const upright =
-      ctx.mode !== 'top' &&
-      !u.dying &&
-      !(u.kind === 'terrain' && frames?.single && !(u.terrain?.collision ?? true));
+      ctx.mode !== 'top' && !(u.kind === 'terrain' && frames?.single && !(u.terrain?.collision ?? true));
     n.w = w;
     // world-space height of what stands up from the tile (labels, ghost test)
     n.h = upright ? h * stretch : 0.05;
@@ -581,6 +591,7 @@ export class UnitLayer {
     this.nodes.clear();
     for (const m of [...this.atlasMats.values(), ...this.tokenMats.values()]) {
       m.lit.dispose();
+      m.grey.dispose();
       m.depth.dispose();
       m.distance.dispose();
       m.ghost.dispose();

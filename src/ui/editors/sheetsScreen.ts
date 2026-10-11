@@ -150,7 +150,7 @@ export function mountSheetsScreen(root: HTMLElement, deps: SheetsDeps): () => vo
             const row = h(
               'div',
               {
-                class: `sheet-row${selected === s.name ? ' on' : ''}`,
+                class: `sheet-row${selected === s.name ? ' on' : ''}${s.dead ? ' dead' : ''}`,
                 onclick: () => select(s.name),
                 dataset: { testid: `sheet-row-${s.name}` },
               },
@@ -158,7 +158,12 @@ export function mountSheetsScreen(root: HTMLElement, deps: SheetsDeps): () => vo
               h(
                 'div',
                 { class: 'grow' },
-                h('div', { class: 'name' }, s.name),
+                h(
+                  'div',
+                  { class: 'name' },
+                  s.dead && h('span', { class: 'dead-mark', title: 'Perished in battle' }, '✝ '),
+                  s.name,
+                ),
                 h('div', { class: 'muted small' }, sheetSubtitle(s)),
               ),
               group === 'ALL' && s.group && h('span', { class: 'badge' }, groupLabel(s.group)),

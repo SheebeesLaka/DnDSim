@@ -16,17 +16,13 @@ import type {
 import { removeFromOrder } from './turnOrder.ts';
 import { turnStartProcessing } from './statuses.ts';
 
-/** Death-save failures that kill a dying party member. */
-export const DEATH_SAVE_LIMIT = 3;
-
 /** F-14 fixed: party members drop to dying at 0 HP instead of leaving the board. */
 export const dropsToDying = (u: Unit, compat: CompatLike): boolean =>
   u.kind === 'entity' && u.sheet.isParty && !compat.entityNegativeHpPersists;
 
-/** CombatManager.applyDamage (F-14 fixed: HP clamps at 0; a hit while dying is a failed death save). */
+/** CombatManager.applyDamage (F-14 fixed: HP clamps at 0). */
 export function applyDamage(target: Unit, dmg: number, compat: CompatLike): void {
   if (target.kind === 'entity') {
-    if (target.dying && dmg > 0) target.dying.failures += 1;
     const hp = target.sheet.currentHP - dmg;
     target.sheet.currentHP = compat.entityNegativeHpPersists ? hp : Math.max(0, hp);
   } else if (target.kind === 'enemy') {
@@ -92,6 +88,8 @@ export function removeDefeated(
   ctx: EngineContext,
   emit: Emit,
 ): void {
+  // F-14 fixed: a party member stays on the board, dying, until the DM resolves it
+  // (RESOLVE_DYING: recover / hold on / perish); more damage while dying changes nothing
   if (dropsToDying(target, draft.rules.compat)) {
     const e = unitById(draft, target.id);
     if (e?.kind === 'entity') {
@@ -100,12 +98,8 @@ export function removeDefeated(
         emit({ type: 'floatText', unitId: e.id, text: 'Dying', color: '#ff6b6b', kind: 'OTHER' });
         emit({ type: 'sheetChanged', sourceName: e.sourceName });
         log(draft, `${unitName(e)} falls and is dying`);
-        return;
       }
-      if (e.dying.failures < DEATH_SAVE_LIMIT) {
-        log(draft, `${unitName(e)} fails a death save (${e.dying.failures}/${DEATH_SAVE_LIMIT})`);
-        return;
-      }
+      return;
     }
   }
   if (target.kind === 'entity' || target.kind === 'enemy') {

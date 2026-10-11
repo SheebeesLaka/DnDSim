@@ -671,6 +671,41 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
         h('div', {}, '--'),
       );
     }
+    // a dying hero has no actions: the DM decides their fate instead (F-14 fixed)
+    if (u && u.kind === 'entity' && u.dying) {
+      const name = unitName(u);
+      const resolve = (outcome: 'recover' | 'hold' | 'perish') =>
+        dispatch({ type: 'RESOLVE_DYING', unitId: u.id, outcome });
+      parts.push(
+        h('div', { class: 'sep' }),
+        h('div', { class: 'header dying-header', dataset: { testid: 'dying-header' } }, 'Dying'),
+        h('div', { class: 'muted small' }, `${name} is at 0 HP. What happens to them?`),
+        h(
+          'div',
+          { class: 'actions' },
+          button('✚ Recover', () => resolve('recover'), {
+            class: 'success wide',
+            title: 'Back on their feet with 1 HP',
+            dataset: { testid: 'dying-recover' },
+          }),
+          button('⏳ Hold on', () => resolve('hold'), {
+            class: 'accent wide',
+            title: 'Still dying',
+            dataset: { testid: 'dying-hold' },
+          }),
+          button(
+            '✝ Perish',
+            () =>
+              void confirmDialog(
+                'Perish',
+                `${name} dies. They leave the battle, a tombstone marks the spot, and their character sheet is marked dead.`,
+              ).then((ok) => ok && resolve('perish')),
+            { class: 'danger wide', title: 'Dies: leaves the battle', dataset: { testid: 'dying-perish' } },
+          ),
+        ),
+      );
+      return h('div', { class: 'col' }, ...parts);
+    }
     const m = session().mode;
     const on = (k: string) => (m.kind === k ? ' on' : '');
     parts.push(

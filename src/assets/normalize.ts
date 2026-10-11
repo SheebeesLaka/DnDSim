@@ -311,6 +311,7 @@ export function normalizeCharSheet(input: unknown): CharSheetDef {
     spellcastingStat: raw.spellcastingStat && raw.spellcastingStat !== '' ? raw.spellcastingStat : null,
     knownSpells: [...(raw.knownSpells ?? [])],
     spellSlotsUsed: slotsUsed,
+    ...(raw.dead === true ? { dead: true } : {}),
     extra: pickExtra(raw, CHARSHEET_KNOWN),
   };
 }

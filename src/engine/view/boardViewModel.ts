@@ -126,6 +126,8 @@ export interface BoardVM {
   cells: CellVM[][];
   units: UnitVM[];
   lights: LightVM[];
+  /** tombstones where party members perished */
+  graves?: { id: string; r: number; c: number; name: string }[];
   highlights: Highlights;
   banner: string | null;
   /** 'Setup' / 'Initiative' / 'Round N' */
@@ -343,6 +345,7 @@ export function buildBoardViewModel(
     cells,
     units,
     lights,
+    graves: (state.board.graves ?? []).map((g) => ({ ...g })),
     highlights,
     banner,
     phaseLabel: phaseLabel(state),

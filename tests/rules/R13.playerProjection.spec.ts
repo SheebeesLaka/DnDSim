@@ -10,6 +10,33 @@ import {
 import { anonymousEnemyNames, projectForPlayer } from '../../src/engine/view/playerProjection.ts';
 import { combatAssets, started, run } from '../helpers/combat.ts';
 
+describe('tombstones', () => {
+  it('the DM sees every grave; players only those on a tile they can see', () => {
+    const { state, c } = started();
+    const s = {
+      ...state,
+      board: {
+        ...state.board,
+        graves: [
+          { id: 'grave-a', r: 0, c: 0, name: 'Lit' },
+          { id: 'grave-b', r: 1, c: 1, name: 'Dark' },
+        ],
+      },
+    };
+    const vm = buildBoardViewModel(
+      s,
+      { selectedId: null, mode: { kind: 'none' }, hover: null } as never,
+      c.assets,
+    );
+    expect(vm.graves?.map((g) => g.name)).toEqual(['Lit', 'Dark']);
+    const cells = vm.cells.map((row) =>
+      row.map((cell) => ({ ...cell, light: cell.r === 1 && cell.c === 1 ? ('dark' as const) : cell.light })),
+    );
+    const player = projectForPlayer({ ...vm, cells }, DEFAULT_DISPLAY_OPTIONS);
+    expect(player.graves?.map((g) => g.name)).toEqual(['Lit']);
+  });
+});
+
 describe('display options', () => {
   it('parse from ui_prefs strings with defaults; unknown enemyHp → EXACT; round-trip', () => {
     expect(displayOptionsFromPrefs({})).toEqual(DEFAULT_DISPLAY_OPTIONS);

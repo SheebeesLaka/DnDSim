@@ -102,11 +102,18 @@ battle.
 - **F-2:** End is a victory only when no enemies remain.
 - **F-15:** units may stand on a pickup's tile.
 - **F-14 (dying):** party HP clamps at 0 and a party member at 0 HP stays on the board, **dying**,
-  instead of leaving it (`EntityUnit.dying`). A dying hero lies flat on the tile with a red "Dying" chip,
-  keeps their place in the turn order and gets no actions. Each hit while dying is a failed death save,
-  and the third removes them as before. Any healing (or the DM setting HP above 0) brings them back up.
-  **Not done yet:** rolling death saves at the start of their turn (successes, nat 1 / nat 20),
-  stabilising, and massive-damage instant death.
+  instead of leaving it (`EntityUnit.dying`). Play carries on as after any hit. The sprite turns
+  greyscale with a red "Dying" chip; they keep their place in the turn order, get no actions, and more
+  damage changes nothing. Selecting them swaps the sidebar's Actions for a **Dying** panel
+  (`RESOLVE_DYING`, `src/engine/commands/dying.ts`):
+  - **Recover:** back up with 1 HP.
+  - **Hold on:** still dying (logged).
+  - **Perish** (asks first): they leave the battle like a defeat, a tombstone with their name marks the
+    tile (`board.graves`, decoration only; players see it only on a lit tile), and their character sheet
+    is marked dead (`dead: true`, written only once it happens). The Character Sheets list shows them
+    with a ✝ and a greyed portrait; the sheet has a "✝ Dead" badge and a Perished checkbox to undo it.
+  - A new battle skips party members whose sheet is marked dead (logged). Healing or setting HP above 0 also ends dying. **Not done yet:** automated death-save rolls, which
+    would replace "Hold on".
 
 After Phase 4: the editors (character sheets, assets, spells), see `docs/EDITORS.md`.
 

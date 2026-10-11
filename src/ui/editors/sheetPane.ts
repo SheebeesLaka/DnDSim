@@ -46,7 +46,7 @@ import { isCaster } from '../../engine/selectors/stats.ts';
 import { button, h, replaceChildren } from '../dom.ts';
 import { alertDialog, confirmDialog, modal } from '../panels/dialogs.ts';
 import { abilityLine, openAbilityDialog } from './abilityEditor.ts';
-import { colorField, editorDialog, formGrid, intField, selectField, warn } from './form.ts';
+import { checkField, colorField, editorDialog, formGrid, intField, selectField, warn } from './form.ts';
 import { STAT_COLORS, drawRadar } from './radarChart.ts';
 import { openSpellEditor } from './spellEditor.ts';
 import { drawSpritePreview, spritePicker } from './spritePicker.ts';
@@ -163,6 +163,17 @@ export function mountSheetPane(root: HTMLElement, initial: CharSheetDef, deps: S
     tid('group'),
   );
   group.el.addEventListener('change', () => change({ ...sheet, group: group.get() || null }));
+  // perished in battle (the "Perish" choice for a dying hero); untick to bring them back
+  const deadBadge = h(
+    'span',
+    { class: 'dead-badge', title: 'Perished in battle', ...tid('dead-badge') },
+    '✝ Dead',
+  );
+  const dead = checkField('Perished', sheet.dead === true, tid('dead'));
+  dead.box.addEventListener('change', () => {
+    const { dead: _was, ...rest } = sheet;
+    change(dead.get() ? { ...rest, dead: true } : rest);
+  });
 
   // ------------------------------------------------------------ attributes
   const radar = h('canvas', { class: 'radar' });
@@ -201,7 +212,13 @@ export function mountSheetPane(root: HTMLElement, initial: CharSheetDef, deps: S
     h(
       'div',
       { class: 'sheet-pane', dataset: { testid: 'sheet-pane' } },
-      h('div', { class: 'sheet-header' }, avatar, h('div', { class: 'col grow' }, nameIn, classIn), del),
+      h(
+        'div',
+        { class: 'sheet-header' },
+        avatar,
+        h('div', { class: 'col grow' }, h('div', { class: 'row' }, nameIn, deadBadge), classIn),
+        del,
+      ),
       section(
         'Basic Info',
         (() => {
@@ -212,6 +229,7 @@ export function mountSheetPane(root: HTMLElement, initial: CharSheetDef, deps: S
           g.row('Status:', h('div', { class: 'status-wrap' }, statusBtn, statusPop));
           g.row('Color:', color.el);
           g.row('Group:', group.el);
+          g.row('Dead:', dead.el);
           return g.el;
         })(),
       ),
@@ -264,6 +282,8 @@ export function mountSheetPane(root: HTMLElement, initial: CharSheetDef, deps: S
 
   // ---------------------------------------------------------------- refresh
   function refresh(): void {
+    deadBadge.style.display = sheet.dead ? '' : 'none';
+    dead.box.checked = sheet.dead === true;
     const focused = document.activeElement;
     const keep = (el: HTMLInputElement | HTMLSelectElement, v: string) => {
       if (el !== focused) el.value = v;
