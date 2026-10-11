@@ -101,6 +101,8 @@ export interface LightVM {
   brightRadius: number;
   dimRadius: number;
   attachedTo: UnitId | null;
+  /** the light group it belongs to (room-wide switches animate as a power-on) */
+  groupId?: string | null;
 }
 
 export interface StripEntry {
@@ -286,6 +288,7 @@ export function buildBoardViewModel(
         brightRadius: l.brightRadius,
         dimRadius: l.dimRadius,
         attachedTo: l.attachedTo ?? null,
+        groupId: l.groupId ?? null,
       },
     ];
   });

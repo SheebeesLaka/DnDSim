@@ -72,7 +72,8 @@ export class PostFX {
   ) {
     this.composer = new EffectComposer(renderer);
     this.composer.addPass(new RenderPass(scene, camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.5, 0.92);
+    // threshold above 1: only HDR emitters (bulbs) bloom, not a white sprite standing in daylight
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.5, 1.05);
     this.band = new ShaderPass(BandTiltShiftShader);
     this.composer.addPass(this.bloom);
     this.composer.addPass(this.band);

@@ -3,5 +3,11 @@
   "display.twoDisplayMode": "false",
   "display.player.enemyHp": "EXACT",
   "display.player.enemyInitiativeRolls": "true",
-  "display.player.spellTemplates": "true"
+  "display.player.spellTemplates": "true",
+  "board.player.bloom": "true",
+  "board.camera": "tactical",
+  "board.azimuth": "2",
+  "board.blur": "false",
+  "board.bloom": "true",
+  "board.player.azimuth": "3"
 }

@@ -3,6 +3,11 @@
  * (plus DM reveal), a shadowed sun when the ambient is bright/dim, and one
  * PointLight per engine light (distance = dim radius). Up to MAX_SHADOW_LIGHTS
  * point lights cast shadows; their maps are refreshed only when told to.
+ *
+ * Changes are animated (visual only: the engine state, and with it what
+ * players may see, switches at once). A light fades up or down; grouped
+ * lights (or several switched on together) flicker on one after another like
+ * restored power; and the room's ambient level eases to its new value.
  */
 import * as THREE from 'three';
 import type { BoardVM, LightVM } from '../../../engine/view/boardViewModel.ts';
@@ -14,6 +19,74 @@ interface PointEntry {
   /** DM-only cord from a hanging lamp down to its tile, so the bulb reads as belonging there */
   cord: THREE.Line;
   key: string;
+  color: string;
+  /** current brightness 0..1 (animated) */
+  level: number;
+  /** the engine's on/off */
+  on: boolean;
+  tween: { kind: LightTween; from: number; start: number; delay: number } | null;
+}
+
+export type LightTween = 'fade-in' | 'fade-out' | 'power-on';
+
+const FADE_IN_MS = 450;
+const FADE_OUT_MS = 260;
+const AMBIENT_MS = 700;
+/** Flicker before a restored light settles: [until ms, level] steps, then a ramp to full. */
+const FLICKER: readonly [number, number][] = [
+  [60, 0.75],
+  [140, 0.05],
+  [190, 0.5],
+  [320, 0],
+];
+const FLICKER_RAMP_MS = 520;
+/** Longest stagger between lights of one group power-on (ms). */
+const POWER_ON_STAGGER_MS = 380;
+const OFF_BULB = new THREE.Color('#4a4f55');
+
+const easeOut = (t: number): number => 1 - (1 - t) ** 3;
+const easeInOut = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+
+/**
+ * Brightness of an animating light `ms` after its switch; `from` is where it
+ * was. A power-on waits `delay`, flickers, then ramps up. Pure, so tested.
+ */
+export function lightTweenLevel(
+  kind: LightTween,
+  ms: number,
+  from: number,
+  delay = 0,
+): { level: number; done: boolean } {
+  if (kind === 'fade-out') {
+    const t = Math.min(1, Math.max(0, ms) / FADE_OUT_MS);
+    return { level: from * (1 - easeOut(t)), done: t >= 1 };
+  }
+  if (kind === 'fade-in') {
+    const t = Math.min(1, Math.max(0, ms) / FADE_IN_MS);
+    return { level: from + (1 - from) * easeOut(t), done: t >= 1 };
+  }
+  const local = ms - delay;
+  if (local < 0) return { level: from, done: false };
+  for (const [until, level] of FLICKER) if (local < until) return { level, done: false };
+  const last = FLICKER[FLICKER.length - 1]?.[0] ?? 0;
+  const t = Math.min(1, (local - last) / FLICKER_RAMP_MS);
+  return { level: easeOut(t), done: t >= 1 };
+}
+
+/** A stable 0..1 per light id, to stagger a group power-on. */
+export const stagger = (id: string): number => {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+  return ((h >>> 0) % 1000) / 1000;
+};
+
+export interface AmbientLevels {
+  ambient: number;
+  hemi: number;
+  sun: number;
+  sunColor: THREE.Color;
+  /** point-light multiplier: a torch matters in the dark, barely in daylight (no blown-out sprites) */
+  points: number;
 }
 
 export class LightLayer {
@@ -25,6 +98,8 @@ export class LightLayer {
   private bulbGeo = new THREE.SphereGeometry(0.09, 10, 8);
   private cordMat = new THREE.LineBasicMaterial({ color: '#8a96a8', transparent: true, opacity: 0.55 });
   private ambientKey = '';
+  private ambientTween: { from: AmbientLevels; to: AmbientLevels; start: number } | null = null;
+  private pointScale = 1;
   private heading = 0;
   private board = { rows: 1, cols: 1 };
 
@@ -38,8 +113,18 @@ export class LightLayer {
     this.group.add(this.ambient, this.hemi, this.sun, this.sun.target);
   }
 
-  update(vm: BoardVM, topY: (r: number, c: number) => number, altitudeOf: (id: string) => number): void {
-    this.updateAmbient(vm);
+  update(
+    vm: BoardVM,
+    topY: (r: number, c: number) => number,
+    altitudeOf: (id: string) => number,
+    now = performance.now(),
+  ): void {
+    this.updateAmbient(vm, now);
+    // a grouped light, or several lights switched on in one change, is a room power-on: flicker in
+    const switchedOn = vm.lights.filter((l) => {
+      const e = this.points.get(l.id);
+      return e !== undefined && l.on && !e.on;
+    }).length;
     const seen = new Set<string>();
     const shadowBudget = { left: MAX_SHADOW_LIGHTS };
     // moving (attached) lights first so they keep their shadows when the budget is tight
@@ -60,17 +145,28 @@ export class LightLayer {
         light.shadow.camera.near = 0.2;
         light.shadow.autoUpdate = false;
         light.shadow.intensity = 0.8; // dark, never a black hole
-        const bulb = new THREE.Mesh(this.bulbGeo, new THREE.MeshBasicMaterial({ color: l.color }));
+        const bulb = new THREE.Mesh(
+          this.bulbGeo,
+          new THREE.MeshBasicMaterial({ color: l.color, toneMapped: false }),
+        );
         const cord = new THREE.Line(new THREE.BufferGeometry(), this.cordMat);
         this.group.add(light, bulb, cord);
-        e = { light, bulb, cord, key: '' };
+        // a light that already exists when the board loads is simply on or off
+        e = { light, bulb, cord, key: '', color: l.color, level: l.on ? 1 : 0, on: l.on, tween: null };
         this.points.set(l.id, e);
+      }
+      if (l.on !== e.on) {
+        e.on = l.on;
+        const kind: LightTween = !l.on ? 'fade-out' : l.groupId || switchedOn >= 2 ? 'power-on' : 'fade-in';
+        const delay = kind === 'power-on' ? stagger(l.id) * POWER_ON_STAGGER_MS : 0;
+        e.tween = { kind, from: e.level, start: now, delay };
       }
       if (e.key !== key) {
         e.key = key;
         this.applyPoint(e, l, y, ground);
       }
-      const wantsShadow = l.on && shadowBudget.left > 0;
+      // keep the shadow while a switched-off light fades, so it doesn't pop
+      const wantsShadow = (l.on || e.level > 0) && shadowBudget.left > 0;
       if (wantsShadow) shadowBudget.left--;
       if (e.light.castShadow !== wantsShadow) {
         e.light.castShadow = wantsShadow;
@@ -101,46 +197,89 @@ export class LightLayer {
     const h = Math.max(0.5, y - ground);
     e.light.distance = 1.25 * Math.hypot(Math.max(l.dimRadius, l.brightRadius) + 0.5, h);
     e.light.decay = 0;
-    e.light.intensity = l.on ? LIGHT_INTENSITY : 0;
-    e.light.visible = l.on;
+    e.color = l.color;
+    this.applyLevel(e);
     e.bulb.position.copy(e.light.position);
     e.cord.geometry.dispose();
     e.cord.geometry = new THREE.BufferGeometry().setFromPoints([
       e.light.position.clone(),
       new THREE.Vector3(e.light.position.x, ground + 0.02, e.light.position.z),
     ]);
-    const mat = e.bulb.material as THREE.MeshBasicMaterial;
-    if (l.on) {
-      mat.color.set(l.color).multiplyScalar(2.6); // > 1 so bloom picks the bulb up
-      mat.toneMapped = false;
-    } else mat.color.set('#4a4f55');
     e.light.shadow.needsUpdate = true;
   }
 
-  private updateAmbient(vm: BoardVM): void {
-    const key = `${vm.ambient}|${vm.view}|${vm.dmReveal}|${vm.rows}x${vm.cols}`;
-    if (key === this.ambientKey) return;
-    this.ambientKey = key;
-    const dm = vm.view === 'dm';
-    // three's Lambert divides irradiance by pi, so intensity ~3 means "full albedo".
-    if (vm.ambient === 'bright') {
-      this.ambient.intensity = 1.5;
-      this.hemi.intensity = 1.1;
-      this.sun.intensity = 2.2;
-    } else if (vm.ambient === 'dim') {
-      this.ambient.intensity = 0.75;
-      this.hemi.intensity = 0.5;
-      this.sun.intensity = 0.6;
-    } else {
-      // dark: the DM's reveal keeps geometry legible; without it the DM sees a little more than players
-      const reveal = dm ? (vm.dmReveal ? 1.25 : 0.4) : 0.06;
-      this.ambient.intensity = reveal;
-      this.hemi.intensity = reveal * 0.6;
-      this.sun.intensity = 0;
+  /** Light intensity and bulb glow for the entry's current level. */
+  private applyLevel(e: PointEntry): void {
+    e.light.intensity = LIGHT_INTENSITY * e.level * this.pointScale;
+    e.light.visible = e.level > 0.001;
+    const mat = e.bulb.material as THREE.MeshBasicMaterial;
+    // > 1 when lit so bloom picks the bulb up
+    mat.color.copy(OFF_BULB).lerp(new THREE.Color(e.color).multiplyScalar(2.6), e.level);
+  }
+
+  /** Advance light and ambient transitions. Returns true while anything is still changing. */
+  tick(now = performance.now()): boolean {
+    let busy = false;
+    for (const e of this.points.values()) {
+      if (!e.tween) continue;
+      const { level, done } = lightTweenLevel(e.tween.kind, now - e.tween.start, e.tween.from, e.tween.delay);
+      e.level = level;
+      if (done) e.tween = null;
+      this.applyLevel(e);
+      busy = true;
     }
-    this.sun.visible = this.sun.intensity > 0;
-    this.board = { rows: vm.rows, cols: vm.cols };
-    this.placeSun();
+    if (this.ambientTween) {
+      const tw = this.ambientTween;
+      const t = Math.min(1, (now - tw.start) / AMBIENT_MS);
+      this.setAmbientLevels(lerpLevels(tw.from, tw.to, easeInOut(t)));
+      if (t >= 1) this.ambientTween = null;
+      busy = true;
+    }
+    return busy;
+  }
+
+  /** Brightness (0..1) a light is showing right now; tests and the debug panel. */
+  levelOf(id: string): number | null {
+    return this.points.get(id)?.level ?? null;
+  }
+
+  private currentLevels(): AmbientLevels {
+    return {
+      ambient: this.ambient.intensity,
+      hemi: this.hemi.intensity,
+      sun: this.sun.intensity,
+      sunColor: this.sun.color.clone(),
+      points: this.pointScale,
+    };
+  }
+
+  private setAmbientLevels(l: AmbientLevels): void {
+    this.ambient.intensity = l.ambient;
+    this.hemi.intensity = l.hemi;
+    this.sun.intensity = l.sun;
+    this.sun.color.copy(l.sunColor);
+    this.sun.visible = l.sun > 0.001;
+    if (l.points !== this.pointScale) {
+      this.pointScale = l.points;
+      for (const e of this.points.values()) this.applyLevel(e);
+    }
+  }
+
+  private updateAmbient(vm: BoardVM, now: number): void {
+    if (vm.rows !== this.board.rows || vm.cols !== this.board.cols) {
+      this.board = { rows: vm.rows, cols: vm.cols };
+      this.placeSun();
+    }
+    const key = `${vm.ambient}|${vm.view}|${vm.dmReveal}`;
+    if (key === this.ambientKey) return;
+    const first = this.ambientKey === '';
+    this.ambientKey = key;
+    const to = ambientLevels(vm.ambient, vm.view, vm.dmReveal);
+    if (first) {
+      this.ambientTween = null;
+      this.setAmbientLevels(to);
+    } else this.ambientTween = { from: this.currentLevels(), to, start: now };
+    this.sun.shadow.needsUpdate = true;
   }
 
   /**
@@ -216,4 +355,32 @@ export class LightLayer {
     this.cordMat.dispose();
     this.sun.dispose();
   }
+}
+
+const lerpLevels = (a: AmbientLevels, b: AmbientLevels, t: number): AmbientLevels => ({
+  ambient: a.ambient + (b.ambient - a.ambient) * t,
+  hemi: a.hemi + (b.hemi - a.hemi) * t,
+  sun: a.sun + (b.sun - a.sun) * t,
+  sunColor: a.sunColor.clone().lerp(b.sunColor, t),
+  points: a.points + (b.points - a.points) * t,
+});
+
+/**
+ * Room-wide light for an ambient level. Three's Lambert divides irradiance by
+ * pi, so an intensity of ~3 means "full albedo". Bright rooms lean on the sun
+ * (a key light) over flat ambient so the two side faces of a step differ;
+ * dark rooms keep the DM's reveal low and cool so torch and lamp pools still
+ * stand out in the DM's own view; players get almost nothing.
+ */
+export function ambientLevels(
+  level: BoardVM['ambient'],
+  view: BoardVM['view'],
+  dmReveal: boolean,
+): AmbientLevels {
+  if (level === 'bright')
+    return { ambient: 0.95, hemi: 0.8, sun: 2.6, sunColor: new THREE.Color('#fff2dd'), points: 0.3 };
+  if (level === 'dim')
+    return { ambient: 0.5, hemi: 0.4, sun: 0.9, sunColor: new THREE.Color('#b9c8ff'), points: 0.7 };
+  const reveal = view === 'dm' ? (dmReveal ? 0.55 : 0.22) : 0.06;
+  return { ambient: reveal, hemi: reveal * 0.6, sun: 0, sunColor: new THREE.Color('#b9c8ff'), points: 1 };
 }

@@ -339,6 +339,8 @@ export class ThreeRenderer implements BoardRenderer {
       if (!this.cam.turning && this.vm) this.render(this.vm);
       this.dirty = true;
     }
+    // light fades / group flicker / ambient easing (visual only; the engine switched at once)
+    if (this.lights.tick(now)) this.dirty = true;
     // idle frames only swap UVs; walk-frame silhouettes differ by a texel or two, so the
     // (expensive) shadow maps are refreshed on board changes only
     if (!this.animationPaused && this.units.tick(this.animNow())) this.dirty = true;

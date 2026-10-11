@@ -22,6 +22,7 @@ const { BOARD_THEME_IDS, TOP_VARIANTS, makeTopAtlas, topVariant } =
   await import('../../src/ui/renderer/three/tileThemes.ts');
 const { BOARD_THEMES, DEFAULT_BOARD_THEME } = await import('../../src/ui/boardThemes.ts');
 const { THEME_PROPS } = await import('../../src/ui/renderer/three/skirt.ts');
+const { LightLayer, lightTweenLevel, ambientLevels } = await import('../../src/ui/renderer/three/lights.ts');
 
 const W = 1200,
   H = 800;
@@ -586,6 +587,87 @@ describe('board themes', () => {
     expect(counts.every((n) => n > 0)).toBe(true);
     expect(counts[0]).toBeGreaterThan(1600 * 0.45);
     expect(counts[3]).toBeLessThan(1600 * 0.2);
+  });
+});
+
+describe('lighting: levels and transitions', () => {
+  const lamp = (on: boolean, groupId: string | null = null) => ({
+    id: groupId ? `lamp-${groupId}` : 'lamp',
+    name: 'Lamp',
+    r: 1,
+    c: 1,
+    on,
+    color: '#ffd9a0',
+    brightRadius: 2,
+    dimRadius: 4,
+    attachedTo: null,
+    groupId,
+  });
+  const withLights = (lights: ReturnType<typeof lamp>[], extra: Partial<BoardVM> = {}): BoardVM => ({
+    ...boardVm(4, 4),
+    ambient: 'dark',
+    lights,
+    ...extra,
+  });
+  const flat = () => 0;
+
+  it('a single light fades up and down; it never jumps', () => {
+    const layer = new LightLayer();
+    layer.update(withLights([lamp(false)]), flat, flat, 0);
+    expect(layer.levelOf('lamp')).toBe(0);
+    layer.update(withLights([lamp(true)]), flat, flat, 1000);
+    layer.tick(1100);
+    const mid = layer.levelOf('lamp') ?? 0;
+    expect(mid).toBeGreaterThan(0.2);
+    expect(mid).toBeLessThan(1);
+    expect(layer.tick(2000)).toBe(true); // the step that lands it
+    expect(layer.levelOf('lamp')).toBe(1);
+    expect(layer.tick(2100)).toBe(false);
+    layer.update(withLights([lamp(false)]), flat, flat, 3000);
+    layer.tick(3100);
+    expect(layer.levelOf('lamp')).toBeGreaterThan(0);
+    layer.tick(4000);
+    expect(layer.levelOf('lamp')).toBe(0);
+  });
+
+  it('a grouped light (room power) flickers before it settles; a light that exists at load does not animate', () => {
+    const layer = new LightLayer();
+    layer.update(withLights([lamp(false, 'hangar')]), flat, flat, 0);
+    layer.update(withLights([lamp(true, 'hangar')]), flat, flat, 1000);
+    const seen: number[] = [];
+    for (let t = 1000; t <= 3000; t += 10) {
+      layer.tick(t);
+      seen.push(layer.levelOf('lamp-hangar') ?? -1);
+    }
+    // goes bright, drops back near dark, then settles at full
+    const firstBright = seen.findIndex((v) => v > 0.6);
+    expect(firstBright).toBeGreaterThanOrEqual(0);
+    expect(seen.slice(firstBright).some((v) => v < 0.1)).toBe(true);
+    expect(seen[seen.length - 1]).toBe(1);
+    const fresh = new LightLayer();
+    fresh.update(withLights([lamp(true)]), flat, flat, 0);
+    expect(fresh.levelOf('lamp')).toBe(1);
+    expect(fresh.tick(10)).toBe(false);
+  });
+
+  it('the flicker curve: waits its stagger, flickers, ramps to full', () => {
+    expect(lightTweenLevel('power-on', 50, 0, 100)).toEqual({ level: 0, done: false });
+    expect(lightTweenLevel('power-on', 130, 0, 100).level).toBeGreaterThan(0.5);
+    expect(lightTweenLevel('power-on', 220, 0, 100).level).toBeLessThan(0.1);
+    expect(lightTweenLevel('power-on', 5000, 0, 100)).toEqual({ level: 1, done: true });
+    expect(lightTweenLevel('fade-in', 0, 0.4).level).toBeCloseTo(0.4); // resumes from where it was
+  });
+
+  it('ambient: bright leans on the key light; the DM reveal stays dim enough for pools to show; players get almost none', () => {
+    const bright = ambientLevels('bright', 'dm', true);
+    expect(bright.sun).toBeGreaterThan(bright.ambient * 2);
+    expect(bright.points).toBeLessThan(0.5); // a torch barely matters in daylight
+    const reveal = ambientLevels('dark', 'dm', true);
+    expect(reveal.ambient).toBeLessThan(0.7);
+    expect(reveal.points).toBe(1);
+    expect(ambientLevels('dark', 'dm', false).ambient).toBeLessThan(reveal.ambient);
+    expect(ambientLevels('dark', 'player', true).ambient).toBeLessThan(0.1);
+    expect(ambientLevels('dim', 'dm', true).ambient).toBeLessThan(bright.ambient);
   });
 });
 
