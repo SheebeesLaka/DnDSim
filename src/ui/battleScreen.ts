@@ -38,6 +38,8 @@ import {
 import { mountDebugPanel } from './panels/debugPanel.ts';
 import type { BoardRenderer } from './renderer/BoardRenderer.ts';
 import { mountBoardToolbar } from './panels/boardToolbar.ts';
+import { turnAzimuth, viewOptionsFromPrefs, viewPrefKey } from './viewPrefs.ts';
+import { BOARD_THEMES } from './boardThemes.ts';
 
 export interface BattleScreenDeps {
   store: Store;
@@ -346,6 +348,10 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
     if (e.key === '`')
       return (e.preventDefault(), store.dispatchSession({ type: 'debug', open: !session().debugOpen }));
     if (e.key === 'Home') return renderer.resetCamera();
+    if (e.key === '[' || e.key === ']') {
+      const cur = viewOptionsFromPrefs(prefs.all, 'dm').azimuth;
+      return prefs.set(viewPrefKey('dm', 'azimuth'), String(turnAzimuth(cur, e.key === ']' ? 1 : -1)));
+    }
     if (e.key === 'Escape') {
       if (session().mode.kind !== 'none') return store.dispatchSession({ type: 'cancelMode' });
       return;
@@ -1142,7 +1148,11 @@ export function mountBattleScreen(root: HTMLElement, deps: BattleScreenDeps): ()
         onchange: (ev) => dispatch({ type: 'SET_THEME', theme: (ev.target as HTMLSelectElement).value }),
         dataset: { testid: 'theme' },
       },
-      ...['stone', 'grass', 'dirt'].map((t) => h('option', { value: t, selected: b.board.theme === t }, t)),
+      ...BOARD_THEMES.map((t) => h('option', { value: t.id, selected: b.board.theme === t.id }, t.label)),
+      // a saved battle may use a theme this build doesn't list: keep it selectable
+      ...(BOARD_THEMES.some((t) => t.id === b.board.theme)
+        ? []
+        : [h('option', { value: b.board.theme, selected: true }, b.board.theme)]),
     );
     const saveName = h('input', {
       placeholder: 'battle name',

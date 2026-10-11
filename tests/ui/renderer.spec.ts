@@ -10,9 +10,18 @@ const { TileLayer } = await import('../../src/ui/renderer/three/tiles.ts');
 const { UnitLayer } = await import('../../src/ui/renderer/three/units.ts');
 const { pickWithRay, shadowChanges } = await import('../../src/ui/renderer/three/ThreeRenderer.ts');
 const { isOccluded } = await import('../../src/ui/renderer/three/occlusion.ts');
-const { heightRegions, labelCellCosts } = await import('../../src/ui/renderer/three/regions.ts');
-const { PITCH_TACTICAL, STEP, TEXELS } = await import('../../src/ui/renderer/three/constants.ts');
-const { viewOptionsFromPrefs } = await import('../../src/ui/viewPrefs.ts');
+const { cellsAlong, heightRegions, labelCellCosts } = await import('../../src/ui/renderer/three/regions.ts');
+const { AZIMUTHS, PITCH_TACTICAL, ROTATE_MS, STEP, TEXELS } =
+  await import('../../src/ui/renderer/three/constants.ts');
+const { viewOptionsFromPrefs, turnAzimuth } = await import('../../src/ui/viewPrefs.ts');
+const { findLedges, SKIRT_TOP } = await import('../../src/ui/renderer/three/ledges.ts');
+const { SkirtLayer, skirtDistances, skirtFade, maxPropHeight, SKIRT_RINGS } =
+  await import('../../src/ui/renderer/three/skirt.ts');
+const { faceShade } = await import('../../src/ui/renderer/three/tiles.ts');
+const { BOARD_THEME_IDS, TOP_VARIANTS, makeTopAtlas, topVariant } =
+  await import('../../src/ui/renderer/three/tileThemes.ts');
+const { BOARD_THEMES, DEFAULT_BOARD_THEME } = await import('../../src/ui/boardThemes.ts');
+const { THEME_PROPS } = await import('../../src/ui/renderer/three/skirt.ts');
 
 const W = 1200,
   H = 800;
@@ -104,10 +113,11 @@ const raisedScene = () =>
     }
   });
 
-function setup(vm: BoardVM) {
+function setup(vm: BoardVM, azimuth: 0 | 1 | 2 | 3 = 0) {
   const tiles = new TileLayer();
   tiles.update(vm);
   const cam = new TacticalCamera();
+  cam.setAzimuth(azimuth);
   cam.setViewport(W, H);
   cam.fit(tiles.bounds);
   const ray = new THREE.Raycaster();
@@ -117,9 +127,12 @@ function setup(vm: BoardVM) {
   return { tiles, cam, ray, scene };
 }
 
-describe('tactical camera: crisp pixels', () => {
-  it('chooses a whole-number zoom that fits the board', () => {
-    const { cam, tiles } = setup(raisedScene());
+const HEADINGS = [0, 1, 2, 3] as const;
+const whole = (v: number) => Math.abs(v - Math.round(v)) < 1e-3;
+
+describe('tactical camera: crisp pixels at every heading', () => {
+  it.each(HEADINGS)('heading %i: chooses a whole-number zoom that fits the board', (az) => {
+    const { cam, tiles } = setup(raisedScene(), az);
     expect(Number.isInteger(cam.zoom)).toBe(true);
     const box = cam.projectBox(tiles.bounds);
     expect(box.minX).toBeGreaterThanOrEqual(0);
@@ -128,46 +141,56 @@ describe('tactical camera: crisp pixels', () => {
     expect(box.maxY).toBeLessThanOrEqual(H);
   });
 
-  it('keeps the texel grid on whole pixels after arbitrary pans (no shimmer)', () => {
-    const { cam } = setup(raisedScene());
-    const pans = [
-      [0.3, 0.7],
-      [13.37, -2.2],
-      [-101.9, 44.4],
-      [0.5, 0.5],
-      [7.77, 3.14],
-    ];
-    for (const [dx, dy] of pans) {
-      cam.pan(dx ?? 0, dy ?? 0);
-      // floor texel corners at several heights land on integer screen pixels
-      for (const [x, y, z] of [
-        [0, 0, 0],
-        [3, 0, 2],
-        [1 / TEXELS, 0, 5],
-        [4, STEP * 2, 1],
-      ]) {
-        const p = cam.project(new THREE.Vector3(x, y, z));
-        expect(Math.abs(p.x - Math.round(p.x))).toBeLessThan(1e-3);
-        expect(Math.abs(p.y - Math.round(p.y))).toBeLessThan(1e-3);
+  it.each(HEADINGS)(
+    'heading %i: world origin stays on whole pixels after arbitrary pans (no shimmer)',
+    (az) => {
+      const { cam } = setup(raisedScene(), az);
+      const pans = [
+        [0.3, 0.7],
+        [13.37, -2.2],
+        [-101.9, 44.4],
+        [0.5, 0.5],
+        [7.77, 3.14],
+      ];
+      for (const [dx, dy] of pans) {
+        cam.pan(dx ?? 0, dy ?? 0);
+        const p = cam.project(new THREE.Vector3(0, 0, 0));
+        expect(whole(p.x) && whole(p.y), `after pan ${dx},${dy}: ${p.x},${p.y}`).toBe(true);
       }
-    }
+    },
+  );
+
+  it.each(HEADINGS)('heading %i: a whole-pixel pan shifts every point by exactly that much', (az) => {
+    const { cam } = setup(raisedScene(), az);
+    const pts = [new THREE.Vector3(2.3, 0, 4.1), new THREE.Vector3(6.71, STEP * 2, 1.05)];
+    const before = pts.map((p) => cam.project(p));
+    cam.pan(37, -23);
+    pts.forEach((p, i) => {
+      const a = before[i] as THREE.Vector2;
+      const b = cam.project(p);
+      expect(b.x - a.x).toBeCloseTo(37, 4);
+      expect(b.y - a.y).toBeCloseTo(-23, 4);
+    });
   });
 
-  it('one texel is exactly `zoom` pixels across, and a stretched sprite texel is `zoom` pixels tall', () => {
-    const { cam } = setup(raisedScene());
-    const a = cam.project(new THREE.Vector3(2, 0, 3));
-    const b = cam.project(new THREE.Vector3(2 + 1 / TEXELS, 0, 3));
+  it.each(HEADINGS)('heading %i: a billboard texel is exactly `zoom` pixels wide and tall', (az) => {
+    const { cam } = setup(raisedScene(), az);
+    const p = new THREE.Vector3(2, 0, 3);
+    const a = cam.project(p);
+    const b = cam.project(p.clone().addScaledVector(cam.right, 1 / TEXELS));
     expect(b.x - a.x).toBeCloseTo(cam.zoom, 5);
-    const top = cam.project(new THREE.Vector3(2, (1 / TEXELS) * cam.spriteStretch, 3));
+    expect(b.y - a.y).toBeCloseTo(0, 5);
+    const top = cam.project(p.clone().add(new THREE.Vector3(0, (1 / TEXELS) * cam.spriteStretch, 0)));
     expect(a.y - top.y).toBeCloseTo(cam.zoom, 5);
+    expect(top.x - a.x).toBeCloseTo(0, 5);
   });
 
-  it('pixelLift snaps a sprite base at an odd height onto a whole pixel', () => {
-    const { cam } = setup(raisedScene());
-    const feet = new THREE.Vector3(3.5, 0.123, 2.5);
-    feet.y += cam.pixelLift(feet);
-    const p = cam.project(feet);
-    expect(Math.abs(p.y - Math.round(p.y))).toBeLessThan(1e-3);
+  it.each(HEADINGS)('heading %i: pixelSnap puts a sprite corner anywhere onto a whole pixel', (az) => {
+    const { cam } = setup(raisedScene(), az);
+    const corner = new THREE.Vector3(3.37, 0.123, 2.81);
+    corner.add(cam.pixelSnap(corner));
+    const p = cam.project(corner);
+    expect(whole(p.x) && whole(p.y)).toBe(true);
   });
 
   it('integer zoom steps keep the point under the cursor in place', () => {
@@ -180,15 +203,51 @@ describe('tactical camera: crisp pixels', () => {
     expect(after.distanceTo(before)).toBeLessThan(1.5 / (TEXELS * cam.zoom) + 0.05);
   });
 
-  it('top-down mode looks straight down without stretching sprites', () => {
-    const { cam } = setup(raisedScene());
+  it('top-down mode looks straight down without stretching sprites, keeping screen-north', () => {
+    const { cam } = setup(raisedScene(), 1);
     cam.setMode('top');
     expect(cam.spriteStretch).toBe(1);
     const a = cam.project(new THREE.Vector3(2, 0, 3));
     const b = cam.project(new THREE.Vector3(2, 1, 3));
     expect(b.y).toBeCloseTo(a.y, 3);
+    // the ground direction toward the camera still points screen-down
+    const c = cam.project(new THREE.Vector3(2, 0, 3).add(cam.forward));
+    expect(c.y - a.y).toBeCloseTo(cam.ppu, 3);
+    expect(c.x - a.x).toBeCloseTo(0, 3);
+  });
+
+  it('turns take the short way round, tween, and keep the centre of the view in place', () => {
+    const { cam } = setup(raisedScene(), 3);
+    const centre = cam.groundAt(W / 2, H / 2);
+    const start = cam.headingAngle;
+    cam.setAzimuth(0, 1000);
+    expect(cam.turning).toBe(true);
+    cam.tick(1000 + ROTATE_MS / 2);
+    expect(cam.headingAngle).toBeGreaterThan(start);
+    expect(cam.headingAngle).toBeLessThan(start + Math.PI / 2);
+    cam.tick(1000 + ROTATE_MS + 1);
+    expect(cam.turning).toBe(false);
+    expect(cam.headingAngle).toBeCloseTo(start + Math.PI / 2, 6); // 3 -> 0 is a quarter turn forward
+    expect(cam.groundAt(W / 2, H / 2).distanceTo(centre)).toBeLessThan(2 / cam.ppu);
+    expect(cam.tick(5000)).toBe(false);
+  });
+
+  it('the headings are 90° apart and off the grid axes, so two side faces show', () => {
+    for (let k = 0; k < 4; k++) {
+      const a = AZIMUTHS[k] as number;
+      expect(Math.abs(Math.sin(a))).toBeGreaterThan(0.3);
+      expect(Math.abs(Math.cos(a))).toBeGreaterThan(0.3);
+      expect(a - (AZIMUTHS[0] as number)).toBeCloseTo((k * Math.PI) / 2);
+    }
   });
 });
+
+/** Top height of each cell (ramps: their high edge), as the ghost test uses. */
+const tileHeights = (vm: BoardVM, tiles: InstanceType<typeof TileLayer>) => (r: number, c: number) => {
+  const cell = vm.cells[r]?.[c];
+  if (!cell?.enabled) return null;
+  return cell.ramp ? Math.max(cell.ramp.from, cell.ramp.to) * STEP : tiles.topY(r, c);
+};
 
 describe('picking: screen point -> (r, c)', () => {
   const pickAt = (s: ReturnType<typeof setup>, units: InstanceType<typeof UnitLayer>, p: THREE.Vector2) => {
@@ -196,34 +255,48 @@ describe('picking: screen point -> (r, c)', () => {
     return pickWithRay(s.ray, units, s.tiles);
   };
 
-  it('maps every visible tile-top point to its own cell, raised, sunken and ramped alike', () => {
-    const vm = raisedScene();
-    const s = setup(vm);
-    const units = new UnitLayer();
-    const rise = Math.tan(PITCH_TACTICAL);
-    const hidden: string[] = [];
-    for (const row of vm.cells)
-      for (const cell of row) {
-        const y = s.tiles.topY(cell.r, cell.c);
-        const southTop = cell.r + 1 < vm.rows ? s.tiles.topY(cell.r + 1, cell.c) : -Infinity;
-        // the sight line from (z, y) clears the south neighbour's top at the shared edge?
-        const visible = (z: number) => y + (cell.r + 1 - z) * rise >= southTop + 1e-3;
-        const z = [cell.r + 0.5, cell.r + 0.15, cell.r + 0.04].find(visible);
-        if (z === undefined) {
-          hidden.push(`${cell.r},${cell.c}`);
-          continue;
+  it.each(HEADINGS)(
+    'heading %i: every visible tile-top centre maps to its own cell, raised, sunken and ramped alike',
+    (az) => {
+      const vm = raisedScene();
+      const s = setup(vm, az);
+      const units = new UnitLayer();
+      const heights = tileHeights(vm, s.tiles);
+      const hidden: string[] = [];
+      for (const row of vm.cells)
+        for (const cell of row) {
+          const y = s.tiles.topY(cell.r, cell.c);
+          const occluded = isOccluded(
+            heights,
+            vm.rows,
+            vm.cols,
+            cell.r,
+            cell.c,
+            y + 1e-3,
+            s.cam.pitch,
+            s.cam.headingAngle,
+            s.tiles.maxY,
+          );
+          if (occluded) {
+            hidden.push(`${cell.r},${cell.c}`);
+            continue;
+          }
+          const hit = pickAt(s, units, s.cam.project(new THREE.Vector3(cell.c + 0.5, y, cell.r + 0.5)));
+          expect(hit?.cell, `cell ${cell.r},${cell.c}`).toEqual({ r: cell.r, c: cell.c });
         }
-        const hit = pickAt(s, units, s.cam.project(new THREE.Vector3(cell.c + 0.5, y, z)));
-        expect(hit?.cell, `cell ${cell.r},${cell.c}`).toEqual({ r: cell.r, c: cell.c });
-      }
-    // only the floor of the one-cell 10 ft pit is out of sight at the tactical angle
-    expect(hidden).toEqual(['6,5']);
-  });
+      // cells behind the +15 ft corner (seen from the north it stands in front of them), the ramp
+      // or in the pits; the rest of the 72 cells stay visible
+      expect(hidden.length, hidden.join(' ')).toBeLessThanOrEqual(14);
+      if (az === 0) expect(hidden).toContain('6,5'); // the one-cell 10 ft pit
+    },
+  );
 
-  it('the hidden centre of a deep pit picks the rim in front of it (what the DM actually sees there)', () => {
+  it('the hidden centre of a deep pit picks the rim on the camera side of it', () => {
     const s = setup(raisedScene());
     const centre = new THREE.Vector3(5.5, s.tiles.topY(6, 5), 6.5);
-    expect(pickAt(s, new UnitLayer(), s.cam.project(centre))?.cell).toEqual({ r: 7, c: 5 });
+    const hit = pickAt(s, new UnitLayer(), s.cam.project(centre))?.cell;
+    const rims = cellsAlong(s.cam.forward).map((o) => ({ r: 6 + o.dr, c: 5 + o.dc }));
+    expect(rims).toContainEqual(hit);
   });
 
   it('a click on the front lip of the +15 ft corner selects the corner, not the tile drawn behind it', () => {
@@ -266,49 +339,49 @@ describe('picking: screen point -> (r, c)', () => {
       };
     };
 
-    const run = (opaque: boolean) => {
-      const vm = boardVm(8, 8);
-      vm.units = [unit('north', 3, 3), unit('south', 4, 3)];
-      const s = setup(vm);
+    const layer = (s: ReturnType<typeof setup>, vm: BoardVM, opaque: boolean) => {
       const units = new UnitLayer();
-      const frames = makeFrames(opaque);
+      units.setHeading(s.cam.headingAngle);
       units.update(vm.units, {
         topY: (r, c) => s.tiles.topY(r, c),
         surface: (cell, lift) => s.tiles.surfaceMatrix(cell.r, cell.c, lift),
         mode: 'tactical',
         stretch: s.cam.spriteStretch,
         view: 'dm',
-        library: { get: () => frames } as never,
+        library: { get: () => makeFrames(opaque) } as never,
         now: 0,
       });
       s.scene.add(units.group);
       s.scene.updateMatrixWorld(true);
-      // a point on the north unit's tile that the south unit's tall sprite covers on screen
-      const p = s.cam.project(new THREE.Vector3(3.5, 0, 3.9));
-      return pickAt(s, units, p);
+      return units;
     };
 
-    it('the sprite in front wins when its texel is opaque, even over the tile behind it', () => {
-      expect(run(true)).toEqual({ cell: { r: 4, c: 3 }, unitId: 'south' });
+    /** Two units, the second one cell toward the camera from the first; pick a point of the first's tile it covers. */
+    const run = (opaque: boolean, az: 0 | 1 | 2 | 3 = 0) => {
+      const vm = boardVm(8, 8);
+      const s0 = setup(vm, az);
+      const f = s0.cam.forward;
+      const fr = Math.round(f.z),
+        fc = Math.round(f.x);
+      vm.units = [unit('back', 3, 3), unit('front', 3 + fr, 3 + fc)];
+      const s = setup(vm, az);
+      const units = layer(s, vm, opaque);
+      // a point of the back unit's tile, on the side facing the front unit
+      const p = s.cam.project(new THREE.Vector3(3.5 + 0.4 * fc, 0, 3.5 + 0.4 * fr));
+      return { hit: pickAt(s, units, p), front: { r: 3 + fr, c: 3 + fc } };
+    };
+
+    it.each(HEADINGS)('heading %i: the sprite in front wins when its texel is opaque', (az) => {
+      const { hit, front } = run(true, az);
+      expect(hit).toEqual({ cell: front, unitId: 'front' });
     });
 
     it('a unit hidden in a deep pit is picked through its silhouette, ahead of the rim in front', () => {
       const vm = raisedScene();
       vm.units = [unit('deep', 6, 5)];
       const s = setup(vm);
-      const units = new UnitLayer();
-      units.update(vm.units, {
-        topY: (r, c) => s.tiles.topY(r, c),
-        surface: (cell, lift) => s.tiles.surfaceMatrix(cell.r, cell.c, lift),
-        mode: 'tactical',
-        stretch: s.cam.spriteStretch,
-        view: 'dm',
-        library: { get: () => makeFrames(true) } as never,
-        now: 0,
-      });
+      const units = layer(s, vm, true);
       units.setGhosted(new Set(['deep']));
-      s.scene.add(units.group);
-      s.scene.updateMatrixWorld(true);
       const feet = new THREE.Vector3(5.5, s.tiles.topY(6, 5) + 0.3, 6.5);
       expect(pickAt(s, units, s.cam.project(feet))).toEqual({ cell: { r: 6, c: 5 }, unitId: 'deep' });
       // without the silhouette the rim in front wins
@@ -317,7 +390,7 @@ describe('picking: screen point -> (r, c)', () => {
     });
 
     it('transparent padding is clicked through to what is behind', () => {
-      const hit = run(false);
+      const { hit } = run(false);
       expect(hit?.unitId).toBeNull();
       expect(hit?.cell).toEqual({ r: 3, c: 3 });
     });
@@ -326,22 +399,33 @@ describe('picking: screen point -> (r, c)', () => {
 
 describe('occlusion (hidden-unit silhouettes)', () => {
   const grid = (heights: Record<string, number>) => (r: number, c: number) => heights[`${r},${c}`] ?? 0;
+  const SOUTH = 0;
+  const occ = (h: ReturnType<typeof grid>, r: number, c: number, y: number, max: number, heading = SOUTH) =>
+    isOccluded(h, 10, 10, r, c, y, PITCH_TACTICAL, heading, max);
   it('a unit right behind a tall block is hidden; one beside it or on top is not', () => {
     const h = grid({ '4,3': 2 });
-    expect(isOccluded(h, 10, 3, 3, 0.6, PITCH_TACTICAL, 3)).toBe(true);
-    expect(isOccluded(h, 10, 3, 4, 0.6, PITCH_TACTICAL, 3)).toBe(false);
-    expect(isOccluded(h, 10, 3, 3, 2.5, PITCH_TACTICAL, 3)).toBe(false);
-    expect(isOccluded(h, 10, 5, 3, 0.6, PITCH_TACTICAL, 3)).toBe(false); // in front of the block
+    expect(occ(h, 3, 3, 0.6, 3)).toBe(true);
+    expect(occ(h, 3, 4, 0.6, 3)).toBe(false);
+    expect(occ(h, 3, 3, 2.5, 3)).toBe(false);
+    expect(occ(h, 5, 3, 0.6, 3)).toBe(false); // in front of the block
   });
   it('far blocks need to be taller to hide a unit, and top-down hides nothing', () => {
-    const h = grid({ '7,3': 2 });
-    expect(isOccluded(h, 10, 3, 3, 0.6, PITCH_TACTICAL, 3)).toBe(false);
-    expect(isOccluded(grid({ '7,3': 6 }), 10, 3, 3, 0.6, PITCH_TACTICAL, 7)).toBe(true);
-    expect(isOccluded(grid({ '4,3': 9 }), 10, 3, 3, 0.6, Math.PI / 2, 9)).toBe(false);
+    expect(occ(grid({ '7,3': 2 }), 3, 3, 0.6, 3)).toBe(false);
+    expect(occ(grid({ '7,3': 6 }), 3, 3, 0.6, 7)).toBe(true);
+    expect(isOccluded(grid({ '4,3': 9 }), 10, 10, 3, 3, 0.6, Math.PI / 2, SOUTH, 9)).toBe(false);
   });
   it('a unit in a pit is hidden by the rim in front of it', () => {
-    const h = grid({ '3,3': -1 });
-    expect(isOccluded(h, 10, 3, 3, -1 + 0.2, PITCH_TACTICAL, 1)).toBe(true);
+    expect(occ(grid({ '3,3': -1 }), 3, 3, -1 + 0.2, 1)).toBe(true);
+  });
+  it('the heading decides which side a block hides: in front from one heading, behind from the opposite', () => {
+    const h = grid({ '4,3': 2 });
+    const se = AZIMUTHS[0] as number, // camera south-south-east
+      nw = AZIMUTHS[2] as number; // camera north-north-west
+    expect(occ(h, 3, 3, 0.6, 3, se)).toBe(true);
+    expect(occ(h, 3, 3, 0.6, 3, nw)).toBe(false);
+    expect(occ(h, 5, 3, 0.6, 3, nw)).toBe(true);
+    // a diagonal sight line crosses the next column too
+    expect(occ(grid({ '4,4': 2 }), 3, 3, 0.6, 3, se)).toBe(true);
   });
 });
 
@@ -377,6 +461,15 @@ describe('height-region chips', () => {
     );
     expect(occupiedTen?.label).toEqual({ r: 1, c: 0 });
   });
+  it('a diagonal heading spreads a sprite over the two cells behind it', () => {
+    expect(cellsAlong({ x: 0, z: -1 })).toEqual([{ dr: -1, dc: 0 }]);
+    const toward = { x: Math.sin(AZIMUTHS[0] as number), z: Math.cos(AZIMUTHS[0] as number) };
+    const costs = labelCellCosts([{ r: 5, c: 5, kind: 'entity' }], true, toward);
+    expect(costs.get('4,5')).toBe(2);
+    expect(costs.get('4,4')).toBe(2);
+    expect(costs.get('6,5')).toBe(1);
+    expect(costs.get('6,6')).toBe(1);
+  });
   it('ranks cells: occupied > covered by an upright sprite > under an HP label > free', () => {
     const costs = labelCellCosts([{ r: 5, c: 5, kind: 'entity' }], true);
     expect(costs.get('5,5')).toBe(3);
@@ -385,6 +478,114 @@ describe('height-region chips', () => {
     expect(costs.get('5,6')).toBeUndefined();
     expect(labelCellCosts([{ r: 5, c: 5, kind: 'entity' }], false).has('4,5')).toBe(false);
     expect(labelCellCosts([{ r: 5, c: 5, kind: 'pickup' }], true).has('4,5')).toBe(false);
+  });
+});
+
+describe('ledges, side shading and the scenery skirt', () => {
+  it('marks every drop from a flat top, including the board edge, and leaves ramps alone', () => {
+    const vm = raisedScene();
+    const ledges = findLedges(vm.cells);
+    const at = (r: number, c: number, dr: number, dc: number) =>
+      ledges.find((l) => l.r === r && l.c === c && l.dr === dr && l.dc === dc);
+    // +15 ft corner drops 5 ft to the +10 ft cells beside it, and off the board to the north
+    expect(at(0, 0, 0, 1)).toMatchObject({ high: 3 * STEP, low: 2 * STEP, lowIsCell: true });
+    expect(at(0, 0, -1, 0)).toMatchObject({ high: 3 * STEP, low: SKIRT_TOP, lowIsCell: false });
+    // the rim of the -5 ft pit drops into it; the pit floor itself drops nowhere inside the board
+    expect(at(4, 5, 1, 0)).toMatchObject({ high: 0, low: -STEP });
+    expect(at(5, 5, 0, 1)).toBeUndefined();
+    // the ramp cell and the edges next to it carry no ledge
+    expect(ledges.some((l) => l.r === 3 && l.c === 6)).toBe(false);
+    expect(at(3, 5, 0, 1)).toBeUndefined();
+  });
+
+  it('shades the camera-left side face lighter than the camera-right one at every heading', () => {
+    for (const a of AZIMUTHS) {
+      const faces = [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ].filter(([nx, nz]) => (nx ?? 0) * Math.sin(a) + (nz ?? 0) * Math.cos(a) > 0); // faces on screen
+      expect(faces).toHaveLength(2);
+      const right = { x: Math.cos(a), z: -Math.sin(a) };
+      const [left, rightFace] = [...faces].sort(
+        (p, q) =>
+          (p[0] ?? 0) * right.x + (p[1] ?? 0) * right.z - ((q[0] ?? 0) * right.x + (q[1] ?? 0) * right.z),
+      );
+      expect(faceShade(left?.[0] ?? 0, left?.[1] ?? 0, a)).toBeGreaterThan(
+        faceShade(rightFace?.[0] ?? 0, rightFace?.[1] ?? 0, a) + 0.2,
+      );
+    }
+  });
+
+  it('surrounds the board (and fills its disabled cells) with floor that fades out by the outer ring', () => {
+    const vm = boardVm(4, 5, (cells) => {
+      const hole = cells[1]?.[2];
+      if (hole) hole.enabled = false;
+    });
+    const cells = skirtDistances(vm);
+    const keys = new Set(cells.map((s) => `${s.r},${s.c}`));
+    expect(keys.has('1,2')).toBe(true); // the disabled cell
+    expect(keys.has('0,0')).toBe(false); // playable cells are never skirt
+    expect(keys.has(`${-SKIRT_RINGS},${-SKIRT_RINGS}`)).toBe(true);
+    expect(cells.length).toBe((4 + 2 * SKIRT_RINGS) * (5 + 2 * SKIRT_RINGS) - (4 * 5 - 1));
+    expect(skirtFade(1)).toBeCloseTo(1);
+    expect(skirtFade(SKIRT_RINGS)).toBeLessThan(0.02);
+    expect(skirtFade(3)).toBeGreaterThan(skirtFade(5));
+  });
+
+  it('keeps tall props far enough out that they never cover a board tile on screen', () => {
+    // a prop of height h at ground distance d covers h / tan(pitch) of ground behind it on screen
+    for (const d of [2, 3, 4, 6]) {
+      const covered = maxPropHeight(d) / Math.tan(PITCH_TACTICAL);
+      expect(d - covered).toBeGreaterThan(1); // still short of the nearest board cell's centre band
+    }
+    expect(maxPropHeight(1)).toBe(0);
+  });
+
+  it('is decoration only: rebuilt per theme/shape, outside the camera fit, nothing pickable', () => {
+    const vm = raisedScene();
+    const s = setup(vm);
+    const skirt = new SkirtLayer();
+    expect(skirt.update(vm)).toBe(true);
+    expect(skirt.update(vm)).toBe(false);
+    expect(skirt.update({ ...vm, theme: 'grass' })).toBe(true);
+    expect(skirt.group.children.length).toBeGreaterThan(1); // floor + props
+    expect(s.tiles.bounds.min.x).toBe(0);
+    expect(s.tiles.bounds.max.z).toBe(vm.rows);
+    expect(s.tiles.pickables().some((o) => o.parent === skirt.group)).toBe(false);
+  });
+});
+
+describe('board themes', () => {
+  it('every theme the pickers offer has tile painters and scenery props; new battles start in the facility', () => {
+    for (const t of BOARD_THEMES) {
+      expect(BOARD_THEME_IDS, t.id).toContain(t.id);
+      expect(Object.keys(THEME_PROPS[t.id] ?? {}).length, t.id).toBeGreaterThan(0);
+    }
+    expect(BOARD_THEMES[0]?.id).toBe('facility');
+    expect(BOARD_THEMES[1]?.id).toBe('arboretum');
+    expect(DEFAULT_BOARD_THEME).toBe('facility');
+  });
+
+  it('bakes the top variants side by side, one cell of texels each', () => {
+    const atlas = makeTopAtlas('facility');
+    const img = atlas.image as { width: number; height: number };
+    expect(img.width).toBe(TEXELS * TOP_VARIANTS);
+    expect(img.height).toBe(TEXELS);
+  });
+
+  it('picks a stable variant per cell, mostly the plain one, with every variant in use', () => {
+    const counts = new Array<number>(TOP_VARIANTS).fill(0);
+    for (let r = 0; r < 40; r++)
+      for (let c = 0; c < 40; c++) {
+        const v = topVariant(r, c);
+        expect(v).toBe(topVariant(r, c));
+        counts[v] = (counts[v] ?? 0) + 1;
+      }
+    expect(counts.every((n) => n > 0)).toBe(true);
+    expect(counts[0]).toBeGreaterThan(1600 * 0.45);
+    expect(counts[3]).toBeLessThan(1600 * 0.2);
   });
 });
 
@@ -411,14 +612,41 @@ describe('shadow-map refresh', () => {
 
 describe('view preferences', () => {
   it('defaults: DM blur on, player blur off; both tactical with bloom', () => {
-    expect(viewOptionsFromPrefs({}, 'dm')).toEqual({ camera: 'tactical', blur: true, bloom: true });
-    expect(viewOptionsFromPrefs({}, 'player')).toEqual({ camera: 'tactical', blur: false, bloom: true });
+    expect(viewOptionsFromPrefs({}, 'dm')).toEqual({
+      camera: 'tactical',
+      azimuth: 0,
+      blur: true,
+      bloom: true,
+    });
+    expect(viewOptionsFromPrefs({}, 'player')).toEqual({
+      camera: 'tactical',
+      azimuth: 0,
+      blur: false,
+      bloom: true,
+    });
   });
   it('reads board.* and board.player.* keys independently', () => {
-    const prefs = { 'board.camera': 'top', 'board.blur': 'false', 'board.player.bloom': 'false' };
-    expect(viewOptionsFromPrefs(prefs, 'dm')).toEqual({ camera: 'top', blur: false, bloom: true });
-    expect(viewOptionsFromPrefs(prefs, 'player')).toEqual({ camera: 'tactical', blur: false, bloom: false });
+    const prefs = {
+      'board.camera': 'top',
+      'board.blur': 'false',
+      'board.player.bloom': 'false',
+      'board.player.azimuth': '2',
+    };
+    expect(viewOptionsFromPrefs(prefs, 'dm')).toEqual({
+      camera: 'top',
+      azimuth: 0,
+      blur: false,
+      bloom: true,
+    });
+    expect(viewOptionsFromPrefs(prefs, 'player')).toEqual({
+      camera: 'tactical',
+      azimuth: 2,
+      blur: false,
+      bloom: false,
+    });
     expect(viewOptionsFromPrefs({ 'board.camera': 'weird' }, 'dm').camera).toBe('tactical');
+    expect(viewOptionsFromPrefs({ 'board.azimuth': '7' }, 'dm').azimuth).toBe(0);
+    expect([turnAzimuth(3, 1), turnAzimuth(0, -1), turnAzimuth(1, 1)]).toEqual([0, 3, 2]);
   });
 });
 

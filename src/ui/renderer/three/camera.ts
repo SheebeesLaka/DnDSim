@@ -1,21 +1,44 @@
 /**
  * Locked tactical orthographic camera with integer texel zoom and pixel-grid
- * snapping (no shimmer while panning). Azimuth is fixed at 0 — the sheets are
- * front-facing only — so screen x = world x and screen y mixes height (cos
- * pitch) and depth (sin pitch). A top-down mode looks straight down.
+ * snapping (no shimmer while panning). The camera sits on one of four headings
+ * (AZIMUTHS, 90° apart and offset from the grid axes so two side faces of every
+ * step show) and turns between them in a short tween; top-down drops the
+ * offset so the map is square to the screen. Snapping happens in
+ * screen space — the view target is rounded along the camera's right and up
+ * axes — so a whole-pixel pan is an exact image shift at any heading. A
+ * top-down mode looks straight down, keeping the same screen-north.
  */
 import * as THREE from 'three';
-import { MAX_ZOOM, MIN_ZOOM, PITCH_TACTICAL, PITCH_TOP, TEXELS, type CameraMode } from './constants.ts';
+import {
+  AZIMUTH_OFFSET,
+  AZIMUTHS,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  PITCH_TACTICAL,
+  PITCH_TOP,
+  ROTATE_MS,
+  TEXELS,
+  type CameraAzimuth,
+  type CameraMode,
+} from './constants.ts';
 
 const DIST = 60;
+const QUARTER = Math.PI / 2;
+
+const easeOut = (t: number): number => 1 - (1 - t) ** 3;
 
 export class TacticalCamera {
   readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
   mode: CameraMode = 'tactical';
   /** integer screen pixels per texel */
   zoom = 3;
-  /** ground point (x, z) the view is centred on */
+  /** ground point (x, z) the view is centred on (unsnapped) */
   target = new THREE.Vector2(0, 0);
+  /** heading index the camera is at or turning toward */
+  azimuth: CameraAzimuth = 0;
+  /** current heading angle (radians, continuous: turning 3 -> 0 goes forward) */
+  private heading = AZIMUTHS[0] ?? 0;
+  private turn: { from: number; to: number; start: number } | null = null;
   /** viewport in CSS pixels */
   private width = 1;
   private height = 1;
@@ -30,6 +53,21 @@ export class TacticalCamera {
   get pitch(): number {
     return this.mode === 'top' ? PITCH_TOP : PITCH_TACTICAL;
   }
+  /**
+   * The heading the view actually uses: top-down drops the off-axis offset so
+   * the map stays square to the screen (and keeps only the 90° turns).
+   */
+  private get view(): number {
+    return this.mode === 'top' ? this.heading - AZIMUTH_OFFSET : this.heading;
+  }
+  /** current view heading angle (radians) */
+  get headingAngle(): number {
+    return this.view;
+  }
+  /** true while a 90° turn is in progress */
+  get turning(): boolean {
+    return this.turn !== null;
+  }
   /** CSS pixels per world unit */
   get ppu(): number {
     return TEXELS * this.zoom;
@@ -38,9 +76,25 @@ export class TacticalCamera {
   get spriteStretch(): number {
     return this.mode === 'top' ? 1 : 1 / Math.cos(this.pitch);
   }
+  /** unit ground vector pointing from the view target toward the camera (screen-down on the floor) */
+  get forward(): THREE.Vector3 {
+    return new THREE.Vector3(Math.sin(this.view), 0, Math.cos(this.view));
+  }
+  /** unit ground vector pointing screen-right */
+  get right(): THREE.Vector3 {
+    return new THREE.Vector3(Math.cos(this.view), 0, -Math.sin(this.view));
+  }
+  /** unit vector pointing screen-up (perpendicular to the view direction) */
+  get up(): THREE.Vector3 {
+    const s = Math.sin(this.pitch),
+      c = Math.cos(this.pitch);
+    return new THREE.Vector3(-Math.sin(this.view) * s, c, -Math.cos(this.view) * s);
+  }
   /** unit vector from the scene toward the camera */
   get toCamera(): THREE.Vector3 {
-    return new THREE.Vector3(0, Math.sin(this.pitch), Math.cos(this.pitch));
+    const s = Math.sin(this.pitch),
+      c = Math.cos(this.pitch);
+    return new THREE.Vector3(Math.sin(this.view) * c, s, Math.cos(this.view) * c);
   }
 
   setViewport(width: number, height: number): void {
@@ -54,10 +108,44 @@ export class TacticalCamera {
     this.update();
   }
 
+  /**
+   * Turn to a heading. With `now` the turn is tweened (advance it with tick);
+   * without, it jumps. Always takes the short way round.
+   */
+  setAzimuth(azimuth: CameraAzimuth, now?: number): void {
+    if (azimuth === this.azimuth && !this.turn) return;
+    const goal = this.turn ? this.turn.to : this.heading;
+    let delta = (((azimuth - this.azimuth) % 4) + 4) % 4;
+    if (delta === 3) delta = -1;
+    const to = goal + delta * QUARTER;
+    this.azimuth = azimuth;
+    if (now === undefined) {
+      this.turn = null;
+      this.heading = to;
+    } else this.turn = { from: this.heading, to, start: now };
+    this.update();
+  }
+
+  /** Advance a turn in progress. Returns true while the camera moved. */
+  tick(now: number): boolean {
+    if (!this.turn) return false;
+    const t = Math.min(1, (now - this.turn.start) / ROTATE_MS);
+    this.heading = this.turn.from + (this.turn.to - this.turn.from) * easeOut(t);
+    if (t >= 1) {
+      this.heading = this.turn.to;
+      this.turn = null;
+    }
+    this.update();
+    return true;
+  }
+
   /** Pan by a CSS-pixel delta (drag): move the target on the ground plane. */
   pan(dx: number, dy: number): void {
-    this.target.x -= dx / this.ppu;
-    this.target.y -= dy / (this.ppu * Math.sin(this.pitch));
+    const r = this.right,
+      f = this.forward;
+    const along = dy / (this.ppu * Math.sin(this.pitch));
+    this.target.x -= (r.x * dx) / this.ppu + f.x * along;
+    this.target.y -= (r.z * dx) / this.ppu + f.z * along;
     this.update();
   }
 
@@ -96,11 +184,15 @@ export class TacticalCamera {
   /** Recompute position and frustum with everything snapped to the pixel grid. */
   update(): void {
     const ppu = this.ppu;
-    const s = Math.sin(this.pitch),
-      c = Math.cos(this.pitch);
-    // snap the target so world origin lands on whole CSS pixels
-    const tx = Math.round(this.target.x * ppu) / ppu;
-    const tz = s > 1e-6 ? Math.round(this.target.y * s * ppu) / (s * ppu) : this.target.y;
+    const s = Math.sin(this.pitch);
+    const sinH = Math.sin(this.view),
+      cosH = Math.cos(this.view);
+    // The target's screen coordinates are (t·right, t·up); round both to whole
+    // pixels and rebuild the ground point, so world origin lands on the pixel grid.
+    const a = Math.round((this.target.x * cosH - this.target.y * sinH) * ppu) / ppu;
+    const along = Math.round((this.target.x * sinH + this.target.y * cosH) * s * ppu) / (s * ppu);
+    const tx = a * cosH + along * sinH;
+    const tz = -a * sinH + along * cosH;
     const cam = this.camera;
     const halfW0 = Math.floor(this.width / 2),
       halfW1 = this.width - halfW0;
@@ -112,9 +204,11 @@ export class TacticalCamera {
     cam.bottom = -halfH0 / ppu;
     cam.near = 0.1;
     cam.far = DIST * 3;
-    cam.position.set(tx, s * DIST, tz + c * DIST);
-    cam.up.set(0, 1, 0);
-    if (this.mode === 'top') cam.up.set(0, 0, -1);
+    const to = this.toCamera;
+    cam.position.set(tx + to.x * DIST, to.y * DIST, tz + to.z * DIST);
+    // straight down, "up" would be degenerate: keep screen-north the far side of the heading
+    if (this.mode === 'top') cam.up.set(-sinH, 0, -cosH);
+    else cam.up.set(0, 1, 0);
     cam.lookAt(tx, 0, tz);
     cam.updateProjectionMatrix();
     cam.updateMatrixWorld(true);
@@ -166,13 +260,17 @@ export class TacticalCamera {
   }
 
   /**
-   * Lift (world y) that moves a point's projected y onto a whole CSS pixel, so
-   * sprites standing on odd heights still sample 1:1.
+   * World offset (along the screen's right and up axes) that moves a point's
+   * projection onto whole CSS pixels, so a sprite whose corner is that point
+   * samples 1:1 wherever it stands.
    */
-  pixelLift(p: THREE.Vector3): number {
-    if (this.mode === 'top') return 0;
-    const sy = this.project(p).y;
-    const frac = sy - Math.round(sy);
-    return frac / (this.ppu * Math.cos(this.pitch));
+  pixelSnap(p: THREE.Vector3, out = new THREE.Vector3()): THREE.Vector3 {
+    const q = this.project(p);
+    const fx = q.x - Math.round(q.x),
+      fy = q.y - Math.round(q.y);
+    return out
+      .copy(this.right)
+      .multiplyScalar(-fx / this.ppu)
+      .addScaledVector(this.up, fy / this.ppu);
   }
 }

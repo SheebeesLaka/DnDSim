@@ -11,6 +11,7 @@ import { log, type Emit, type HandlerMap } from './_shared.ts';
 function setHp(u: Combatant, hp: number, emit: Emit): void {
   if (u.kind === 'entity') {
     u.sheet.currentHP = Math.max(0, Math.min(u.sheet.totalHP, Math.trunc(hp)));
+    if (u.sheet.currentHP > 0) u.dying = null; // the DM brought a dying hero back up
     emit({ type: 'sheetChanged', sourceName: u.sourceName });
   } else {
     u.health = Math.max(0, Math.min(u.maxHealth, Math.trunc(hp)));

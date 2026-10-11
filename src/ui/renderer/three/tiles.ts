@@ -8,7 +8,8 @@ import * as THREE from 'three';
 import type { Cell } from '../../../engine/types.ts';
 import type { BoardVM, CellVM } from '../../../engine/view/boardViewModel.ts';
 import { BASE_STEPS, STEP } from './constants.ts';
-import { makeSideTexture, makeTopTexture } from './textures.ts';
+import { buildLedgeMeshes, SKIRT_TOP, type LedgeMeshes } from './ledges.ts';
+import { makeSideTexture, makeTopAtlas, topVariant, topVariantMaterial } from './tileThemes.ts';
 
 export interface TopInfo {
   /** height of the walkable surface at the cell centre */
@@ -21,6 +22,28 @@ const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
 const _p = new THREE.Vector3();
 const _s = new THREE.Vector3(1, 1, 1);
+
+/** Outward normals of the four side faces, in BoxGeometry material order (+x, -x, +z, -z). */
+const FACE_NORMALS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+] as const;
+
+/**
+ * Albedo multiplier for a side face seen from a camera heading: the face
+ * turned toward camera-left is lighter, the one toward camera-right darker,
+ * so cliffs read as solid even when only ambient light reaches them.
+ */
+export function faceShade(nx: number, nz: number, heading: number): number {
+  const rightX = Math.cos(heading),
+    rightZ = -Math.sin(heading);
+  const towardX = Math.sin(heading),
+    towardZ = Math.cos(heading);
+  const s = 0.84 - 0.2 * (nx * rightX + nz * rightZ) + 0.1 * (nx * towardX + nz * towardZ);
+  return Math.max(0.55, Math.min(1.1, s));
+}
 
 const tint = (e: number): THREE.Color => {
   if (e > 0)
@@ -37,6 +60,10 @@ export class TileLayer {
   private theme = '';
   private topMat!: THREE.MeshLambertMaterial;
   private sideMat!: THREE.MeshLambertMaterial;
+  /** side materials per face direction (+x, -x, +z, -z), shaded by the camera heading */
+  private faceMats: THREE.MeshLambertMaterial[] = [];
+  private heading = 0;
+  private ledges: LedgeMeshes | null = null;
   private steps: THREE.InstancedMesh | null = null;
   private ramps: THREE.Mesh[] = [];
   private tops = new Map<string, TopInfo>();
@@ -44,7 +71,7 @@ export class TileLayer {
   cols = 0;
   minY = 0;
   maxY = 0;
-  /** world-space box of the board (for camera fit) */
+  /** world-space box of the visible board, from the scenery floor up (camera fit, focus band) */
   bounds = new THREE.Box3();
 
   constructor() {
@@ -54,14 +81,30 @@ export class TileLayer {
   private setTheme(theme: string): void {
     if (theme === this.theme) return;
     this.theme = theme;
+    this.topMat?.map?.dispose();
     this.topMat?.dispose();
+    this.sideMat?.map?.dispose();
     this.sideMat?.dispose();
-    this.topMat = new THREE.MeshLambertMaterial({
-      map: makeTopTexture(theme),
-    });
+    for (const m of this.faceMats) m.dispose();
+    this.topMat = topVariantMaterial(makeTopAtlas(theme));
     this.sideMat = new THREE.MeshLambertMaterial({
       map: makeSideTexture(theme),
     });
+    this.faceMats = FACE_NORMALS.map(() => new THREE.MeshLambertMaterial({ map: this.sideMat.map }));
+    this.shadeFaces();
+  }
+
+  /** The camera turned: re-shade the side faces. */
+  setHeading(heading: number): void {
+    if (heading === this.heading) return;
+    this.heading = heading;
+    this.shadeFaces();
+  }
+
+  private shadeFaces(): void {
+    FACE_NORMALS.forEach(([nx, nz], i) => this.faceMats[i]?.color.setScalar(faceShade(nx, nz, this.heading)));
+    // ramps share one side material: give it the average of the two faces on screen
+    this.sideMat.color.setScalar(0.84);
   }
 
   /** Signature of everything that changes geometry. */
@@ -99,6 +142,11 @@ export class TileLayer {
       this.steps = null;
     }
     this.tops.clear();
+    if (this.ledges) {
+      this.group.remove(this.ledges.lips, this.ledges.shadows, this.ledges.outlines);
+      this.ledges.dispose();
+      this.ledges = null;
+    }
   }
 
   private build(vm: BoardVM): void {
@@ -130,9 +178,13 @@ export class TileLayer {
       }
 
     const geo = new THREE.BoxGeometry(1, STEP, 1);
+    const variants = new Float32Array(Math.max(1, total));
+    geo.setAttribute('aVariant', new THREE.InstancedBufferAttribute(variants, 1));
     const mesh = new THREE.InstancedMesh(
       geo,
-      [this.sideMat, this.sideMat, this.topMat, this.sideMat, this.sideMat, this.sideMat],
+      [0, 1, 'top', 'bottom', 2, 3].map((k) =>
+        k === 'top' ? this.topMat : typeof k === 'number' ? (this.faceMats[k] ?? this.sideMat) : this.sideMat,
+      ),
       Math.max(1, total),
     );
     mesh.castShadow = true;
@@ -147,6 +199,7 @@ export class TileLayer {
         _m.compose(_p, _q.identity(), _s);
         mesh.setMatrixAt(i, _m);
         mesh.setColorAt(i, k === 0 ? tint(level) : new THREE.Color('#c8ccd4'));
+        variants[i] = topVariant(s.r, s.c);
         cellOf[i] = { r: s.r, c: s.c };
         i++;
       }
@@ -185,7 +238,10 @@ export class TileLayer {
         else quat.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.atan(h.e - h.w));
         this.tops.set(`${cell.r},${cell.c}`, { y: ((ramp.from + ramp.to) / 2) * STEP, quat });
       }
-    this.bounds.set(new THREE.Vector3(0, this.minY, 0), new THREE.Vector3(vm.cols, this.maxY, vm.rows));
+    this.ledges = buildLedgeMeshes(vm.cells);
+    this.group.add(this.ledges.shadows, this.ledges.lips, this.ledges.outlines);
+    // what is on screen: the stacks below the scenery floor are hidden by it (pits sit inside the footprint)
+    this.bounds.set(new THREE.Vector3(0, SKIRT_TOP, 0), new THREE.Vector3(vm.cols, this.maxY, vm.rows));
   }
 
   /** Heights (world y) of the ramp's four edges; dir points from `from` toward `to`. */
@@ -236,6 +292,7 @@ export class TileLayer {
     this.clear();
     this.topMat.dispose();
     this.sideMat.dispose();
+    for (const m of this.faceMats) m.dispose();
   }
 }
 

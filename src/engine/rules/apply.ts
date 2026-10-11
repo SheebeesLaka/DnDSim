@@ -1,4 +1,4 @@
-/** Damage, healing, defeat and removal (R6.11–R6.13, R8.10, F-5, F-14). */
+/** Damage, healing, defeat, dying and removal (R6.11–R6.13, R8.10, F-5, F-14). */
 import type { Draft } from 'immer';
 import type { Emit } from '../commands/_shared.ts';
 import { log } from '../commands/_shared.ts';
@@ -16,9 +16,17 @@ import type {
 import { removeFromOrder } from './turnOrder.ts';
 import { turnStartProcessing } from './statuses.ts';
 
-/** CombatManager.applyDamage */
+/** Death-save failures that kill a dying party member. */
+export const DEATH_SAVE_LIMIT = 3;
+
+/** F-14 fixed: party members drop to dying at 0 HP instead of leaving the board. */
+export const dropsToDying = (u: Unit, compat: CompatLike): boolean =>
+  u.kind === 'entity' && u.sheet.isParty && !compat.entityNegativeHpPersists;
+
+/** CombatManager.applyDamage (F-14 fixed: HP clamps at 0; a hit while dying is a failed death save). */
 export function applyDamage(target: Unit, dmg: number, compat: CompatLike): void {
   if (target.kind === 'entity') {
+    if (target.dying && dmg > 0) target.dying.failures += 1;
     const hp = target.sheet.currentHP - dmg;
     target.sheet.currentHP = compat.entityNegativeHpPersists ? hp : Math.max(0, hp);
   } else if (target.kind === 'enemy') {
@@ -28,11 +36,12 @@ export function applyDamage(target: Unit, dmg: number, compat: CompatLike): void
   }
 }
 
-/** CombatManager.applyHealing: capped at max; returns HP actually restored. */
+/** CombatManager.applyHealing: capped at max; returns HP actually restored. Any healing ends dying. */
 export function applyHealing(target: Combatant, amount: number): number {
   if (target.kind === 'entity') {
     const before = target.sheet.currentHP;
     target.sheet.currentHP = Math.min(target.sheet.totalHP, before + amount);
+    if (target.sheet.currentHP > 0) target.dying = null;
     return target.sheet.currentHP - before;
   }
   const before = target.health;
@@ -83,6 +92,22 @@ export function removeDefeated(
   ctx: EngineContext,
   emit: Emit,
 ): void {
+  if (dropsToDying(target, draft.rules.compat)) {
+    const e = unitById(draft, target.id);
+    if (e?.kind === 'entity') {
+      if (!e.dying) {
+        e.dying = { successes: 0, failures: 0 };
+        emit({ type: 'floatText', unitId: e.id, text: 'Dying', color: '#ff6b6b', kind: 'OTHER' });
+        emit({ type: 'sheetChanged', sourceName: e.sourceName });
+        log(draft, `${unitName(e)} falls and is dying`);
+        return;
+      }
+      if (e.dying.failures < DEATH_SAVE_LIMIT) {
+        log(draft, `${unitName(e)} fails a death save (${e.dying.failures}/${DEATH_SAVE_LIMIT})`);
+        return;
+      }
+    }
+  }
   if (target.kind === 'entity' || target.kind === 'enemy') {
     removeCombatant(draft, target.id, 'defeated', ctx, emit);
   } else if (target.kind === 'terrain') {

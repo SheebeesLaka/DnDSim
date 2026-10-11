@@ -12,7 +12,13 @@ import type {
   FloatingText,
 } from './BoardRenderer.ts';
 
-const THEME_BASE: Record<string, string> = { stone: '#3a3a42', grass: '#41582f', dirt: '#5a4632' };
+const THEME_BASE: Record<string, string> = {
+  facility: '#3d434c',
+  arboretum: '#3f5a33',
+  stone: '#3a3a42',
+  grass: '#41582f',
+  dirt: '#5a4632',
+};
 const MARGIN = 20;
 
 interface LiveText extends FloatingText {
@@ -447,6 +453,17 @@ export class Canvas2DRenderer implements BoardRenderer {
       ctx.arc(cx, cy, r + d * 0.3, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
+    }
+    if (u.dying) {
+      ctx.font = `800 ${Math.max(9, cs * 0.2)}px sans-serif`;
+      ctx.textBaseline = 'bottom';
+      ctx.textAlign = 'center';
+      const txt = `Dying ${u.dying.failures}/3`;
+      const tw = ctx.measureText(txt).width + 6;
+      ctx.fillStyle = 'rgba(200,40,40,0.92)';
+      ctx.fillRect(cx - tw / 2, cy - r - d * 0.2 - cs * 0.24, tw, cs * 0.24);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(txt, cx, cy - r - d * 0.2);
     }
     if (cs >= 30 && u.showHpNumbers) {
       ctx.font = `700 ${Math.max(9, cs * 0.18)}px sans-serif`;

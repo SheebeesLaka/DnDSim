@@ -1,7 +1,8 @@
-/** R6.11–R6.13: taking damage, death and removal, healing caps, F-5 / F-14 both ways. */
+/** R6.11–R6.13: taking damage, death, dying and removal, healing caps, F-5 / F-14 both ways. */
 import { describe, expect, it } from 'vitest';
 import { LEGACY_COMPAT, withCompat } from '../../src/engine/compat.ts';
 import { applyDamage, applyHealing } from '../../src/engine/rules/apply.ts';
+import { actionAvailability } from '../../src/engine/selectors/actions.ts';
 import { enemy, entity, run, started, step } from '../helpers/combat.ts';
 
 const kill = (attackerId: string, targetId: string) => [
@@ -134,5 +135,57 @@ describe('death and removal (R6.12)', () => {
       expect(duration).toBe(legacy ? 3 : 2);
       expect(res.state.turn.order[res.state.turn.currentIndex]).toBe(nextId);
     }
+  });
+});
+
+describe('dying instead of leaving the board (F-14 fixed)', () => {
+  const hit = (s: ReturnType<typeof started>['state'], c: ReturnType<typeof started>['c']) =>
+    step(run(s, c, ...kill('u5', 'u1')), c, { type: 'SUBMIT_ROLL', dice: [4, 4, 4] });
+
+  it('a party member brought to 0 HP stays on the board and in the order, dying, and cannot act', () => {
+    const { state, c } = started(1, [], { entityNegativeHpPersists: false });
+    const res = hit(run(state, c, { type: 'SET_HP', unitId: 'u1', hp: 3 }), c);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const henry = entity(res.state, 'u1');
+    expect(henry.sheet.currentHP).toBe(0);
+    expect(henry.dying).toEqual({ successes: 0, failures: 0 });
+    expect(res.state.turn.order).toContain('u1');
+    expect(res.state.graveyard).toHaveLength(0);
+    expect(res.events.some((e) => e.type === 'unitRemoved')).toBe(false);
+    expect(res.events).toContainEqual(
+      expect.objectContaining({ type: 'floatText', unitId: 'u1', text: 'Dying' }),
+    );
+    expect(Object.values(actionAvailability(res.state, 'u1', c.assets)).some(Boolean)).toBe(false);
+  });
+
+  it('each hit while dying is a failed death save; the third removes them like a defeat', () => {
+    const { state, c } = started(1, [], { entityNegativeHpPersists: false });
+    let s = run(state, c, { type: 'SET_HP', unitId: 'u1', hp: 1 });
+    for (let failures = 0; failures <= 3; failures++) {
+      const res = hit(s, c);
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+      s = res.state;
+      if (failures < 3) expect(entity(s, 'u1').dying?.failures).toBe(failures);
+    }
+    expect(s.units.some((u) => u.id === 'u1')).toBe(false);
+    expect(s.graveyard[0]?.sheet.currentHP).toBe(0);
+  });
+
+  it('any healing brings them back up', () => {
+    const { state, c } = started(1, [], { entityNegativeHpPersists: false });
+    const res = hit(run(state, c, { type: 'SET_HP', unitId: 'u1', hp: 3 }), c);
+    if (!res.ok) throw new Error('attack failed');
+    const henry = JSON.parse(JSON.stringify(entity(res.state, 'u1'))) as ReturnType<typeof entity>;
+    expect(applyHealing(henry, 4)).toBe(4);
+    expect(henry.dying).toBeNull();
+  });
+
+  it('under the Java rules the same hit still removes them with negative HP', () => {
+    const { state, c } = started(1, [], { entityNegativeHpPersists: true });
+    const res = hit(run(state, c, { type: 'SET_HP', unitId: 'u1', hp: 3 }), c);
+    if (!res.ok) throw new Error('attack failed');
+    expect(res.state.units.some((u) => u.id === 'u1')).toBe(false);
   });
 });

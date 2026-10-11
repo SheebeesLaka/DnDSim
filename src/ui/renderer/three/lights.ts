@@ -25,6 +25,8 @@ export class LightLayer {
   private bulbGeo = new THREE.SphereGeometry(0.09, 10, 8);
   private cordMat = new THREE.LineBasicMaterial({ color: '#8a96a8', transparent: true, opacity: 0.55 });
   private ambientKey = '';
+  private heading = 0;
+  private board = { rows: 1, cols: 1 };
 
   constructor() {
     this.sun.castShadow = true;
@@ -137,9 +139,25 @@ export class LightLayer {
       this.sun.intensity = 0;
     }
     this.sun.visible = this.sun.intensity > 0;
-    const span = Math.max(vm.rows, vm.cols);
-    this.sun.position.set(vm.cols / 2 - span * 0.6, span * 1.2, vm.rows / 2 + span * 0.45);
-    this.sun.target.position.set(vm.cols / 2, 0, vm.rows / 2);
+    this.board = { rows: vm.rows, cols: vm.cols };
+    this.placeSun();
+  }
+
+  /**
+   * Key light from camera-left and a little toward the camera: of the two
+   * side faces on screen, the left one is lit and the right one falls into
+   * shade, which is what makes steps read as solid.
+   */
+  private placeSun(): void {
+    const { rows, cols } = this.board;
+    const span = Math.max(rows, cols, 1);
+    const sin = Math.sin(this.heading),
+      cos = Math.cos(this.heading);
+    // right = (cos, -sin), toward camera = (sin, cos) in (x, z)
+    const gx = -0.75 * cos + 0.45 * sin,
+      gz = 0.75 * sin + 0.45 * cos;
+    this.sun.position.set(cols / 2 + gx * span, span * 1.2, rows / 2 + gz * span);
+    this.sun.target.position.set(cols / 2, 0, rows / 2);
     const cam = this.sun.shadow.camera;
     cam.left = -span * 0.8;
     cam.right = span * 0.8;
@@ -149,6 +167,13 @@ export class LightLayer {
     cam.far = span * 4;
     cam.updateProjectionMatrix();
     this.sun.shadow.needsUpdate = true;
+  }
+
+  /** The camera turned: move the key light with it. */
+  setHeading(heading: number): void {
+    if (heading === this.heading) return;
+    this.heading = heading;
+    this.placeSun();
   }
 
   /** Something that casts shadows moved: refresh every shadow map on the next frame. */

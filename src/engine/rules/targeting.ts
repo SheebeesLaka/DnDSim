@@ -101,7 +101,7 @@ export function areaCells(state: BattleState, spell: SpellDef, caster: Combatant
   return out;
 }
 
-/** SpellArea.targets: living combatants on covered cells, filtered by side and friendlyFire. */
+/** SpellArea.targets: living (or dying) combatants on covered cells, filtered by side and friendlyFire. */
 export function areaTargets(
   state: BattleState,
   spell: SpellDef,
@@ -112,7 +112,7 @@ export function areaTargets(
   const out: Combatant[] = [];
   for (const u of combatants(state)) {
     if (!covered.has(`${u.r},${u.c}`)) continue;
-    if (isDead(u)) continue;
+    if (isDead(u) && !(u.kind === 'entity' && u.dying)) continue; // a dying hero can still be hit or healed
     const hostile = isHostile(caster, u);
     const affected = isFriendlySpell(spell) ? !hostile : hostile || spell.friendlyFire;
     if (affected) out.push(u);

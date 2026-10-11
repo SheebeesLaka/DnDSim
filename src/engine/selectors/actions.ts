@@ -28,6 +28,7 @@ export function actionAvailability(
   if (!u) return none;
   if (u.kind === 'enemy') return { ...none, move: true, attack: true };
   if (!u.sheet.isParty) return none;
+  if (u.dying) return none; // down at 0 HP: no actions until healed
   return {
     move: true,
     attack: true,

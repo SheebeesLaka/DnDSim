@@ -1,17 +1,33 @@
 /** Shared numbers for the HD-2D renderer. One cell = 1 world unit = TEXELS texels. */
 export const TEXELS = 16;
+const DEG = Math.PI / 180;
 /** How many steps of "ground" are drawn below the lowest tile so pits and cliffs have walls. */
 export const BASE_STEPS = 2;
-/** Tactical pitch: sin = 0.75 so a 16-texel tile depth projects to exactly 12 texels (no row jitter). */
-export const PITCH_TACTICAL = Math.asin(0.75);
-/** Screen texels one 5 ft elevation step projects to in the tactical view. */
-export const STEP_TEXELS = 6;
 /**
- * One 5 ft elevation step, in world units (cells): sized so a step projects to
- * exactly STEP_TEXELS texels, keeping every tile edge and sprite base on the
- * pixel grid (about 0.57 of a cell).
+ * Tactical pitch (camera elevation above the ground plane). Steep enough that
+ * a tall sprite rarely hides the tile behind it, shallow enough that two side
+ * faces of every step read as walls.
  */
-export const STEP = STEP_TEXELS / (TEXELS * Math.cos(PITCH_TACTICAL));
+export const PITCH_TACTICAL = DEG * 40;
+/** Texels (side-texture height) of one 5 ft elevation step. */
+export const STEP_TEXELS = 12;
+/**
+ * One 5 ft elevation step, in world units (cells). Physically a step is a full
+ * cell; 0.75 keeps a +15 ft cliff from swallowing the rows behind it while
+ * still reading as a real wall.
+ */
+export const STEP = STEP_TEXELS / TEXELS;
+/**
+ * The four camera headings, as angles (radians) of the camera's ground
+ * position around the view target: 0 = from the south, +90° = from the east.
+ * Offset from the grid axes so two side faces of every step are on screen,
+ * like the direction C mockup; [ and ] step through them.
+ */
+export const AZIMUTH_OFFSET = DEG * 30;
+export const AZIMUTHS = [0, 1, 2, 3].map((k) => AZIMUTH_OFFSET + k * (Math.PI / 2));
+export type CameraAzimuth = 0 | 1 | 2 | 3;
+/** How long a 90° camera turn takes (ms). */
+export const ROTATE_MS = 240;
 export const PITCH_TOP = Math.PI / 2;
 export const MIN_ZOOM = 1;
 export const MAX_ZOOM = 8;
@@ -30,6 +46,8 @@ export type CameraMode = 'tactical' | 'top';
 
 export interface ViewOptions {
   camera: CameraMode;
+  /** heading index into AZIMUTHS */
+  azimuth: CameraAzimuth;
   /** tilt-shift blur on the backdrop (never on the board) */
   blur: boolean;
   /** bloom on light sources */
@@ -38,6 +56,7 @@ export interface ViewOptions {
 
 export const DEFAULT_VIEW_OPTIONS: Readonly<ViewOptions> = Object.freeze({
   camera: 'tactical',
+  azimuth: 0,
   blur: true,
   bloom: true,
 });

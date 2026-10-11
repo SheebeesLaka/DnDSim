@@ -3,6 +3,7 @@ import type { GridShapePresetDef } from '../assets/types.ts';
 import { enabledCount, maskForShape, type ShapeType } from '../engine/rules/gridShapes.ts';
 import type { GridSetup } from '../engine/types.ts';
 import { button, h, numberInput, readInt, replaceChildren } from './dom.ts';
+import { BOARD_THEMES, DEFAULT_BOARD_THEME } from './boardThemes.ts';
 
 export interface SetupDeps {
   presets: GridShapePresetDef[];
@@ -19,14 +20,14 @@ export function mountSetupScreen(root: HTMLElement, deps: SetupDeps): void {
   let shape: ShapeType = 'RECTANGLE';
   let rows = 8,
     cols = 8;
-  let theme = 'stone';
+  let theme: string = DEFAULT_BOARD_THEME;
   let mask: boolean[][] | null = null; // custom paint
   const rowsIn = numberInput(rows, { min: 1, max: 25, dataset: { testid: 'rows' } });
   const colsIn = numberInput(cols, { min: 1, max: 25, dataset: { testid: 'cols' } });
   const themeSel = h(
     'select',
     { dataset: { testid: 'setup-theme' } },
-    ...['stone', 'grass', 'dirt'].map((t) => h('option', { value: t }, t)),
+    ...BOARD_THEMES.map((t) => h('option', { value: t.id, selected: t.id === theme }, t.label)),
   );
   const preview = h('div', { class: 'paint' });
   const count = h('div', { class: 'muted' });

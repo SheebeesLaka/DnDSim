@@ -1,20 +1,15 @@
 /**
- * Procedural pixel-art textures at the sprite texel density (TEXELS per cell),
- * plus the fallback token face. Every texture: nearest filtering, no mipmaps,
+ * Procedural pixel-art textures at the sprite texel density (TEXELS per cell):
+ * terrain blocks, props, pickups and the fallback token face (tile tops and
+ * sides live in tileThemes.ts). Every texture: nearest filtering, no mipmaps,
  * sRGB — the HD-2D crisp-pixel contract.
  */
 import * as THREE from 'three';
-import { STEP_TEXELS, TEXELS } from './constants.ts';
+import { TEXELS } from './constants.ts';
 import type { UnitVM } from '../../../engine/view/boardViewModel.ts';
 import { SIDE_COLORS } from './constants.ts';
 
-const THEME_BASE: Record<string, { top: string; grain: string; side: string }> = {
-  stone: { top: '#6b7079', grain: '#5c6169', side: '#4e535d' },
-  grass: { top: '#5f8a3f', grain: '#527a35', side: '#6a553f' },
-  dirt: { top: '#8a6b47', grain: '#79593a', side: '#5e4a35' },
-};
-
-function rng(seed: number): () => number {
+export function rng(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -25,7 +20,7 @@ function rng(seed: number): () => number {
   };
 }
 
-const canvas = (w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] => {
+export const canvas = (w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] => {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
@@ -46,75 +41,13 @@ export function pixelTexture(c: HTMLCanvasElement, opts: { smooth?: boolean } = 
   return t;
 }
 
-const shade = (hex: string, f: number): string => {
+export const shade = (hex: string, f: number): string => {
   const c = new THREE.Color(hex);
   c.r = Math.min(1, c.r * f);
   c.g = Math.min(1, c.g * f);
   c.b = Math.min(1, c.b * f);
   return `#${c.getHexString()}`;
 };
-
-/** Tile top: base colour, speckle grain, a darker one-texel rim so the grid reads. */
-export function makeTopTexture(theme: string, seed = 7): THREE.CanvasTexture {
-  const pal = THEME_BASE[theme] ?? THEME_BASE.stone;
-  const base = pal ?? { top: '#6b7079', grain: '#5c6169', side: '#3b3f47' };
-  const [c, ctx] = canvas(TEXELS, TEXELS);
-  const r = rng(seed);
-  ctx.fillStyle = base.top;
-  ctx.fillRect(0, 0, TEXELS, TEXELS);
-  for (let y = 0; y < TEXELS; y++)
-    for (let x = 0; x < TEXELS; x++) {
-      const v = r();
-      if (v < 0.18) {
-        ctx.fillStyle = base.grain;
-        ctx.fillRect(x, y, 1, 1);
-      } else if (v > 0.93) {
-        ctx.fillStyle = shade(base.top, 1.1);
-        ctx.fillRect(x, y, 1, 1);
-      }
-    }
-  // a couple of cracks / blades for character
-  ctx.fillStyle = shade(base.grain, 0.85);
-  for (let i = 0; i < 3; i++) {
-    const x = Math.floor(r() * (TEXELS - 4)) + 2,
-      y = Math.floor(r() * (TEXELS - 4)) + 2;
-    ctx.fillRect(x, y, 2, 1);
-    ctx.fillRect(x + 1, y + 1, 1, 1);
-  }
-  ctx.fillStyle = shade(base.top, 0.72);
-  ctx.fillRect(0, 0, TEXELS, 1);
-  ctx.fillRect(0, 0, 1, TEXELS);
-  ctx.fillStyle = shade(base.top, 0.62);
-  ctx.fillRect(0, TEXELS - 1, TEXELS, 1);
-  ctx.fillRect(TEXELS - 1, 0, 1, TEXELS);
-  return pixelTexture(c);
-}
-
-/** Tile side, one 5 ft step tall (TEXELS x STEP_TEXELS, 1:1 on screen): strata with mortar lines. */
-export function makeSideTexture(theme: string, seed = 11): THREE.CanvasTexture {
-  const pal = THEME_BASE[theme] ?? THEME_BASE.stone;
-  const side = pal?.side ?? '#3b3f47';
-  const h = STEP_TEXELS;
-  const [c, ctx] = canvas(TEXELS, h);
-  const r = rng(seed);
-  ctx.fillStyle = side;
-  ctx.fillRect(0, 0, TEXELS, h);
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < TEXELS; x++)
-      if (r() < 0.14) {
-        ctx.fillStyle = shade(side, r() < 0.5 ? 0.85 : 1.12);
-        ctx.fillRect(x, y, 1, 1);
-      }
-  ctx.fillStyle = shade(side, 0.6);
-  ctx.fillRect(0, 0, TEXELS, 1); // top lip (under the cap)
-  ctx.fillRect(0, h / 2, TEXELS, 1); // mortar line
-  ctx.fillRect(TEXELS / 2, 1, 1, h / 2 - 1); // brick joints
-  ctx.fillRect(4, h / 2 + 1, 1, h / 2 - 1);
-  ctx.fillRect(12, h / 2 + 1, 1, h / 2 - 1);
-  ctx.fillStyle = shade(side, 1.2);
-  ctx.fillRect(0, 1, TEXELS, 1); // highlight under the lip
-  return pixelTexture(c);
-}
 
 /** Rock wall for collision terrain without a sprite (tinted by the terrain colour). */
 export function makeWallTexture(seed = 3): THREE.CanvasTexture {
@@ -236,5 +169,80 @@ export function whiteTexture(): THREE.CanvasTexture {
   const [c, ctx] = canvas(1, 1);
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, 1, 1);
+  return pixelTexture(c);
+}
+
+/** Riveted metal plate (crates, consoles, bulkheads, pipes), tinted by the material colour. */
+export function makeMetalTexture(seed = 13): THREE.CanvasTexture {
+  const [c, ctx] = canvas(TEXELS, TEXELS);
+  const r = rng(seed);
+  ctx.fillStyle = '#b4b8c0';
+  ctx.fillRect(0, 0, TEXELS, TEXELS);
+  for (let y = 0; y < TEXELS; y++)
+    for (let x = 0; x < TEXELS; x++)
+      if (r() < 0.1) {
+        ctx.fillStyle = r() < 0.6 ? '#a4a8b0' : '#c4c8d0';
+        ctx.fillRect(x, y, 1, 1);
+      }
+  ctx.fillStyle = '#7c8088'; // seams
+  ctx.fillRect(0, 0, TEXELS, 1);
+  ctx.fillRect(0, 0, 1, TEXELS);
+  ctx.fillRect(0, 8, TEXELS, 1);
+  ctx.fillStyle = '#e2e4ea'; // bevel highlight
+  ctx.fillRect(1, 1, TEXELS - 1, 1);
+  ctx.fillRect(1, 9, TEXELS - 1, 1);
+  ctx.fillStyle = '#6a6e76'; // rivets
+  for (const [x, y] of [
+    [2, 3],
+    [13, 3],
+    [2, 12],
+    [13, 12],
+  ] as const)
+    ctx.fillRect(x, y, 1, 1);
+  return pixelTexture(c);
+}
+
+/** Leafy canopy / moss (bushes, trees, planters). */
+export function makeLeafTexture(seed = 17): THREE.CanvasTexture {
+  const [c, ctx] = canvas(TEXELS, TEXELS);
+  const r = rng(seed);
+  ctx.fillStyle = '#436a34';
+  ctx.fillRect(0, 0, TEXELS, TEXELS);
+  for (let i = 0; i < 70; i++) {
+    const v = r();
+    ctx.fillStyle = v < 0.45 ? '#355a2a' : v < 0.85 ? '#56834a' : '#76a35e';
+    ctx.fillRect(Math.floor(r() * TEXELS), Math.floor(r() * TEXELS), v < 0.45 ? 2 : 1, 1);
+  }
+  return pixelTexture(c);
+}
+
+/** Tree bark. */
+export function makeBarkTexture(seed = 19): THREE.CanvasTexture {
+  const [c, ctx] = canvas(TEXELS, TEXELS);
+  const r = rng(seed);
+  ctx.fillStyle = '#6b4a2f';
+  ctx.fillRect(0, 0, TEXELS, TEXELS);
+  for (let x = 0; x < TEXELS; x += 3) {
+    ctx.fillStyle = '#553a24';
+    ctx.fillRect(x, 0, 1, TEXELS);
+  }
+  for (let i = 0; i < 12; i++) {
+    ctx.fillStyle = '#7f5b3b';
+    ctx.fillRect(Math.floor(r() * TEXELS), Math.floor(r() * TEXELS), 1, 2);
+  }
+  return pixelTexture(c);
+}
+
+/** A console screen: dark glass with a few bright readout lines (used unlit, so it glows). */
+export function makeScreenTexture(seed = 23): THREE.CanvasTexture {
+  const [c, ctx] = canvas(TEXELS, TEXELS / 2);
+  const r = rng(seed);
+  ctx.fillStyle = '#0d2a33';
+  ctx.fillRect(0, 0, TEXELS, TEXELS / 2);
+  for (let y = 1; y < TEXELS / 2 - 1; y += 2) {
+    const w = 3 + Math.floor(r() * 9);
+    ctx.fillStyle = r() < 0.25 ? '#ffcf5a' : '#5ff2ff';
+    ctx.fillRect(2, y, w, 1);
+  }
   return pixelTexture(c);
 }

@@ -94,9 +94,37 @@ static and refresh only near what moved.
 ## Compat fixes: applied after Phase 4
 
 The recommended fixes are now the default for new battles (`RECOMMENDED_COMPAT` in
-`src/engine/compat.ts`): F-1, F-3, both F-5 flags, F-18 and F-16. A battle stores its flags, so one
-saved before this change still replays under the Java rules. Still open, your call: `victoryOnAnyDefeat`
-(F-2), `pickupsBlockStanding` (F-15), `entityNegativeHpPersists` (F-14). Kept on purpose: F-8, F-7,
-F-13, R8.2. The debug panel (`` ` ``) toggles any flag for the current battle.
+`src/engine/compat.ts`): F-1, F-3, both F-5 flags, F-18, F-16 and (decided 2026-10-11) F-2, F-15 and
+F-14. A battle stores its flags, so one saved before a change still replays under the rules it was made
+with. Kept on purpose: F-8, F-7, F-13, R8.2. The debug panel (`` ` ``) toggles any flag for the current
+battle.
+
+- **F-2:** End is a victory only when no enemies remain.
+- **F-15:** units may stand on a pickup's tile.
+- **F-14 (dying):** party HP clamps at 0 and a party member at 0 HP stays on the board, **dying**,
+  instead of leaving it (`EntityUnit.dying`). A dying hero lies flat on the tile with a red "Dying" chip,
+  keeps their place in the turn order and gets no actions. Each hit while dying is a failed death save,
+  and the third removes them as before. Any healing (or the DM setting HP above 0) brings them back up.
+  **Not done yet:** rolling death saves at the start of their turn (successes, nat 1 / nat 20),
+  stabilising, and massive-damage instant death.
 
 After Phase 4: the editors (character sheets, assets, spells), see `docs/EDITORS.md`.
+
+## After Phase 4: making the board actually 3D
+
+The Phase 4 camera looked straight north, so only the south face of each step was ever on screen and
+the board read as a flat 2D grid. Plan: `~/.claude/plans/pasted-content-id-ac1f-we-ve-made-dynamic-peacock.md`.
+
+| Change | Where |
+| --- | --- |
+| Four headings at 30° + k·90° (two side faces of every step show); ⟲/⟳ in the toolbar per window, `[` / `]` on the DM board; 240 ms tweened turns; top-down keeps only the 90° turns so the map stays square | `camera.ts`, `constants.ts` (`AZIMUTHS`), `viewPrefs.ts` (`board.azimuth`, `board.player.azimuth`) |
+| Shimmer-free at any heading: the view target is snapped along the screen's right/up axes; billboards yaw to the heading and snap their bottom-left corner (`pixelSnap`) | `camera.ts`, `ThreeRenderer.snapBillboards`, `units.ts` |
+| A 5 ft step is 0.75 cell (12 texels); side faces shaded by heading (camera-left lighter); sun from camera-left | `constants.ts`, `tiles.ts` (`faceShade`), `lights.ts` |
+| Ledge cues: bright lip, dark outline and end edges on every drop, contact shadow at the foot of walls | `ledges.ts` |
+| Scenery skirt: 8 rings of floor half a step below the board (and in disabled cells) with seeded theme props, fading into the backdrop; never picked, outside the camera fit | `skirt.ts` |
+| Hidden-unit test and height-chip placement follow the heading | `occlusion.ts` (grid walk), `regions.ts` (`cellsAlong`) |
+| Moonbase themes: `facility` (deck plate, tread plate, vents, lab floor, hazard-striped ledges) and `arboretum` (moss, flowers, damp soil, overgrown plating, vine sides); 4 top variants per theme in one atlas, picked per cell | `tileThemes.ts`, `boardThemes.ts` (pickers; new battles default to `facility`) |
+
+Still to do: the lighting pass (DM-reveal pools, bright-room contrast, light toggle transitions), terrain
+blocks that follow the theme (they are still brick), and the Playwright run (its browser isn't installed
+on the dev machine: `npx playwright install chromium`).

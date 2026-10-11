@@ -53,6 +53,18 @@ export interface EntityUnit extends UnitBase {
   acAdjustment: number;
   statAdjustment: Attributes6;
   diceOverride: DiceTiers;
+  /**
+   * F-14 (fixed): a party member at 0 HP stays on the board, dying, instead of
+   * leaving it. Absent/null = not dying. Death-save rolls are not automated yet;
+   * damage while dying counts failures and three failures remove them.
+   */
+  dying?: DeathSaves | null;
+}
+
+/** 5e death saving throws: three successes stabilise, three failures kill. */
+export interface DeathSaves {
+  successes: number;
+  failures: number;
 }
 
 export interface EnemyUnit extends UnitBase {

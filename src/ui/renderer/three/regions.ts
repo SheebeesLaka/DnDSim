@@ -97,22 +97,45 @@ export const occupiedCells = (units: readonly { r: number; c: number }[]): Set<s
   new Set(units.map((u) => key(u.r, u.c)));
 
 /**
+ * Neighbour offsets a unit's screen footprint spills into one cell along a
+ * ground direction (x = columns, z = rows): the cell straight along it, plus
+ * the side neighbour when the direction runs diagonal to the grid.
+ */
+export function cellsAlong(dir: { x: number; z: number }): { dr: number; dc: number }[] {
+  const len = Math.hypot(dir.x, dir.z) || 1;
+  const fx = dir.x / len,
+    fz = dir.z / len;
+  const out: { dr: number; dc: number }[] = [];
+  for (const side of [-0.3, 0, 0.3]) {
+    const dc = Math.round(fx * 0.9 - fz * side) + 0, // + 0 turns -0 into 0
+      dr = Math.round(fz * 0.9 + fx * side) + 0;
+    if ((dc !== 0 || dr !== 0) && !out.some((o) => o.dr === dr && o.dc === dc)) out.push({ dr, dc });
+  }
+  return out;
+}
+
+/**
  * How badly a height chip would collide with something in each cell: 3 = a
- * unit stands there, 2 = an upright sprite south of it covers it (tactical
+ * unit stands there, 2 = an upright sprite in front of it covers it (tactical
  * view), 1 = a unit's HP label below its rings spills into it. Missing = free.
+ * `toward` is the ground direction toward the camera (screen-down); default
+ * is a camera in the south.
  */
 export function labelCellCosts(
   units: readonly { r: number; c: number; kind: string }[],
   upright: boolean,
+  toward: { x: number; z: number } = { x: 0, z: 1 },
 ): Map<string, number> {
   const out = new Map<string, number>();
   const bump = (r: number, c: number, cost: number) =>
     out.set(key(r, c), Math.max(out.get(key(r, c)) ?? 0, cost));
+  const behind = cellsAlong({ x: -toward.x, z: -toward.z });
+  const below = cellsAlong(toward);
   for (const u of units) {
     bump(u.r, u.c, 3);
     if (u.kind !== 'entity' && u.kind !== 'enemy') continue;
-    if (upright) bump(u.r - 1, u.c, 2);
-    bump(u.r + 1, u.c, 1);
+    if (upright) for (const o of behind) bump(u.r + o.dr, u.c + o.dc, 2);
+    for (const o of below) bump(u.r + o.dr, u.c + o.dc, 1);
   }
   return out;
 }

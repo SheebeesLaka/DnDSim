@@ -25,7 +25,11 @@ export interface CompatFlags {
   halfRequiresTier1Die: boolean;
   /** F-16: ammo compatibility reads the raw ammoType field, ignoring legacy compatibleWeaponType. */
   ammoCompatIgnoresLegacyField: boolean;
-  /** F-14 / R6.11: entity damage is unclamped and negative HP is written to the sheet. */
+  /**
+   * F-14 / R6.11: entity damage is unclamped, negative HP is written to the sheet and a
+   * defeated party member leaves the board. Fixed: HP clamps at 0 and party members drop
+   * to a dying (death saving throw) state on the board instead.
+   */
   entityNegativeHpPersists: boolean;
   /** F-13: a non-area spell with range 0 resolves on the caster regardless of target type. */
   rangeZeroResolvesOnCaster: boolean;
@@ -50,8 +54,9 @@ export const LEGACY_COMPAT: Readonly<CompatFlags> = Object.freeze({
 });
 
 /**
- * Applied after Phase 4: F-1, F-3, both F-5 flags, F-18 and F-16 fixed. The rest keep the Java
- * behaviour (F-8, F-7, F-13, R8.2 by recommendation; F-2, F-15, F-14 are still the DM's call).
+ * Applied after Phase 4: F-1, F-3, both F-5 flags, F-18 and F-16 fixed; then (DM's call,
+ * 2026-10-11) F-2, F-15 and F-14. The rest keep the Java behaviour by recommendation
+ * (F-8, F-7, F-13, R8.2).
  */
 export const RECOMMENDED_COMPAT: Readonly<CompatFlags> = Object.freeze({
   ...LEGACY_COMPAT,
@@ -61,6 +66,9 @@ export const RECOMMENDED_COMPAT: Readonly<CompatFlags> = Object.freeze({
   removalWrapNoRoundIncrement: false,
   halfRequiresTier1Die: false,
   ammoCompatIgnoresLegacyField: false,
+  victoryOnAnyDefeat: false,
+  pickupsBlockStanding: false,
+  entityNegativeHpPersists: false,
 });
 
 /** What a new battle starts with. */
@@ -119,8 +127,8 @@ export const COMPAT_FLAG_INFO: Record<keyof CompatFlags, { ref: string; legacy: 
   },
   entityNegativeHpPersists: {
     ref: 'F-14',
-    legacy: 'entity HP goes negative and is saved that way',
-    fixed: 'entity HP clamps at 0',
+    legacy: 'entity HP goes negative and is saved that way; a defeated hero leaves the board',
+    fixed: 'entity HP clamps at 0; party members drop to dying (death saves) on the board',
   },
   rangeZeroResolvesOnCaster: {
     ref: 'F-13',

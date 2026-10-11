@@ -1281,13 +1281,13 @@
         "beginSkipsFirstStatusTick": false,
         "durationZeroNeverExpires": true,
         "npcEntitiesLegacySide": true,
-        "victoryOnAnyDefeat": true,
+        "victoryOnAnyDefeat": false,
         "removeCurrentSkipsNext": false,
         "removalWrapNoRoundIncrement": false,
-        "pickupsBlockStanding": true,
+        "pickupsBlockStanding": false,
         "halfRequiresTier1Die": false,
         "ammoCompatIgnoresLegacyField": false,
-        "entityNegativeHpPersists": true,
+        "entityNegativeHpPersists": false,
         "rangeZeroResolvesOnCaster": true,
         "preBattleEnemyPlacementResorts": true
       }

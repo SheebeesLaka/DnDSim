@@ -30,6 +30,7 @@ import { Overlay } from './overlay.ts';
 import { PostFX } from './post.ts';
 import { isOccluded } from './occlusion.ts';
 import { heightRegions, labelCellCosts, type HeightRegion } from './regions.ts';
+import { SkirtLayer } from './skirt.ts';
 import { TileLayer } from './tiles.ts';
 import { UnitLayer } from './units.ts';
 
@@ -54,11 +55,14 @@ export interface ThreeRendererOptions {
 }
 
 const FLOAT_MS = 900;
+const _corner = new THREE.Vector3();
+const _snap = new THREE.Vector3();
 
 export class ThreeRenderer implements BoardRenderer {
   readonly scene = new THREE.Scene();
   readonly cam = new TacticalCamera();
   readonly tiles = new TileLayer();
+  readonly skirt = new SkirtLayer();
   readonly units = new UnitLayer();
   readonly lights = new LightLayer();
   readonly marks = new MarkLayer();
@@ -113,8 +117,9 @@ export class ThreeRenderer implements BoardRenderer {
     this.view = { ...DEFAULT_VIEW_OPTIONS, ...opts.view };
     this.benchmark = opts.benchmark ?? false;
     this.library = opts.library ?? new SpriteLibrary();
+    this.cam.setAzimuth(this.view.azimuth);
     this.scene.background = new THREE.Color('#0b0e14');
-    this.scene.add(this.tiles.group, this.units.group, this.lights.group, this.marks.group);
+    this.scene.add(this.tiles.group, this.skirt.group, this.units.group, this.lights.group, this.marks.group);
   }
 
   // ---- BoardRenderer ----
@@ -152,11 +157,13 @@ export class ThreeRenderer implements BoardRenderer {
   render(vm: BoardVM): void {
     this.vm = vm;
     const rebuilt = this.tiles.update(vm);
+    this.skirt.update(vm);
     if (rebuilt && !this.fitted) {
       this.fitted = true;
       this.cam.fit(this.tiles.bounds);
     }
     this.cam.setMode(this.view.camera);
+    this.applyHeading();
     this.units.update(vm.units, {
       topY: (r, c) => this.tiles.topY(r, c),
       surface: (cell, lift) => this.tiles.surfaceMatrix(cell.r, cell.c, lift),
@@ -171,13 +178,16 @@ export class ThreeRenderer implements BoardRenderer {
       (r, c) => this.tiles.topY(r, c),
       (id) => vm.units.find((u) => u.id === id)?.altitude ?? 0,
     );
-    this.regions = heightRegions(vm.cells, labelCellCosts(vm.units, this.view.camera === 'tactical'));
+    this.regions = heightRegions(
+      vm.cells,
+      labelCellCosts(vm.units, this.view.camera === 'tactical', this.cam.forward),
+    );
     this.updateGhosts();
     this.marks.set(this.collectMarks(vm), (cell, lift) => this.tiles.surfaceMatrix(cell.r, cell.c, lift));
     this.marks.setHover(this.hoverCell, (cell, lift) => this.tiles.surfaceMatrix(cell.r, cell.c, lift));
     // shadow maps are static: refresh them only when something that casts a shadow changed,
     // and point-light maps only for lights that reach the change (light edits refresh themselves)
-    const global = `${this.view.camera}|${this.library.version}`;
+    const global = `${this.view.camera}|${this.cam.azimuth}|${this.library.version}`;
     const changes = shadowChanges(this.shadowUnits, vm.units);
     this.shadowUnits = changes.next;
     if (rebuilt || global !== this.shadowGlobal) {
@@ -211,8 +221,16 @@ export class ThreeRenderer implements BoardRenderer {
       [0.85, 0.6],
     ];
     let first: { x: number; y: number } | null = null;
+    const right = this.cam.right,
+      fwd = this.cam.forward;
     for (const [dx, dz] of samples) {
-      const p = this.cam.project(new THREE.Vector3(cell.c + dx, y, cell.r + dz));
+      // samples are (across, toward the camera) fractions of the cell, as seen on screen
+      const w = new THREE.Vector3(cell.c + 0.5, y, cell.r + 0.5)
+        .addScaledVector(right, dx - 0.5)
+        .addScaledVector(fwd, dz - 0.5);
+      w.x = THREE.MathUtils.clamp(w.x, cell.c + 0.04, cell.c + 0.96);
+      w.z = THREE.MathUtils.clamp(w.z, cell.r + 0.04, cell.r + 0.96);
+      const p = this.cam.project(w);
       const pt = { x: rect.left + p.x, y: rect.top + p.y };
       first ??= pt;
       const hit = this.pick(pt.x, pt.y);
@@ -253,6 +271,7 @@ export class ThreeRenderer implements BoardRenderer {
     this.unsubLibrary?.();
     this.units.dispose();
     this.tiles.dispose();
+    this.skirt.dispose();
     this.lights.dispose();
     this.marks.dispose();
     this.post?.dispose();
@@ -270,8 +289,10 @@ export class ThreeRenderer implements BoardRenderer {
   setViewOptions(patch: Partial<ViewOptions>): void {
     const next = { ...this.view, ...patch };
     const cameraChanged = next.camera !== this.view.camera;
+    const turned = next.azimuth !== this.view.azimuth;
     this.view = next;
     this.post?.setEnabled({ bloom: next.bloom, blur: next.blur });
+    if (turned) this.cam.setAzimuth(next.azimuth, performance.now());
     if (cameraChanged) {
       this.cam.setMode(next.camera);
       if (this.vm) this.render(this.vm);
@@ -312,6 +333,12 @@ export class ThreeRenderer implements BoardRenderer {
     if (this.destroyed) return;
     this.raf = requestAnimationFrame(this.loop);
     const now = performance.now();
+    if (this.cam.tick(now)) {
+      this.applyHeading();
+      // the turn landed: ghosts, chip placement and shadow maps depend on the heading
+      if (!this.cam.turning && this.vm) this.render(this.vm);
+      this.dirty = true;
+    }
     // idle frames only swap UVs; walk-frame silhouettes differ by a texel or two, so the
     // (expensive) shadow maps are refreshed on board changes only
     if (!this.animationPaused && this.units.tick(this.animNow())) this.dirty = true;
@@ -348,16 +375,29 @@ export class ThreeRenderer implements BoardRenderer {
     this.stats.triangles = this.gl.info.render.triangles;
   }
 
-  /** Lift each billboard a fraction of a pixel so its texels land 1:1 on screen pixels. */
+  /**
+   * Nudge each billboard a fraction of a pixel (along the screen axes) so its
+   * left edge and feet land on whole pixels and its texels sample 1:1.
+   */
   private snapBillboards(): void {
+    const right = this.cam.right;
     for (const id of this.units.ids()) {
       const g = this.units.get(id);
       if (!g) continue;
       const base = g.root.userData.baseY as number | undefined;
       if (base === undefined) continue;
-      g.root.position.y = base;
-      g.root.position.y = base + this.cam.pixelLift(g.root.position);
+      g.root.position.set(g.u.c + 0.5, base, g.u.r + 0.5);
+      if (g.u.kind === 'terrain' && !g.u.spritePath) continue; // 3D block, nothing to sample 1:1
+      _corner.copy(g.root.position).addScaledVector(right, -g.w / 2);
+      g.root.position.add(this.cam.pixelSnap(_corner, _snap));
     }
+  }
+
+  /** Billboards, sun and ghosts follow a camera turn. */
+  private applyHeading(): void {
+    this.units.setHeading(this.cam.headingAngle);
+    this.tiles.setHeading(this.cam.headingAngle);
+    this.lights.setHeading(this.cam.headingAngle);
   }
 
   /**
@@ -385,7 +425,10 @@ export class ThreeRenderer implements BoardRenderer {
       const g = this.units.get(u.id);
       if (!g) continue;
       const chest = (g.root.userData.baseY as number | undefined) ?? g.root.position.y;
-      if (isOccluded(heightAt, vm.rows, u.r, u.c, chest + g.h * 0.6, this.cam.pitch, maxHeight))
+      const y = chest + g.h * 0.6;
+      if (
+        isOccluded(heightAt, vm.rows, vm.cols, u.r, u.c, y, this.cam.pitch, this.cam.headingAngle, maxHeight)
+      )
         ghosted.add(u.id);
     }
     this.units.setGhosted(ghosted);
@@ -397,6 +440,7 @@ export class ThreeRenderer implements BoardRenderer {
     if (!vm) return;
     const size = Math.max(11, Math.min(16, Math.round(9 + 1.5 * this.cam.zoom)));
     const project = (p: THREE.Vector3) => this.cam.project(p);
+    const fwd = this.cam.forward;
     // one height chip per contiguous raised/sunken region and per ramp run, at the back of a free cell
     for (const reg of this.regions) {
       // players never learn the shape of ground they cannot see
@@ -404,8 +448,12 @@ export class ThreeRenderer implements BoardRenderer {
         continue;
       const { r, c } = reg.label;
       // at the back of the cell, or its middle when a unit's HP label already spills into the back
-      const z = r + (reg.labelCost === 1 ? 0.62 : 0.22);
-      const p = project(new THREE.Vector3(c + 0.5, this.tiles.topY(r, c) + 0.02, z));
+      const p = project(
+        new THREE.Vector3(c + 0.5, this.tiles.topY(r, c) + 0.02, r + 0.5).addScaledVector(
+          fwd,
+          reg.labelCost === 1 ? 0.12 : -0.28,
+        ),
+      );
       if (reg.kind === 'ramp')
         this.overlay.chip(p.x, p.y, `ramp ${ftLabel(reg.from ?? 0)} → ${ftLabel(reg.to ?? 0)}`, {
           size: size - 3,
@@ -424,9 +472,17 @@ export class ThreeRenderer implements BoardRenderer {
       if (!a) continue;
       const head = project(a.head);
       // labels sit just below the ground rings (under the shadow for fliers)
-      const ringFront = project(a.ground.clone().add(new THREE.Vector3(0, 0, 0.56)));
+      const ringFront = project(a.ground.clone().addScaledVector(fwd, 0.56));
       const cellElev = vm.cells[u.r]?.[u.c]?.elevation ?? 0;
       let below = ringFront.y + size * 0.85;
+      if (u.dying) {
+        const fails = '✖'.repeat(u.dying.failures) + '·'.repeat(Math.max(0, 3 - u.dying.failures));
+        this.overlay.chip(head.x, head.y - size * 1.4, `Dying ${fails}`, {
+          size,
+          bg: 'rgba(200,40,40,0.92)',
+          fg: '#fff',
+        });
+      }
       if (u.altitude > 0) {
         this.overlay.chip(head.x, head.y - size, `▲ ${u.altitude * 5} ft`, {
           size,
@@ -616,7 +672,10 @@ export function pickWithRay(
  */
 export function shadowChanges(
   prev: ReadonlyMap<string, string>,
-  units: readonly Pick<BoardVM['units'][number], 'id' | 'r' | 'c' | 'altitude' | 'kind' | 'spritePath'>[],
+  units: readonly Pick<
+    BoardVM['units'][number],
+    'id' | 'r' | 'c' | 'altitude' | 'kind' | 'spritePath' | 'dying'
+  >[],
 ): { next: Map<string, string>; cells: Cell[] } {
   const next = new Map<string, string>();
   const cells: Cell[] = [];
@@ -625,7 +684,7 @@ export function shadowChanges(
     return { r: Number(r), c: Number(c) };
   };
   for (const u of units) {
-    const key = `${u.r},${u.c},${u.altitude},${u.kind},${u.spritePath ?? ''}`;
+    const key = `${u.r},${u.c},${u.altitude},${u.kind},${u.spritePath ?? ''},${u.dying ? 'down' : ''}`;
     next.set(u.id, key);
     const old = prev.get(u.id);
     if (old === key) continue;

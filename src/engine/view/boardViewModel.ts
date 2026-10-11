@@ -77,6 +77,8 @@ export interface UnitVM {
   inDarkness: boolean;
   terrain: { collision: boolean; entityAboveTerrain: boolean; spritePath: string | null } | null;
   spritePath: string | null;
+  /** a party member down at 0 HP making death saves (F-14 fixed); absent/null otherwise */
+  dying?: { successes: number; failures: number } | null;
 }
 
 export interface Highlights {
@@ -266,6 +268,7 @@ export function buildBoardViewModel(
             : u.kind === 'terrain'
               ? u.spritePath
               : null,
+      dying: u.kind === 'entity' && u.dying ? { ...u.dying } : null,
     };
   });
 

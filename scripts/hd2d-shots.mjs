@@ -1,11 +1,14 @@
 // Screenshot the HD-2D board (DM tactical, DM top-down, player) from the real app.
-// Usage: node scripts/hd2d-shots.mjs [scenario]   (starts the dev servers itself)
+// Usage: node scripts/hd2d-shots.mjs [scenario] [prefix]   (starts the dev servers itself)
+// Writes docs/progress/<prefix>-<scenario>-*.png (prefix defaults to "hd2d"), including one
+// shot per camera heading.
 /* global window, performance */
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { chromium } from '@playwright/test';
 
 const scenario = process.argv[2] ?? 'test';
+const prefix = process.argv[3] ?? 'hd2d';
 const out = 'docs/progress';
 mkdirSync(out, { recursive: true });
 const dev = spawn('node', ['scripts/dev.mjs'], { stdio: 'ignore', env: { ...process.env, PORT: '8787' } });
@@ -44,7 +47,7 @@ try {
   };
   await settle();
   const stats = () => page.evaluate(() => window.dndsim.renderer.stats);
-  await page.screenshot({ path: `${out}/phase4-${scenario}-dm.png` });
+  await page.screenshot({ path: `${out}/${prefix}-${scenario}-dm.png` });
   console.log('dm stats', JSON.stringify(await stats()));
   // select Henry (u1) through a real click so rings + hover show
   const u1 = await page.evaluate(() => {
@@ -55,13 +58,19 @@ try {
     await page.mouse.move(u1.x, u1.y);
     await page.mouse.click(u1.x, u1.y);
     await page.waitForTimeout(400);
-    await page.screenshot({ path: `${out}/phase4-${scenario}-dm-selected.png` });
+    await page.screenshot({ path: `${out}/${prefix}-${scenario}-dm-selected.png` });
   }
   await page.click('[data-testid=view-dm-camera]');
   await page.waitForTimeout(600);
-  await page.screenshot({ path: `${out}/phase4-${scenario}-dm-top.png` });
+  await page.screenshot({ path: `${out}/${prefix}-${scenario}-dm-top.png` });
   await page.click('[data-testid=view-dm-camera]');
   await page.waitForTimeout(300);
+  // the other three headings, then back to the first
+  for (let k = 1; k <= 4; k++) {
+    await page.click('[data-testid=view-dm-turn-cw]');
+    await page.waitForTimeout(900);
+    if (k < 4) await page.screenshot({ path: `${out}/${prefix}-${scenario}-dm-heading${k}.png` });
+  }
   // player window in the same context (BroadcastChannel)
   const player = await context.newPage();
   player.on('pageerror', (e) => errors.push('player pageerror: ' + e.message));
@@ -97,7 +106,7 @@ try {
     Math.round(await player.evaluate(() => window.dndsimPlayer.renderer.stats.firstFrameAt)),
   );
   await player.waitForTimeout(1500);
-  await player.screenshot({ path: `${out}/phase4-${scenario}-player.png` });
+  await player.screenshot({ path: `${out}/${prefix}-${scenario}-player.png` });
   await page.bringToFront();
   // perf: time 30 forced frames
   const perf = await page.evaluate(async () => {

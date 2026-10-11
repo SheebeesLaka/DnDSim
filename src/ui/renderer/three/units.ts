@@ -137,6 +137,10 @@ interface Node {
   h: number;
   tokenTex: THREE.Texture | null;
   tokenKey: string;
+  /** body lies flat on the tile (top-down view, or flat floor art) */
+  flat: boolean;
+  /** flat body's length along the heading (world units) */
+  flatH: number;
   u: UnitVM;
   cell: Cell;
 }
@@ -162,6 +166,8 @@ export class UnitLayer {
   });
   /** ids whose ghost should show (occluded by terrain) */
   private ghosted = new Set<string>();
+  /** camera heading (radians): billboards turn around Y to face it */
+  private heading = 0;
 
   materialsFor(atlas: SpriteAtlas): AtlasMaterials {
     let m = this.atlasMats.get(atlas);
@@ -220,6 +226,8 @@ export class UnitLayer {
       h: 0,
       tokenTex: null,
       tokenKey: '',
+      flat: false,
+      flatH: 0,
       u,
       cell: { r: u.r, c: u.c },
     };
@@ -287,6 +295,7 @@ export class UnitLayer {
       for (let s = 1; s <= u.altitude; s++) {
         const tick = new THREE.Mesh(this.tickGeo, this.tickMat);
         tick.position.set(u.c + 0.5, top + s * STEP, u.r + 0.5);
+        tick.rotation.y = this.heading;
         n.tether.add(tick);
       }
     }
@@ -398,8 +407,11 @@ export class UnitLayer {
     n.body.customDepthMaterial = mats.depth;
     n.body.customDistanceMaterial = mats.distance;
     if (n.ghost) n.ghost.material = mats.ghost;
+    // a dying hero lies on the tile, like a downed unit in the classic tactics games
     const upright =
-      ctx.mode !== 'top' && !(u.kind === 'terrain' && frames?.single && !(u.terrain?.collision ?? true));
+      ctx.mode !== 'top' &&
+      !u.dying &&
+      !(u.kind === 'terrain' && frames?.single && !(u.terrain?.collision ?? true));
     n.w = w;
     // world-space height of what stands up from the tile (labels, ghost test)
     n.h = upright ? h * stretch : 0.05;
@@ -411,20 +423,40 @@ export class UnitLayer {
       atlasW,
       atlasH,
     );
-    const flatArt = u.kind === 'terrain' && frames?.single && !(u.terrain?.collision ?? true);
-    if (ctx.mode === 'top' || flatArt) {
-      // lie flat on the tile, centred, head to the north
-      n.body.rotation.set(-Math.PI / 2, 0, 0);
-      n.body.position.set(0, 0.02, h / 2);
+    n.flat = !upright;
+    n.flatH = h;
+    this.orient(n);
+    if (n.ghost) n.ghost.visible = this.ghosted.has(u.id);
+  }
+
+  /**
+   * Turn a billboard to the camera heading: upright sprites rotate around Y
+   * only (never tilted back); flat ones lie on the tile, centred, head toward
+   * screen-up.
+   */
+  private orient(n: Node): void {
+    if (!n.body) return;
+    const sin = Math.sin(this.heading),
+      cos = Math.cos(this.heading);
+    if (n.flat) {
+      n.body.rotation.set(-Math.PI / 2, this.heading, 0, 'YXZ');
+      n.body.position.set((sin * n.flatH) / 2, 0.02, (cos * n.flatH) / 2);
     } else {
-      n.body.rotation.set(0, 0, 0);
+      n.body.rotation.set(0, this.heading, 0, 'YXZ');
       n.body.position.set(0, 0, 0);
     }
     if (n.ghost) {
       n.ghost.rotation.copy(n.body.rotation);
       n.ghost.position.copy(n.body.position);
-      n.ghost.visible = this.ghosted.has(u.id);
     }
+    for (const ch of n.tether.children) if (ch instanceof THREE.Mesh) ch.rotation.y = this.heading;
+  }
+
+  /** The camera turned: face every billboard toward the new heading. */
+  setHeading(heading: number): void {
+    if (heading === this.heading) return;
+    this.heading = heading;
+    for (const n of this.nodes.values()) this.orient(n);
   }
 
   /** Advance idle animations. Returns true when any sprite changed frame. */
