@@ -136,8 +136,14 @@ export function renderTurnRail(
   // the next round opens with whoever has already acted this round, plus anyone arriving
   const nextRound = vm.round + 1;
   const arrivingNext = (vm.arrivals ?? []).filter((a) => a.round <= nextRound);
+  const endSep = h(
+    'div',
+    { class: 'sp-rsep', title: actions ? 'Drop here to go last' : '' },
+    `R${nextRound}`,
+  );
+  if (actions) dropAt(endSep, strip.length, vm, actions);
+  rail.append(endSep);
   if (curIdx > 0 || arrivingNext.length > 0) {
-    rail.append(h('div', { class: 'sp-rsep' }, `R${nextRound}`));
     strip
       .slice(0, Math.max(0, curIdx))
       .forEach((e) => rail.append(card({ ...e, current: false }, '', library, vm, actions)));

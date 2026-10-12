@@ -7,9 +7,16 @@
 import './spotlight.css';
 import type { SpellDef } from '../../assets/types.ts';
 import { spellSummary } from '../../assets/spellLabels.ts';
-import { dieMax } from '../../engine/dice.ts';
 import { MAX_SPELL_LEVEL, maxSpellSlots, spellSlotsRemaining } from '../../engine/rules/spellSlots.ts';
 import { actionAvailability } from '../../engine/selectors/actions.ts';
+import {
+  adjustedAttribute,
+  armorClass,
+  baseDamageDice,
+  damageDice,
+  movement,
+} from '../../engine/selectors/stats.ts';
+import { DICE_PROGRESSION, dieMax } from '../../engine/dice.ts';
 import { combatantById, objectAt, partyOnField, unitById, unitName } from '../../engine/selectors/board.ts';
 import { computeLighting } from '../../engine/selectors/lighting.ts';
 import { buildBoardViewModel, type BoardVM } from '../../engine/view/boardViewModel.ts';
@@ -23,7 +30,7 @@ import type {
   Pending,
   UnitId,
 } from '../../engine/types.ts';
-import { StatusEffect, type StatusDef } from '../../assets/types.ts';
+import { ATTRIBUTE_SHORT, StatusEffect, type StatusDef } from '../../assets/types.ts';
 import { BOARD_THEMES } from '../boardThemes.ts';
 import type { BattleScreenDeps } from '../battleScreen.ts';
 import { h, replaceChildren } from '../dom.ts';
@@ -41,6 +48,7 @@ type Sheet =
   | { kind: 'cast'; unitId: UnitId; index: number; slot: number | null }
   | { kind: 'item'; unitId: UnitId; index: number }
   | { kind: 'ready'; unitId: UnitId }
+  | { kind: 'adjust'; unitId: UnitId }
   | { kind: 'timer' }
   | { kind: 'arrival' }
   | { kind: 'save' }
@@ -1302,7 +1310,16 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
         class: 'sp-panel sp-menu',
         style: `left:${Math.min(ctxMenu.x, sp.clientWidth - 280)}px;top:${Math.min(ctxMenu.y, sp.clientHeight - 300)}px;right:auto`,
       },
-      h('div', { style: 'padding:4px 10px 6px;font:700 13px var(--fh)' }, unitName(u)),
+      h(
+        'div',
+        { style: 'padding:4px 10px 8px' },
+        h('div', { style: 'font:700 14px var(--fh)' }, unitName(u)),
+        h(
+          'div',
+          { style: 'font-size:11.5px;color:var(--ink-2);margin-top:2px' },
+          `${u.kind === 'entity' ? u.sheet.currentHP : u.health}/${u.kind === 'entity' ? u.sheet.totalHP : u.maxHealth} HP · AC ${armorClass(u)} · MOB ${movement(u)} · ${damageDice(u).filter(Boolean).join('/')}`,
+        ),
+      ),
       item('heart', '± HP', () => openPopover('hp'), 'H'),
       item('tag', 'Status', () => openPopover('status'), 'S'),
       item('clock', held ? 'Act now' : 'Delay', delaySelected, 'D'),
@@ -1315,6 +1332,10 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
       u.kind === 'entity' && u.sheet.isParty
         ? item('swap', 'Swap weapon', () => dispatch({ type: 'SWAP_WEAPON', unitId: u.id }), 'Q')
         : null,
+      u.kind === 'entity' && u.sheet.isParty && battle().turn.started
+        ? item('hand', 'Pick up an item', () => toggleMode('pickup'), 'P')
+        : null,
+      item('gear', 'Adjust AC, stats & dice…', () => (sheet = { kind: 'adjust', unitId: u.id })),
       h('hr'),
       item(
         'x',
@@ -1577,6 +1598,7 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
       );
     }
     if (sheet.kind === 'timer' || sheet.kind === 'arrival') return planSheet(sheet.kind);
+    if (sheet.kind === 'adjust') return adjustSheet(sheet.unitId);
     if (sheet.kind === 'save') {
       const input = h('input', {
         class: 'sp-text',
@@ -1629,6 +1651,75 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
       );
     }
     return null;
+  }
+
+  /** Battle-only tweaks (never saved to the sheet): AC, each attribute, each damage tier's die. */
+  function adjustSheet(unitId: UnitId): HTMLElement | null {
+    const u = combatantById(battle(), unitId);
+    if (!u) return null;
+    const row = (label: string, value: string, delta: number, dec: () => void, inc: () => void, color = '') =>
+      h(
+        'div',
+        { class: 'sp-st-row', style: 'margin:0;justify-content:space-between' },
+        h('span', { style: `font-weight:700;${color}` }, label),
+        h(
+          'div',
+          { class: 'sp-step' },
+          h('button', { type: 'button', onclick: dec }, '−'),
+          h('b', { class: delta > 0 ? 'up' : delta < 0 ? 'down' : '' }, value),
+          h('button', { type: 'button', onclick: inc }, '+'),
+        ),
+      );
+    const rows: HTMLElement[] = [
+      row(
+        'AC',
+        String(armorClass(u)),
+        u.acAdjustment,
+        () => dispatch({ type: 'ADJUST_AC', unitId, delta: -1 }),
+        () => dispatch({ type: 'ADJUST_AC', unitId, delta: 1 }),
+      ),
+    ];
+    for (let i = 0; i < 6; i++) {
+      if (u.kind === 'enemy' && i !== 1) continue;
+      const value = u.kind === 'entity' ? adjustedAttribute(u, i) : u.dexterity + u.dexAdjustment;
+      const delta = u.kind === 'entity' ? (u.statAdjustment[i] ?? 0) : u.dexAdjustment;
+      rows.push(
+        row(
+          ATTRIBUTE_SHORT[i] ?? '?',
+          String(value),
+          delta,
+          () => dispatch({ type: 'ADJUST_STAT', unitId, attribute: i, delta: -1 }),
+          () => dispatch({ type: 'ADJUST_STAT', unitId, attribute: i, delta: 1 }),
+        ),
+      );
+    }
+    const dice = damageDice(u),
+      base = baseDamageDice(u);
+    for (let t = 0; t < 3; t++)
+      rows.push(
+        row(
+          `T${t + 1} die`,
+          dice[t] ?? '—',
+          dice[t] === base[t]
+            ? 0
+            : (DICE_PROGRESSION as readonly string[]).indexOf(dice[t] ?? '') -
+                (DICE_PROGRESSION as readonly string[]).indexOf(base[t] ?? ''),
+          () => dispatch({ type: 'ADJUST_DICE', unitId, tier: t, direction: -1 }),
+          () => dispatch({ type: 'ADJUST_DICE', unitId, tier: t, direction: 1 }),
+        ),
+      );
+    return h(
+      'div',
+      { class: 'sp-panel sp-sheet', style: 'width:340px', dataset: { testid: 'adjust-sheet' } },
+      h('h3', {}, `Adjust · ${unitName(u)}`, h('span', { class: 'sp-k' }, 'Esc')),
+      h('div', { style: 'padding:0 16px;display:flex;flex-direction:column;gap:6px' }, ...rows),
+      h(
+        'div',
+        { class: 'foot' },
+        'This battle only: the sheet is not changed.',
+        h('button', { type: 'button', class: 'sp-btn go', onclick: closeSheet }, 'Done'),
+      ),
+    );
   }
 
   function planSheet(kind: 'timer' | 'arrival'): HTMLElement {

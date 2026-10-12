@@ -219,7 +219,7 @@ function dieVMs(dice: readonly string[], typed: readonly string[], cursor?: numb
     active: false,
   }));
   const at = cursor !== undefined && cursor < out.length ? cursor : out.findIndex((d) => d.value === null);
-  if (at >= 0 && out[at]) (out[at]).active = true;
+  if (at >= 0 && out[at]) out[at].active = true;
   return out;
 }
 
@@ -427,6 +427,8 @@ export function buildRollVM(state: BattleState, draft: RollDraft = emptyDraft())
   if (p.kind === 'confirm') vm.banner = p.banner;
   else if (vm.outcome) vm.banner = outcomeBanner[vm.outcome];
   vm.attacker = attacker ? fighterVM(state, attacker, null) : null;
+  // a caster's plate names the spell, not the weapon in hand
+  if (vm.attacker && flow.flow !== 'attack') vm.attacker.subtitle = `${title} · ${detail}`;
   vm.target = target ? fighterVM(state, target, targetAfter(target, vm.damage, vm.heal)) : null;
   return vm;
 }
@@ -478,6 +480,9 @@ function areaVM(
   vm.bonusParts = bonusPartsFor(flow, caster);
   vm.heal = res === 'HEAL';
   vm.attacker = caster ? fighterVM(state, caster, null) : null;
+  if (vm.attacker)
+    vm.attacker.subtitle =
+      spell.level > 0 ? `${spell.name} · Level ${flow.slotLevel}` : `${spell.name} · Cantrip`;
   const save = res === 'SAVE';
   const area = p.kind === 'damage' || p.kind === 'confirm' ? p.area : undefined;
   if (p.kind === 'damage') vm.dice = dieVMs(p.dice, draft.dice, draft.cursor);
