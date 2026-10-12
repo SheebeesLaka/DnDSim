@@ -1,6 +1,7 @@
 /** Visual foundations: elevation, altitude, lights, groups, ambient, reveal, theme. Zero rule effect. */
 import { err } from '../errors.ts';
 import { inBounds, unitById } from '../selectors/board.ts';
+import { AMBIENT_PRESET, ambientBand } from '../selectors/lighting.ts';
 import { nextId, type HandlerMap } from './_shared.ts';
 
 export const visualHandlers: HandlerMap = {
@@ -73,6 +74,14 @@ export const visualHandlers: HandlerMap = {
   },
   SET_AMBIENT(draft, cmd) {
     draft.board.ambient = cmd.level;
+    draft.board.ambientLevel = AMBIENT_PRESET[cmd.level];
+    return undefined;
+  },
+  SET_AMBIENT_LEVEL(draft, cmd) {
+    if (!Number.isFinite(cmd.level)) return err('invalidLevel', 'ambient light is 0-100');
+    const level = Math.max(0, Math.min(100, Math.round(cmd.level)));
+    draft.board.ambientLevel = level;
+    draft.board.ambient = ambientBand(level);
     return undefined;
   },
   SET_DM_REVEAL(draft, cmd) {

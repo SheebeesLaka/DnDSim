@@ -7,7 +7,7 @@ import type { AreaFlow, AttackFlow, BattleState, EngineContext, SpellFlow, Unit 
 import { applyDamage, applyHealing, isTargetDead, removeDefeated } from './apply.ts';
 import { ammoCompatible, isRanged } from './combat.ts';
 import { spendSpellSlot } from './spellSlots.ts';
-import { applyStatus, cloneStatus } from './statuses.ts';
+import { applyStatus, cloneStatus, stampStatus } from './statuses.ts';
 
 /** CombatManager.consumeAmmo: first compatible stack loses one round; hit or miss. */
 export function consumeAmmo(draft: Draft<BattleState>, attackerId: string, emit: Emit): string | null {
@@ -80,7 +80,12 @@ export function resolveAttackOutcome(
 function applyRiderTo(draft: Draft<BattleState>, target: Unit, flow: SpellFlow | AreaFlow, emit: Emit): void {
   const rider = flow.spell.riderStatus;
   if (!rider || (target.kind !== 'entity' && target.kind !== 'enemy')) return;
-  if (applyStatus(target, cloneStatus(rider))) {
+  const caster = combatantById(draft, flow.casterId);
+  const stamped = stampStatus(cloneStatus(rider), {
+    source: `${flow.spell.name}${caster ? ` · ${unitName(caster)}` : ''}`,
+    appliedRound: draft.turn.round,
+  });
+  if (applyStatus(target, stamped)) {
     emit({ type: 'floatText', unitId: target.id, text: rider.name, color: flow.spell.color, kind: 'STATUS' });
     if (target.kind === 'entity') emit({ type: 'sheetChanged', sourceName: target.sourceName });
     log(draft, `${unitName(target)} is ${rider.name}`);

@@ -6,6 +6,18 @@
 import type { BattleState, Cell, Light, LightLevel, UnitId } from '../types.ts';
 import { elevationAt, inBounds, isEnabled, unitById } from './board.ts';
 
+/** Where SET_AMBIENT's three steps sit on the 0–100 ambient slider. */
+export const AMBIENT_PRESET: Record<LightLevel, number> = { bright: 100, dim: 35, dark: 0 };
+
+/** The bright / dim / dark band of a 0–100 ambient level (what the rules and the player view use). */
+export function ambientBand(level: number): LightLevel {
+  return level >= 67 ? 'bright' : level >= 20 ? 'dim' : 'dark';
+}
+
+/** The board's 0–100 ambient level; saves from before the slider derive it from the band. */
+export const ambientLevelOf = (board: { ambient: LightLevel; ambientLevel?: number }): number =>
+  board.ambientLevel ?? AMBIENT_PRESET[board.ambient];
+
 export interface CellLight {
   level: LightLevel;
   sources: { id: string; color: string; strength: number }[];

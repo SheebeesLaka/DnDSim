@@ -13,6 +13,7 @@ import { actionHandlers } from './commands/actions.ts';
 import { spellHandlers } from './commands/spells.ts';
 import { pendingHandlers } from './commands/pending.ts';
 import { dyingHandlers } from './commands/dying.ts';
+import { dmHandlers } from './commands/dm.ts';
 import { err } from './errors.ts';
 import type { BattleEvent, BattleState, Command, EngineContext, EngineError, ReduceResult } from './types.ts';
 import type { Handler, HandlerMap } from './commands/_shared.ts';
@@ -30,6 +31,12 @@ const ALWAYS_ALLOWED = new Set<Command['type']>([
   'SET_LIGHT_GROUP',
   'TOGGLE_LIGHT_GROUP',
   'SET_AMBIENT',
+  'SET_AMBIENT_LEVEL',
+  'SET_READIED',
+  'ADD_ARRIVAL',
+  'REMOVE_ARRIVAL',
+  'ADD_TIMER',
+  'REMOVE_TIMER',
   'SET_DM_REVEAL',
   'SET_THEME',
   'SET_TERRAIN_BLOCKS_LIGHT',
@@ -54,6 +61,7 @@ const registry: HandlerMap = {
   ...spellHandlers,
   ...pendingHandlers,
   ...dyingHandlers,
+  ...dmHandlers,
 };
 
 /** Later milestones register their handlers here (lifecycle, actions, spells…). */

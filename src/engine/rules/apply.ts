@@ -14,7 +14,7 @@ import type {
   UnitId,
 } from '../types.ts';
 import { removeFromOrder } from './turnOrder.ts';
-import { turnStartProcessing } from './statuses.ts';
+import { runTurnStart } from './turnStart.ts';
 
 /** F-14 fixed: party members drop to dying at 0 HP instead of leaving the board. */
 export const dropsToDying = (u: Unit, compat: CompatLike): boolean =>
@@ -75,7 +75,7 @@ export function removeCombatant(
   if (wasCurrent && !draft.rules.compat.removeCurrentSkipsNext && draft.turn.order.length > 0) {
     const next = combatantById(draft, draft.turn.order[draft.turn.currentIndex] as UnitId);
     if (next) {
-      for (const m of turnStartProcessing(next, draft.rules.compat)) log(draft, `${unitName(next)} — ${m}`);
+      runTurnStart(draft, next, emit);
       emit({ type: 'turnChanged', unitId: next.id, round: draft.turn.round });
     }
   }

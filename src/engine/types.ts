@@ -125,6 +125,27 @@ export interface Light {
   attachedTo?: UnitId;
   groupId?: string;
   on: boolean;
+  /** an unsteady light (torch, failing fixture): the renderer flickers it */
+  flicker?: boolean;
+}
+
+/** Reinforcements waiting to arrive (the DM is asked whether to bring them in at the start of `round`). */
+export interface Arrival {
+  id: string;
+  templateStem: string;
+  count: number;
+  round: number;
+  note?: string;
+}
+
+/** A DM reminder that comes due at the start of `round`, optionally offering a light-group switch. */
+export interface DmTimer {
+  id: string;
+  name: string;
+  round: number;
+  note?: string;
+  lightGroupId?: string;
+  lightOn?: boolean;
 }
 
 export interface LightGroup {
@@ -146,6 +167,12 @@ export interface Board {
   lights: Light[];
   lightGroups: LightGroup[];
   ambient: LightLevel;
+  /**
+   * Ambient light 0 (pitch black) … 100 (daylight). The DM's slider; `ambient`
+   * above is its bright/dim/dark band (who players can see). Absent in older
+   * saves: read through `ambientLevelOf`.
+   */
+  ambientLevel?: number;
   dmReveal: boolean;
   /** Tombstones where party members perished (decoration; never blocks a tile). */
   graves?: Grave[];
@@ -183,6 +210,16 @@ export interface TurnState {
   victory: boolean | null;
   /** Party placement queue (names still to place); non-empty = placement phase. */
   placementQueue: string[];
+  /** Delayed combatants: out of the order until the DM drops them back in (they keep the new spot). */
+  held?: UnitId[];
+  /** Readied actions: combatant → the DM's note. Cleared at that combatant's next turn start. */
+  readied?: Record<UnitId, string>;
+  /** Reinforcements queued for a later round. */
+  arrivals?: Arrival[];
+  /** DM reminders queued for a later round. */
+  timers?: DmTimer[];
+  /** The round each combatant last had its turn-start processing, so a reorder never ticks statuses twice. */
+  tickedRound?: Record<UnitId, number>;
 }
 
 // ---------- pending DM input ----------
@@ -312,6 +349,7 @@ export type Command =
   | { type: 'SET_LIGHT_GROUP'; group: LightGroup }
   | { type: 'TOGGLE_LIGHT_GROUP'; groupId: string; on?: boolean }
   | { type: 'SET_AMBIENT'; level: LightLevel }
+  | { type: 'SET_AMBIENT_LEVEL'; level: number }
   | { type: 'SET_DM_REVEAL'; on: boolean }
   | { type: 'SET_THEME'; theme: string }
   | { type: 'SET_TERRAIN_BLOCKS_LIGHT'; unitId: UnitId; blocksLight: boolean }
@@ -331,6 +369,20 @@ export type Command =
   /** The DM decides a dying party member's fate (F-14 fixed). */
   | { type: 'RESOLVE_DYING'; unitId: UnitId; outcome: 'recover' | 'hold' | 'perish' }
   | { type: 'ADJUST_HP'; unitId: UnitId; delta: number }
+  /** Typed damage (negative) or healing (positive) that behaves like a real hit: floating number, defeat, dying. */
+  | { type: 'APPLY_HP'; unitId: UnitId; delta: number }
+  | { type: 'ADD_STATUS'; unitId: UnitId; status: StatusDef; source?: string }
+  | { type: 'UPDATE_STATUS'; unitId: UnitId; name: string; patch: { duration?: number; magnitude?: number } }
+  | { type: 'REMOVE_STATUS'; unitId: UnitId; name: string }
+  // freeform turn order (never blocks an action)
+  | { type: 'REORDER_TURN'; unitId: UnitId; toIndex: number }
+  | { type: 'DELAY_TURN'; unitId: UnitId }
+  | { type: 'RETURN_FROM_HOLD'; unitId: UnitId; index: number; actNow?: boolean }
+  | { type: 'SET_READIED'; unitId: UnitId; note: string | null }
+  | { type: 'ADD_ARRIVAL'; templateStem: string; count: number; round: number; note?: string }
+  | { type: 'REMOVE_ARRIVAL'; id: string }
+  | { type: 'ADD_TIMER'; timer: Omit<DmTimer, 'id'> }
+  | { type: 'REMOVE_TIMER'; id: string }
   | { type: 'ADJUST_AC'; unitId: UnitId; delta: number }
   | { type: 'ADJUST_STAT'; unitId: UnitId; attribute: number; delta: number }
   | { type: 'ADJUST_DICE'; unitId: UnitId; tier: number; direction: number }
@@ -370,6 +422,7 @@ export type BattleEvent =
   | { type: 'unitMoved'; unitId: UnitId; from: Cell; to: Cell }
   | { type: 'battleStarted' }
   | { type: 'turnChanged'; unitId: UnitId | null; round: number }
+  | { type: 'statusExpired'; unitId: UnitId; name: string }
   | { type: 'battleEnded'; victory: boolean }
   | { type: 'sheetChanged'; sourceName: string }
   | { type: 'log'; text: string };

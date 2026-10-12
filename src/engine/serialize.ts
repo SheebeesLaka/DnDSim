@@ -1,5 +1,6 @@
 /** Save/load, scenarios, BroadcastChannel snapshots and fixtures all use these same bytes. */
 import { LEGACY_COMPAT } from './compat.ts';
+import { AMBIENT_PRESET } from './selectors/lighting.ts';
 import { BATTLE_STATE_VERSION, type BattleState } from './types.ts';
 
 export function serializeBattle(state: BattleState, pretty = true): string {
@@ -37,9 +38,15 @@ export function parseBattle(input: unknown): BattleState {
   state.board.lightGroups ??= [];
   state.board.graves ??= [];
   state.board.ambient ??= 'bright';
+  state.board.ambientLevel ??= AMBIENT_PRESET[state.board.ambient];
   state.board.dmReveal ??= true;
   state.turn.placementQueue ??= [];
   state.turn.pendingTies ??= [];
+  state.turn.held ??= [];
+  state.turn.readied ??= {};
+  state.turn.arrivals ??= [];
+  state.turn.timers ??= [];
+  state.turn.tickedRound ??= {};
   return state;
 }
 

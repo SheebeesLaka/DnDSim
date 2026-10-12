@@ -1,7 +1,8 @@
 /** Begin / initiative entry / ties / Next / End / Long Rest (FEATURES.md §2, §8). */
 import { err } from '../errors.ts';
 import { applyTieResolution, calculateInitiativeOrder } from '../rules/initiative.ts';
-import { processEquippedAbilities, turnStartProcessing } from '../rules/statuses.ts';
+import { processEquippedAbilities } from '../rules/statuses.ts';
+import { runTurnStart } from '../rules/turnStart.ts';
 import { combatantById, enemies, entities, partyOnField, unitName } from '../selectors/board.ts';
 import { isCaster } from '../selectors/stats.ts';
 import { log, type HandlerMap } from './_shared.ts';
@@ -86,10 +87,8 @@ export const lifecycleHandlers: HandlerMap = {
     }
     const current = combatantById(draft, order[draft.turn.currentIndex] as string);
     if (current) {
-      const messages = turnStartProcessing(current, draft.rules.compat);
-      for (const m of messages) log(draft, `${unitName(current)} — ${m}`);
+      runTurnStart(draft, current, emit);
       emit({ type: 'turnChanged', unitId: current.id, round: draft.turn.round });
-      if (current.kind === 'entity') emit({ type: 'sheetChanged', sourceName: current.sourceName });
     }
     return undefined;
   },
@@ -140,15 +139,20 @@ function commitBegin(draft: Draft, rolls: Record<string, number>, ctx: Ctx, emit
   draft.turn.ended = false;
   draft.turn.victory = null;
   calculateInitiativeOrder(draft, rolls, ctx.rng);
+  draft.turn.tickedRound = {};
+  draft.turn.held = [];
+  draft.turn.readied = {};
   const first = combatantById(draft, draft.turn.order[0] ?? '');
   if (first) {
     if (draft.rules.compat.beginSkipsFirstStatusTick) {
-      // Java: abilities only, no procStatus, and before the tie dialog can reorder (F-3)
+      // Java: abilities only, no procStatus, and before the tie dialog can reorder (F-3).
+      // Their round-1 turn has still started: a later reorder must not tick them this round.
+      (draft.turn.tickedRound ??= {})[first.id] = 1;
       if (first.kind === 'entity')
         for (const m of processEquippedAbilities(first.sheet, 'ON_TURN_START'))
           log(draft, `${unitName(first)} — ${m}`);
     } else {
-      for (const m of turnStartProcessing(first, draft.rules.compat)) log(draft, `${unitName(first)} — ${m}`);
+      runTurnStart(draft, first, emit);
     }
   }
   if (draft.turn.pendingTies.length > 0)

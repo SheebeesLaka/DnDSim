@@ -40,6 +40,34 @@ export function removeFromOrder(draft: Draft<BattleState>, id: UnitId): void {
   draft.turn.pendingTies = draft.turn.pendingTies
     .map((g) => g.filter((x) => x !== id))
     .filter((g) => g.length > 1);
+  // freeform bookkeeping: a removed combatant is no longer held, readied or ticked
+  if (draft.turn.held) draft.turn.held = draft.turn.held.filter((x) => x !== id);
+  if (draft.turn.readied) delete draft.turn.readied[id];
+  if (draft.turn.tickedRound) delete draft.turn.tickedRound[id];
+}
+
+/**
+ * Give `id` (already moved to its new index in the order) an initiative total
+ * between its neighbours, so a later re-sort (rollAndInsert when someone joins)
+ * keeps the DM's manual order. The d20 / mod shown to people stay as rolled.
+ */
+export function settleTotalAtIndex(draft: Draft<BattleState>, id: UnitId): void {
+  const order = draft.turn.order;
+  const init = draft.turn.initiative;
+  const idx = order.indexOf(id);
+  if (idx === -1) return;
+  const prev = idx > 0 ? init[order[idx - 1] as UnitId]?.total : undefined;
+  const next = idx < order.length - 1 ? init[order[idx + 1] as UnitId]?.total : undefined;
+  const total =
+    prev !== undefined && next !== undefined
+      ? (prev + next) / 2
+      : prev !== undefined
+        ? prev - 1
+        : next !== undefined
+          ? next + 1
+          : (init[id]?.total ?? 0);
+  const cur = init[id];
+  init[id] = cur ? { ...cur, total } : { total, d20: 0, mod: 0 };
 }
 
 export const initiativeFloat = (id: UnitId, roll: number, isEnemy: boolean): BattleEvent => ({
