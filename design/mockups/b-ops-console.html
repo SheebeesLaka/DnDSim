@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B — Ops Console (DM screen mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0d0f; --panel: #131619; --panel-2: #181c20; --line: #262b30; --line-2: #343a40;
+    --ink: #dfe3e6; --ink-2: #9aa3aa; --ink-3: #636c73;
+    --amber: #ffb547; --amber-d: #8a5d17; --teal: #52d6c8; --red: #ff5d4d; --green: #79e07f; --violet: #b49cff; --orange: #ff8a3d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1536px; height: 960px; overflow: hidden; background: var(--bg); }
+  body { font-family: 'IBM Plex Mono', ui-monospace, monospace; color: var(--ink); font-size: 13px; position: relative; }
+  .cond { font-family: 'Barlow Condensed', sans-serif; }
+  .lbl { font-family: 'Barlow Condensed'; font-weight: 600; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); }
+  .k { display: inline-grid; place-items: center; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 2px; font: 600 10.5px 'IBM Plex Mono';
+    color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line-2); background: #1d2125; }
+  .ico { width: 15px; height: 15px; display: inline-block; vertical-align: -3px; } .ico svg { width: 100%; height: 100%; display: block; }
+  .scuff { background-image: radial-gradient(rgba(255,255,255,.018) 1px, transparent 1px); background-size: 3px 3px; }
+
+  /* ---- top bar ---- */
+  .top { position: absolute; left: 0; right: 0; top: 0; height: 56px; display: flex; align-items: stretch; background: var(--panel);
+    border-bottom: 1px solid var(--line); }
+  .brand { width: 352px; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-right: 1px solid var(--line); position: relative; }
+  .brand::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
+    background: repeating-linear-gradient(135deg, var(--amber) 0 6px, #111 6px 12px); }
+  .brand .t { font: 700 19px 'Barlow Condensed'; letter-spacing: .08em; }
+  .brand .s { font-size: 11px; color: var(--ink-3); line-height: 1.25; }
+  .rnd { display: flex; align-items: center; gap: 18px; padding: 0 18px; border-right: 1px solid var(--line); }
+  .seg7 { font: 700 34px 'IBM Plex Mono'; color: var(--amber); text-shadow: 0 0 12px rgba(255,181,71,.45); line-height: 1; letter-spacing: -.02em; }
+  .seg7 .dim { color: #3a2a12; text-shadow: none; }
+  .turnof { line-height: 1.1; } .turnof b { font: 700 18px 'Barlow Condensed'; color: var(--ink); }
+  .btn { white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 3px; font: 700 15px 'Barlow Condensed';
+    letter-spacing: .1em; text-transform: uppercase; color: var(--ink); background: #1e2328; box-shadow: inset 0 0 0 1px var(--line-2); align-self: center; }
+  .btn.primary { color: #1b1203; background: linear-gradient(#ffc76b, #f0a330); box-shadow: inset 0 -2px 0 rgba(0,0,0,.25), 0 0 18px rgba(255,181,71,.25); }
+  .btn.primary .k { color: #5a3a08; background: rgba(255,255,255,.35); box-shadow: none; }
+  .power { flex: 1; display: flex; align-items: center; gap: 10px; padding: 0 14px; }
+  .power .lbl { margin-right: 2px; }
+  .amb { display: flex; border-radius: 3px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line-2); }
+  .amb div { padding: 5px 9px; font: 600 12px 'Barlow Condensed'; letter-spacing: .12em; color: var(--ink-3); }
+  .amb div + div { box-shadow: inset 1px 0 0 var(--line-2); }
+  .amb .on { color: #0d1a18; background: var(--teal); }
+  .brk { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 10px 0 8px; border-radius: 3px; background: #0f1214; box-shadow: inset 0 0 0 1px var(--line); }
+  .brk .lever { width: 14px; height: 26px; border-radius: 2px; background: #22272c; position: relative; box-shadow: inset 0 0 0 1px var(--line-2); }
+  .brk .lever::after { content: ''; position: absolute; left: 2px; right: 2px; height: 10px; border-radius: 1px; background: #4b535a; bottom: 2px; }
+  .brk.on .lever::after { top: 2px; bottom: auto; background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+  .brk .n { white-space: nowrap; font: 700 13.5px 'Barlow Condensed'; letter-spacing: .06em; line-height: 1.05; }
+  .brk .n small { display: block; font: 500 10px 'IBM Plex Mono'; color: var(--ink-3); letter-spacing: 0; }
+  .brk .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .tv { display: flex; align-items: center; gap: 8px; padding: 0 16px; border-left: 1px solid var(--line); }
+  .live { width: 8px; height: 8px; border-radius: 50%; background: var(--red); box-shadow: 0 0 8px var(--red); animation: blink 1.6s infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+
+  /* ---- roster ---- */
+  .roster { position: absolute; left: 0; top: 56px; bottom: 0; width: 352px; background: var(--panel); border-right: 1px solid var(--line); }
+  .ph { height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+  .ph .n { font: 700 13px 'IBM Plex Mono'; color: var(--amber); }
+  .ph .lbl { color: var(--ink-2); } .ph .r { margin-left: auto; display: flex; gap: 6px; }
+  .cols { display: grid; grid-template-columns: 24px 1fr 82px 30px; gap: 8px; padding: 6px 14px 4px; }
+  .row { position: relative; display: grid; grid-template-columns: 24px 1fr 82px 30px; gap: 8px; align-items: start; padding: 8px 14px 7px;
+    border-bottom: 1px solid #1b1f23; }
+  .row .ini { font: 700 17px 'IBM Plex Mono'; color: var(--ink-2); padding-top: 4px; }
+  .row .who { display: flex; gap: 9px; min-width: 0; }
+  .row .pt { flex: none; width: 34px; height: 34px; border-radius: 2px; background: #0d1012; box-shadow: inset 0 0 0 1px var(--line-2); position: relative; overflow: hidden; }
+  .row .pt img { position: absolute; left: 3px; top: 1px; width: 28px; image-rendering: pixelated; }
+  .row .pt .gl { position: absolute; inset: 0; display: grid; place-items: center; font: 700 12px 'Barlow Condensed'; color: var(--orange); }
+  .row .nm { font: 700 15.5px 'Barlow Condensed'; letter-spacing: .02em; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .meta { font-size: 10.5px; color: var(--ink-3); margin-top: 2px; white-space: nowrap; }
+  .row .side { display: inline-block; width: 6px; height: 6px; margin-right: 5px; vertical-align: 1px; }
+  .hp .nums { display: flex; justify-content: space-between; align-items: baseline; }
+  .hp .nums b { font: 700 16px 'IBM Plex Mono'; } .hp .nums span { color: var(--ink-3); font-size: 11px; }
+  .hp .bar { height: 5px; background: #0a0c0e; margin-top: 4px; box-shadow: inset 0 0 0 1px #22272c; position: relative; }
+  .hp .bar i { position: absolute; left: 0; top: 0; bottom: 0; }
+  .hp .bar .pend { background: repeating-linear-gradient(135deg, var(--red) 0 3px, transparent 3px 6px); }
+  .row .ac { font: 700 16px 'IBM Plex Mono'; text-align: right; padding-top: 2px; }
+  .row .ac small { display: block; font: 500 9.5px 'IBM Plex Mono'; color: var(--ink-3); }
+  .row .st { grid-column: 2 / 5; display: flex; gap: 5px; flex-wrap: wrap; margin-top: 1px; }
+  .tagS { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px 0 5px; border-radius: 2px; font: 700 12px 'Barlow Condensed'; letter-spacing: .08em; text-transform: uppercase; }
+  .tagS .ico { width: 12px; height: 12px; }
+  .tagS em { font-style: normal; font-family: 'IBM Plex Mono'; font-size: 10.5px; padding-left: 5px; border-left: 1px solid currentColor; opacity: .85; }
+  .tagS.buff { color: var(--amber); background: rgba(255,181,71,.1); box-shadow: inset 0 0 0 1px rgba(255,181,71,.35); }
+  .tagS.debuff { color: var(--violet); background: rgba(180,156,255,.1); box-shadow: inset 0 0 0 1px rgba(180,156,255,.35); }
+  .tagS.dot { color: var(--orange); background: rgba(255,138,61,.12); box-shadow: inset 0 0 0 1px rgba(255,138,61,.4); }
+  .tagS.flag { color: var(--teal); background: rgba(82,214,200,.08); box-shadow: inset 0 0 0 1px rgba(82,214,200,.35); }
+  .row.cur { background: linear-gradient(90deg, rgba(255,181,71,.14), rgba(255,181,71,.02) 70%); }
+  .row.cur::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--amber); box-shadow: 0 0 10px var(--amber); }
+  .row.cur .ini { color: var(--amber); }
+  .row.tgt { background: rgba(255,93,77,.07); }
+  .row.tgt::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--red); }
+  .row.done { opacity: .55; }
+  .quick { grid-column: 2 / 5; display: flex; gap: 6px; margin-top: 4px; }
+  .quick .in { flex: 1; height: 26px; display: flex; align-items: center; padding: 0 8px; background: #0b0d0f; box-shadow: inset 0 0 0 1px var(--amber-d); color: var(--ink-3); font-size: 12px; }
+  .quick .in b { color: var(--ink); font-weight: 600; margin-right: 6px; }
+  .quick .q { height: 26px; padding: 0 8px; display: grid; place-items: center; font: 700 12px 'Barlow Condensed'; letter-spacing: .1em; color: var(--ink-2);
+    box-shadow: inset 0 0 0 1px var(--line-2); background: #1a1e22; }
+  .incoming { margin: 10px 14px 0; padding: 9px 10px; border: 1px dashed rgba(255,93,77,.5); display: flex; gap: 10px; align-items: center; color: var(--ink-2); font-size: 12px; }
+  .incoming b { font: 700 15px 'Barlow Condensed'; color: #ff9d92; letter-spacing: .04em; }
+  .rfoot { position: absolute; left: 0; right: 0; bottom: 0; padding: 9px 14px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 11px; color: var(--ink-3); background: var(--panel); }
+
+  /* ---- board ---- */
+  .board { position: absolute; left: 352px; top: 56px; width: 896px; height: 845px; background: #050607 url(../scene/board-center-1120x1056.png) 0 0 / 896px 845px no-repeat; }
+  .btools { position: absolute; left: 364px; top: 68px; display: flex; gap: 6px; }
+  .bt { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 2px; font: 700 13px 'Barlow Condensed'; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-2); background: rgba(15,18,20,.86); box-shadow: inset 0 0 0 1px var(--line-2); }
+  .bt.on { color: var(--teal); box-shadow: inset 0 0 0 1px var(--teal); }
+  .bt .ico { width: 14px; height: 14px; }
+  .camtools { position: absolute; left: 1100px; top: 68px; display: flex; gap: 4px; }
+  .tag { position: absolute; transform: translate(-50%, 0); display: flex; align-items: center; gap: 0; font: 700 11.5px 'Barlow Condensed'; letter-spacing: .06em;
+    background: rgba(10,12,14,.88); box-shadow: inset 0 0 0 1px var(--line-2); white-space: nowrap; }
+  .tag span { padding: 2px 5px; }
+  .tag .hpn { font: 600 11px 'IBM Plex Mono'; color: var(--ink); box-shadow: inset 1px 0 0 var(--line-2); }
+  .tag .s { box-shadow: inset 1px 0 0 var(--line-2); }
+  .tag.party span:first-child { color: var(--green); } .tag.enemy span:first-child { color: #ff9d92; }
+  .tag.cur { box-shadow: inset 0 0 0 1px var(--amber), 0 0 12px rgba(255,181,71,.4); }
+  .tag.tg { box-shadow: inset 0 0 0 1px var(--red), 0 0 12px rgba(255,93,77,.45); }
+  .elev { position: absolute; font: 600 11px 'IBM Plex Mono'; color: var(--teal); background: rgba(10,12,14,.8); padding: 1px 5px; box-shadow: inset 0 0 0 1px rgba(82,214,200,.4); transform: translate(-50%, -50%); }
+  .reticle { position: absolute; width: 62px; height: 30px; transform: translate(-50%, -50%); border: 2px solid var(--red); border-radius: 50%; box-shadow: 0 0 12px var(--red); }
+  .link { position: absolute; height: 2px; transform-origin: 0 50%; background: repeating-linear-gradient(90deg, var(--amber) 0 6px, transparent 6px 10px); }
+
+  /* ---- command line ---- */
+  .cli { position: absolute; left: 352px; top: 901px; width: 896px; height: 59px; background: var(--panel); border-top: 1px solid var(--line); display: flex; align-items: center; gap: 12px; padding: 0 16px; }
+  .prompt { font: 700 18px 'IBM Plex Mono'; color: var(--amber); }
+  .cmdtxt { font: 500 15px 'IBM Plex Mono'; color: var(--ink); }
+  .cmdtxt .t { color: var(--teal); } .cmdtxt .n { color: var(--amber); }
+  .caret { display: inline-block; width: 9px; height: 18px; background: var(--amber); vertical-align: -3px; animation: blink 1s steps(1) infinite; }
+  .parse { margin-left: auto; display: flex; gap: 6px; }
+  .pc { font: 600 11px 'IBM Plex Mono'; padding: 3px 7px; color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line-2); }
+
+  /* ---- resolve panel ---- */
+  .res { position: absolute; right: 0; top: 56px; bottom: 0; width: 288px; background: var(--panel); border-left: 1px solid var(--line); }
+  .vsrow { display: grid; grid-template-columns: 1fr 18px 1fr; align-items: center; gap: 4px; padding: 12px 14px 10px; border-bottom: 1px solid var(--line); }
+  .vsrow .u { display: flex; gap: 8px; align-items: center; }
+  .vsrow .u.r { flex-direction: row-reverse; text-align: right; }
+  .vsrow .pt { width: 38px; height: 38px; background: #0d1012; box-shadow: inset 0 0 0 1px var(--line-2); position: relative; overflow: hidden; flex: none; }
+  .vsrow .pt img { position: absolute; left: 4px; top: 2px; width: 30px; image-rendering: pixelated; }
+  .vsrow .u.r .pt img { transform: scaleX(-1); }
+  .vsrow b { font: 700 15px 'Barlow Condensed'; display: block; line-height: 1; }
+  .vsrow small { font-size: 10.5px; color: var(--ink-3); }
+  .tape { padding: 10px 14px 0; font-size: 13.5px; }
+  .ln { display: flex; align-items: baseline; gap: 6px; height: 22px; }
+  .ln .d { flex: 1; border-bottom: 1px dotted #2d3338; transform: translateY(-4px); }
+  .ln .v { font-weight: 700; min-width: 34px; text-align: right; }
+  .ln.in .v { color: #0b0d0f; background: var(--ink); padding: 0 5px; }
+  .ln.buff .k, .ln.buff .v { color: var(--amber); }
+  .ln.sum { height: 30px; border-top: 1px solid var(--line-2); margin-top: 4px; padding-top: 6px; }
+  .ln.sum .v { font-size: 20px; }
+  .tierbar { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 3px; margin: 10px 0 4px; }
+  .tierbar div { height: 26px; display: grid; place-items: center; font: 700 12px 'Barlow Condensed'; letter-spacing: .1em; color: var(--ink-3); background: #0e1113; box-shadow: inset 0 0 0 1px var(--line); }
+  .tierbar .on { color: #1b1203; background: var(--amber); box-shadow: 0 0 14px rgba(255,181,71,.45); }
+  .tiernote { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--ink-3); }
+  .sec { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .dicein { display: flex; gap: 8px; margin: 8px 0 6px; }
+  .dicein div { flex: 1; height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0b0d0f; box-shadow: inset 0 0 0 1px var(--line-2); }
+  .dicein div small { font-size: 9.5px; color: var(--ink-3); }
+  .dicein div b { font: 700 19px 'IBM Plex Mono'; }
+  .dicein .act { box-shadow: inset 0 0 0 2px var(--amber), 0 0 12px rgba(255,181,71,.3); }
+  .dicein .act b::after { content: ''; display: inline-block; width: 2px; height: 17px; margin-left: 2px; background: var(--amber); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+  .result { margin: 10px 14px 0; padding: 10px 12px; background: rgba(255,93,77,.08); box-shadow: inset 0 0 0 1px rgba(255,93,77,.45); display: flex; align-items: center; justify-content: space-between; }
+  .result .big { font: 700 34px 'IBM Plex Mono'; color: var(--red); line-height: 1; text-shadow: 0 0 14px rgba(255,93,77,.5); }
+  .result .after { text-align: right; font-size: 11.5px; color: var(--ink-2); }
+  .result .after b { display: block; font: 700 18px 'IBM Plex Mono'; color: var(--ink); }
+  .acts { display: flex; gap: 6px; padding: 10px 14px; }
+  .acts .btn { height: 32px; font-size: 13px; flex: 1; justify-content: center; }
+  .log { position: absolute; left: 0; right: 0; bottom: 0; top: 590px; border-top: 1px solid var(--line); }
+  .ev { display: grid; grid-template-columns: 26px 1fr 20px; gap: 6px; padding: 7px 14px; border-bottom: 1px solid #1b1f23; font-size: 11.5px; line-height: 1.3; }
+  .ev .r { color: var(--ink-3); } .ev .x { color: var(--ink-2); } .ev .x b { color: var(--ink); font-weight: 600; }
+  .ev .u { color: var(--ink-3); width: 14px; height: 14px; }
+</style>
+</head>
+<body class="scuff">
+<div id="ui"></div>
+<script src="scene-data.js"></script>
+<script>
+const S = window.SCENE, I = S.ICON;
+const pt = (u) => u.portrait ? `<img src="${u.portrait}">` : `<div class="gl">${u.glyph}</div>`;
+const tagS = (s) => `<span class="tagS ${s.k}"><span class="ico">${I[s.icon]}</span>${s.n}<em>${s.t}r</em></span>`;
+const col = (u) => u.hp / u.max > .5 ? (u.side === 'enemy' ? '#e9584a' : 'var(--green)') : u.hp / u.max > .25 ? 'var(--amber)' : 'var(--red)';
+let h = '';
+
+// top bar
+h += `<div class="top">
+  <div class="brand"><div style="padding-left:8px"><div class="t">DOME C · ENCOUNTER 07</div><div class="s">CASSANDRALIS STATION / ARBORETUM RING</div></div></div>
+  <div class="rnd">
+    <div><div class="lbl">Round</div><div class="seg7"><span class="dim">0</span>3</div></div>
+    <div class="turnof"><div class="lbl">Turn</div><b>2 / 9</b></div>
+    <div class="btn primary">Next turn <span class="k">␣</span></div>
+  </div>
+  <div class="power">
+    <span class="lbl">Power</span>
+    <div class="amb"><div>BRT</div><div class="on">DIM</div><div>DRK</div></div>
+    ${S.lighting.lights.map((l) => `<div class="brk ${l.on ? 'on' : ''}"><span class="lever"></span>
+      <div class="n">${l.name.replace('Service bay floods', 'Service bay').replace("Henry's torch", 'Torch · Henry').toUpperCase()}<small>${l.group ? (l.note ? 'gen. offline' : `${l.count} lamps`) : 'carried'}</small></div>
+      <span class="dot" style="background:${l.on ? l.color : '#2b3036'};box-shadow:${l.on ? `0 0 8px ${l.color}` : 'none'}"></span></div>`).join('')}
+  </div>
+  <div class="tv"><span class="live"></span><div><div class="lbl" style="color:var(--ink-2)">Player view</div><div style="font-size:11px;color:var(--ink-3)">HDMI-2 · 1080p</div></div>
+    <div class="btn" style="height:32px;padding:0 10px;margin-left:8px"><span class="ico">${I.undo}</span><span class="k">^Z</span></div></div>
+</div>`;
+
+// roster
+h += `<div class="roster">
+  <div class="ph"><span class="n">01</span><span class="lbl">Initiative</span><span class="r"><span class="k">↑↓</span><span class="k">D</span><span class="k">Y</span></span></div>
+  <div class="cols lbl" style="font-size:10.5px"><span>INI</span><span>Unit</span><span>HP</span><span style="text-align:right">AC</span></div>`;
+S.units.forEach((u, i) => {
+  const cls = [u.current ? 'cur' : '', u.target ? 'tgt' : '', i === 0 ? 'done' : ''].join(' ');
+  const pend = u.target ? `<i class="pend" style="left:${S.attack.hpAfter / u.max * 100}%;width:${(u.hp - S.attack.hpAfter) / u.max * 100}%"></i>` : '';
+  const meta = `<span class="side" style="background:${u.side === 'party' ? 'var(--green)' : 'var(--red)'}"></span>${u.boss ? 'BOSS · ' : ''}${u.cell} · ${u.fly ? '▲ fly ' + u.fly : u.height}`;
+  const flags = [u.readied ? `<span class="tagS flag">Readied<em>ramp</em></span>` : ''].join('');
+  h += `<div class="row ${cls}">
+    <div class="ini">${u.init}</div>
+    <div class="who"><div class="pt">${pt(u)}</div><div style="min-width:0"><div class="nm">${u.name}</div><div class="meta">${meta}</div></div></div>
+    <div class="hp"><div class="nums"><b style="color:${u.target ? 'var(--ink)' : 'var(--ink)'}">${u.hp}</b><span>/ ${u.max}${u.target ? ' <span style="color:var(--red)">→4</span>' : ''}</span></div>
+      <div class="bar"><i style="width:${u.hp / u.max * 100}%;background:${col(u)}"></i>${pend}</div></div>
+    <div class="ac">${u.ac}<small>${u.statuses.some((s) => s.fx.includes('AC')) ? (u.side === 'enemy' ? '−2' : '+2') : 'AC'}</small></div>
+    ${u.statuses.length || flags ? `<div class="st">${u.statuses.map(tagS).join('')}${flags}</div>` : ''}
+    ${u.current ? `<div class="quick"><div class="in" style="white-space:nowrap"><b>±</b>−7 · +5 · burn</div><div class="q">ATK E</div><div class="q">MOVE F</div><div class="q">CAST C</div></div>` : ''}
+  </div>`;
+});
+h += `<div class="incoming"><span class="lbl" style="color:#ff9d92">R4</span><div><b>Falsiradix ×2</b><div>reinforcements · east vent · auto-join at round 4</div></div></div>
+  <div class="rfoot"><span><span class="k">−7</span> on a row = damage</span><span><span class="k">+5</span> heal</span><span><span class="k">s</span> status</span><span><span class="k">D</span> delay</span><span><span class="k">⇧</span>drag reorder</span></div>
+</div>`;
+
+// board + overlays
+const B = (id) => S.pos('center', id, 352, 56);
+h += `<div class="board"></div>
+<div class="btools">
+  <div class="bt on"><span class="ico">${I.height}</span>Survey <span class="k">H</span></div>
+  <div class="bt"><span class="ico">${I.lamp}</span>Lights</div>
+  <div class="bt"><span class="ico">${I.spawn}</span>Spawn <span class="k">U</span></div>
+  <div class="bt"><span class="ico">${I.gear}</span>Board</div>
+</div>
+<div class="camtools"><div class="bt">⟲</div><div class="bt">⟳</div><div class="bt">⌂</div></div>`;
+const short = { u20: 'ILYAS', u1: 'HENRY', u7: 'HORNET', u3: 'G.WIZ', u5: 'GUARD 1', u2: 'DAN', u8: 'SHLD GRD', u6: 'GUARD 2', u4: 'NMB-15' };
+const abbr = { Blessed: 'BLS', Burning: 'BRN', Chilled: 'CHL', 'Shield of Faith': 'SoF', Illuminated: 'ILL' };
+const off = { u1: [-6, 26], u5: [46, -38], u6: [-56, -8], u4: [0, 8], u2: [10, 6], u8: [0, 6], u3: [0, 6], u20: [0, 6], u7: [84, -18] };
+for (const u of S.units) {
+  const p = B(u.id), [ox, oy] = off[u.id];
+  const st = u.statuses.map((s) => `<span class="s" style="color:${s.k === 'buff' ? 'var(--amber)' : s.k === 'dot' ? 'var(--orange)' : 'var(--violet)'}">${abbr[s.n]}${s.t}</span>`).join('');
+  h += `<div class="tag ${u.side} ${u.current ? 'cur' : ''} ${u.target ? 'tg' : ''}" style="left:${p.x + ox}px;top:${p.feet + oy}px"><span>${short[u.id]}</span><span class="hpn">${u.hp}</span>${st}</div>`;
+}
+const g = B('u5'), hk = B('u1');
+h += `<div class="reticle" style="left:${g.x}px;top:${g.feet - 2}px"></div>`;
+// survey height labels on plateaus
+[[ 'u3', '+10', -70, -40 ], [ 'u8', '+5', -64, -8 ], [ 'u20', '+15', 50, -10 ]].forEach(([id, t, dx, dy]) => { const p = B(id); h += `<div class="elev" style="left:${p.x + dx}px;top:${p.feet + dy}px">${t} ft</div>`; });
+h += `<div class="elev" style="left:${hk.x + 120}px;top:${hk.feet + 70}px;color:#7fb2ff;box-shadow:inset 0 0 0 1px rgba(127,178,255,.4)">−10 ft</div>`;
+
+// command line
+h += `<div class="cli"><span class="prompt">›</span>
+  <span class="cmdtxt"><span class="t">henry</span> atk <span class="t">guard1</span> <span class="n">9</span> · <span class="n">4 5</span><span class="caret"></span></span>
+  <span class="parse"><span class="pc">ATTACK</span><span class="pc">d20 9</span><span class="pc">dice 4 · 5</span><span class="pc" style="color:var(--amber);box-shadow:inset 0 0 0 1px var(--amber-d)">⏎ apply</span></span>
+</div>`;
+
+// resolve panel
+const A = S.attack, me = S.byId.u1, them = S.byId.u5;
+h += `<div class="res">
+  <div class="ph"><span class="n">02</span><span class="lbl">Resolve · attack</span><span class="r"><span class="k">Esc</span></span></div>
+  <div class="vsrow">
+    <div class="u"><div class="pt"><img src="${me.portrait}"></div><div><b>HENRY</b><small>Sledgehammer</small></div></div>
+    <div style="text-align:center;color:var(--amber)">▸</div>
+    <div class="u r"><div class="pt"><img src="${them.portrait}"></div><div><b>GUARD 1</b><small>AC 12 · 18 HP</small></div></div>
+  </div>
+  <div class="tape">
+    <div class="ln in"><span class="k">d20</span><span class="d"></span><span class="v">${A.d20}</span></div>
+    <div class="ln"><span class="k">STR</span><span class="d"></span><span class="v">+7</span></div>
+    <div class="ln buff"><span class="k">Blessed</span><span class="d"></span><span class="v">+2</span></div>
+    <div class="ln sum"><span class="k">TOTAL</span><span class="d"></span><span class="v">18</span></div>
+    <div class="ln"><span class="k">vs AC</span><span class="d"></span><span class="v">12</span></div>
+    <div class="ln"><span class="k">MARGIN</span><span class="d"></span><span class="v" style="color:var(--amber)">+6</span></div>
+    <div class="tierbar"><div>MISS</div><div>T1</div><div class="on">T2</div><div>T3</div></div>
+    <div class="tiernote"><span>&lt;0 · 0–4 · 5–7 · 8+</span><span style="color:var(--amber)">T3 at +8 (2 short)</span></div>
+    <div class="sec">
+      <div class="lbl">Damage · T1 + T2</div>
+      <div class="dicein"><div><small>T1 d6</small><b>4</b></div><div class="act"><small>T2 d6</small><b>5</b></div><div style="flex:.9"><small>STR ½</small><b style="color:var(--ink-2)">+5</b></div></div>
+      <div class="ln sum" style="margin-top:2px"><span class="k">4 + 5 + 5</span><span class="d"></span><span class="v">14</span></div>
+    </div>
+  </div>
+  <div class="result"><div class="big">−14</div><div class="after">GUARD 1 HP<b>18 → 4</b>Burning stays · 2r</div></div>
+  <div class="acts"><div class="btn primary">Apply <span class="k">⏎</span></div><div class="btn">Crit ×1.5</div></div>
+  <div class="log">
+    <div class="ph"><span class="n">03</span><span class="lbl">Log</span><span class="r"><span class="k">^Z</span></span></div>
+    ${S.log.map((e) => `<div class="ev"><span class="r">R${e.r}</span><span class="x"><b>${e.t}</b><br>${e.res.replace('SAVED · d20 15 +4 vs DC 17? no — 19 ≥ 17', 'SAVED · 15+4 = 19 vs DC 17')}</span><span class="u ico">${I.undo}</span></div>`).join('')}
+  </div>
+</div>`;
+document.getElementById('ui').innerHTML = h;
+</script>
+</body>
+</html>

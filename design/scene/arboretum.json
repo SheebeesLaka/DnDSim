@@ -1,0 +1,2621 @@
+{
+ "name": "arboretum",
+ "description": "Design mockup scene: Arboretum Dome C, round 3, Henry attacking Moongate Guard #1.",
+ "assets": {
+  "party": {
+   "Grand_Wizard_Man": {
+    "name": "Grand Wizard Man",
+    "characterClass": "None",
+    "color": "#CCCCCC",
+    "isParty": true,
+    "level": 12,
+    "group": "NPC",
+    "totalHP": 20,
+    "currentHP": 20,
+    "armorClass": 10,
+    "status": [],
+    "baseAttributes": [
+     2,
+     12,
+     2,
+     11,
+     11,
+     11
+    ],
+    "tempAttributes": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "totalAttributes": [
+     2,
+     12,
+     2,
+     11,
+     11,
+     11
+    ],
+    "weapons": [
+     null,
+     null
+    ],
+    "PRIMARY": 0,
+    "SECONDARY": 1,
+    "accessories": [
+     null,
+     null,
+     null
+    ],
+    "inventory": [],
+    "wallet": 0,
+    "abilities": [],
+    "spellcastingStat": "INTELLIGENCE",
+    "knownSpells": [
+     "Fire Bolt",
+     "Ray of Frost",
+     "Sacred Flame",
+     "Thunderclap",
+     "Bless",
+     "Burning Hands",
+     "Cure Wounds",
+     "Guiding Bolt",
+     "Magic Missile",
+     "Shield of Faith",
+     "Thunderwave",
+     "Hold Person",
+     "Shatter",
+     "Fireball",
+     "Lightning Bolt",
+     "Mass Healing Word"
+    ],
+    "spellSlotsUsed": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "NMB_15": {
+    "name": "NMB-15",
+    "characterClass": "Dark Stormmancer",
+    "color": "#0000FF",
+    "isParty": true,
+    "level": 1,
+    "group": "OMEGA",
+    "totalHP": 24,
+    "currentHP": 18,
+    "armorClass": 10,
+    "status": [],
+    "baseAttributes": [
+     2,
+     7,
+     3,
+     7,
+     5,
+     3
+    ],
+    "tempAttributes": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "totalAttributes": [
+     2,
+     7,
+     3,
+     7,
+     5,
+     3
+    ],
+    "weapons": [
+     {
+      "damageDice": [
+       "d6",
+       "d8",
+       "d12"
+      ],
+      "statType": "INTELLIGENCE",
+      "modifiedAttributes": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "abilities": [],
+      "damage": 0,
+      "name": "Plasmoid's Fulmen",
+      "type": "Weapon",
+      "color": "#FF0000",
+      "quantity": 1
+     },
+     null
+    ],
+    "PRIMARY": 0,
+    "SECONDARY": 1,
+    "accessories": [
+     {
+      "defense": 1,
+      "modifiedAttributes": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "abilities": [
+       {
+        "name": "REGEN",
+        "description": "Regenerates 2HP every turn",
+        "triggerType": "ON_TURN_START",
+        "effectType": "HEAL",
+        "magnitude": 2,
+        "targetAttribute": 0,
+        "abilityType": "PASSIVE"
+       }
+      ],
+      "armorType": 0,
+      "name": "Plasmoid Core",
+      "type": "Accessory",
+      "color": "9",
+      "quantity": 1
+     },
+     null,
+     null
+    ],
+    "inventory": [
+     {
+      "defense": 0,
+      "armorType": 0,
+      "name": "Plasmoid Core",
+      "type": "Accessory",
+      "color": "9",
+      "quantity": 1
+     },
+     {
+      "healAmount": 25,
+      "name": "First-Aid Kit",
+      "type": "Consumable",
+      "color": "0",
+      "quantity": 1
+     }
+    ],
+    "wallet": 0,
+    "abilities": [],
+    "knownSpells": [],
+    "spellSlotsUsed": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "Magnolia_Grandiflora": {
+    "name": "Magnolia Grandiflora",
+    "characterClass": "Sorceress",
+    "color": "#800080",
+    "isParty": true,
+    "level": 1,
+    "group": "ALPHA",
+    "totalHP": 20,
+    "currentHP": 8,
+    "armorClass": 15,
+    "status": [],
+    "baseAttributes": [
+     3,
+     6,
+     3,
+     6,
+     3,
+     6
+    ],
+    "tempAttributes": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "totalAttributes": [
+     3,
+     6,
+     3,
+     6,
+     3,
+     6
+    ],
+    "weapons": [
+     {
+      "damageDice": [
+       "d4",
+       "d6",
+       "d6"
+      ],
+      "statType": "DEXTERITY",
+      "modifiedAttributes": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "abilities": [],
+      "damage": 0,
+      "name": "Sickle",
+      "type": "Weapon",
+      "color": "#FF0000",
+      "quantity": 1
+     },
+     null
+    ],
+    "PRIMARY": 0,
+    "SECONDARY": 1,
+    "accessories": [
+     null,
+     null,
+     null
+    ],
+    "inventory": [],
+    "wallet": 0,
+    "abilities": [],
+    "spellcastingStat": "CHARISMA",
+    "knownSpells": [
+     "Fire Bolt",
+     "Magic Missile"
+    ],
+    "spellSlotsUsed": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "Henry_Keaton": {
+    "name": "Henry Keaton",
+    "characterClass": "Warrior Survivalist ",
+    "color": "#8B0000",
+    "isParty": true,
+    "level": 1,
+    "group": "OMEGA",
+    "totalHP": 36,
+    "currentHP": 20,
+    "armorClass": 14,
+    "status": [],
+    "baseAttributes": [
+     6,
+     2,
+     7,
+     2,
+     7,
+     3
+    ],
+    "tempAttributes": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "totalAttributes": [
+     6,
+     2,
+     7,
+     2,
+     7,
+     3
+    ],
+    "weapons": [
+     null,
+     {
+      "damageDice": [
+       "d6",
+       "d6",
+       "d10"
+      ],
+      "statType": "STRENGTH",
+      "modifiedAttributes": [
+       1,
+       0,
+       1,
+       0,
+       0,
+       0
+      ],
+      "abilities": [],
+      "damage": 0,
+      "name": "Sledgehammer",
+      "type": "Weapon",
+      "color": "#808080",
+      "quantity": 1
+     }
+    ],
+    "PRIMARY": 0,
+    "SECONDARY": 1,
+    "accessories": [
+     null,
+     null,
+     null
+    ],
+    "inventory": [],
+    "wallet": 0,
+    "abilities": [],
+    "knownSpells": [],
+    "spellSlotsUsed": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "spritePath": "party/testsprites.png#0"
+   },
+   "Dan_Dixon": {
+    "name": "Dan Dixon",
+    "characterClass": "Strategist Striker",
+    "color": "#000000",
+    "isParty": true,
+    "level": 1,
+    "group": "OMEGA",
+    "totalHP": 30,
+    "currentHP": 18,
+    "armorClass": 13,
+    "status": [],
+    "baseAttributes": [
+     4,
+     5,
+     4,
+     2,
+     7,
+     5
+    ],
+    "tempAttributes": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "totalAttributes": [
+     4,
+     5,
+     4,
+     2,
+     7,
+     5
+    ],
+    "weapons": [
+     {
+      "damageDice": [
+       "d6",
+       "d4",
+       "d8"
+      ],
+      "statType": "DEXTERITY",
+      "modifiedAttributes": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "abilities": [],
+      "damage": 0,
+      "name": "Shortbarrel Shotgun",
+      "type": "Weapon",
+      "color": "#FF0000",
+      "quantity": 1,
+      "ammoType": "12 Gauge"
+     },
+     null
+    ],
+    "PRIMARY": 0,
+    "SECONDARY": 1,
+    "accessories": [
+     null,
+     null,
+     null
+    ],
+    "inventory": [
+     {
+      "ammoType": "12 Gauge",
+      "name": "12 Gauge Shells",
+      "type": "Ammunition",
+      "color": 4,
+      "quantity": 6
+     },
+     {
+      "healAmount": 25,
+      "name": "First-Aid Kit",
+      "type": "Consumable",
+      "color": "#8066CC",
+      "quantity": 2
+     }
+    ],
+    "wallet": 0,
+    "abilities": [],
+    "knownSpells": [],
+    "spellSlotsUsed": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "spritePath": "party/testsprites.png#4"
+   }
+  },
+  "nonparty": {},
+  "enemies": {
+   "Spider": {
+    "name": "Spider",
+    "health": 18,
+    "maxHealth": 18,
+    "mobility": 7,
+    "armorClass": 12,
+    "attackModifier": 0,
+    "damageDice": [
+     "d4",
+     "d4",
+     "d6"
+    ],
+    "initiative": 4,
+    "dexterity": 4,
+    "color": "#0000FF",
+    "instanceNumber": 0,
+    "baseName": "Spider",
+    "tags": [
+     "Beast"
+    ],
+    "attackDamage": 0,
+    "row": 0,
+    "col": 0
+   },
+   "Overgrown Hornet": {
+    "name": "Overgrown Hornet",
+    "health": 20,
+    "maxHealth": 20,
+    "mobility": 5,
+    "armorClass": 13,
+    "damageDice": [
+     "d4",
+     "d4",
+     "d6"
+    ],
+    "dexterity": 3,
+    "color": "#B3661A",
+    "instanceNumber": 0,
+    "baseName": "Overgrown Hornet",
+    "tags": [
+     "Beast"
+    ],
+    "attributes": [
+     2,
+     3,
+     2,
+     2,
+     2,
+     2
+    ],
+    "attackDamage": 0,
+    "row": 0,
+    "col": 0
+   },
+   "Legendary Broodmother": {
+    "name": "Legendary Broodmother",
+    "health": 55,
+    "maxHealth": 55,
+    "mobility": 3,
+    "armorClass": 13,
+    "attackModifier": 0,
+    "damageDice": [
+     "d4",
+     "d6",
+     "d6"
+    ],
+    "initiative": 2,
+    "dexterity": 2,
+    "color": "#4D3399",
+    "instanceNumber": 0,
+    "baseName": "Legendary Broodmother",
+    "tags": [
+     "Boss",
+     "Beast"
+    ],
+    "attackDamage": 0,
+    "row": 0,
+    "col": 0
+   },
+   "Snake": {
+    "name": "Snake",
+    "health": 14,
+    "maxHealth": 14,
+    "mobility": 5,
+    "armorClass": 12,
+    "damageDice": [
+     "d4",
+     "d4",
+     "d4"
+    ],
+    "dexterity": 7,
+    "color": "#008000",
+    "instanceNumber": 0,
+    "baseName": "Snake",
+    "tags": [
+     "Beast"
+    ],
+    "attributes": [
+     7,
+     7,
+     7,
+     7,
+     7,
+     7
+    ],
+    "attackDamage": 0,
+    "row": 0,
+    "col": 0,
+    "spritePath": "party/testsprites.png#9"
+   },
+   "Human Puppet": {
+    "name": "Human Puppet",
+    "health": 18,
+    "maxHealth": 18,
+    "mobility": 3,
+    "armorClass": 11,
+    "attackModifier": 0,
+    "damageDice": [
+     "d6",
+     "d6",
+     "d8"
+    ],
+    "initiative": 2,
+    "dexterity": 2,
+    "color": "#993300",
+    "instanceNumber": 0,
+    "baseName": "Human Puppet",
+    "tags": [
+     "Humanoid",
+     "Optimized"
+    ],
+    "attackDamage": 0,
+    "row": 0,
+    "col": 0,
+    "spritePath": "party/testsprites.png#11"
+   }
+  },
+  "weapons": {
+   "Android_Multitool": {
+    "damageDice": [
+     "d6",
+     "d4",
+     "d8"
+    ],
+    "statType": "DEXTERITY",
+    "modifiedAttributes": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "abilities": [
+     {
+      "name": "Unnamed",
+      "description": "",
+      "triggerType": "ON_TURN_START",
+      "effectType": "HEAL",
+      "magnitude": 1,
+      "targetAttribute": 0,
+      "abilityType": "PASSIVE"
+     }
+    ],
+    "damage": 0,
+    "name": "Android Multitool",
+    "type": "Weapon",
+    "color": "#1A1A1A",
+    "quantity": 1
+   },
+   "Greatsword": {
+    "damageDice": [
+     "d6",
+     "d6",
+     "d10"
+    ],
+    "statType": "STRENGTH",
+    "modifiedAttributes": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "abilities": [],
+    "damage": 0,
+    "name": "Greatsword",
+    "type": "Weapon",
+    "color": "#FF0000",
+    "quantity": 1
+   },
+   "Handaxe": {
+    "damageDice": [
+     "d6",
+     "d6",
+     "d6"
+    ],
+    "statType": "DEXTERITY",
+    "modifiedAttributes": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "abilities": [],
+    "damage": 0,
+    "name": "Handaxe",
+    "type": "Weapon",
+    "color": "#FF0000",
+    "quantity": 1
+   },
+   "Plasmoid_s_Fulmen": {
+    "damageDice": [
+     "d6",
+     "d8",
+     "d12"
+    ],
+    "statType": "INTELLIGENCE",
+    "modifiedAttributes": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "abilities": [],
+    "damage": 0,
+    "name": "Plasmoid's Fulmen",
+    "type": "Weapon",
+    "color": "#FF0000",
+    "quantity": 1
+   },
+   "Shortbarrel_Shotgun": {
+    "damageDice": [
+     "d6",
+     "d4",
+     "d8"
+    ],
+    "statType": "DEXTERITY",
+    "modifiedAttributes": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "abilities": [],
+    "damage": 0,
+    "name": "Shortbarrel Shotgun",
+    "type": "Weapon",
+    "color": "#FF0000",
+    "quantity": 1,
+    "ammoType": "12 Gauge"
+   },
+   "Sickle": {
+    "damageDice": [
+     "d4",
+     "d6",
+     "d6"
+    ],
+    "statType": "DEXTERITY",
+    "modifiedAttributes": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "abilities": [],
+    "damage": 0,
+    "name": "Sickle",
+    "type": "Weapon",
+    "color": "#FF0000",
+    "quantity": 1
+   },
+   "Sledgehammer": {
+    "damageDice": [
+     "d6",
+     "d6",
+     "d10"
+    ],
+    "statType": "STRENGTH",
+    "modifiedAttributes": [
+     1,
+     0,
+     1,
+     0,
+     0,
+     0
+    ],
+    "abilities": [],
+    "damage": 0,
+    "name": "Sledgehammer",
+    "type": "Weapon",
+    "color": "#808080",
+    "quantity": 1
+   }
+  },
+  "accessories": {
+   "Plasmoid_Core": {
+    "defense": 1,
+    "modifiedAttributes": [
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "abilities": [
+     {
+      "name": "REGEN",
+      "description": "Regenerates 2HP every turn",
+      "triggerType": "ON_TURN_START",
+      "effectType": "HEAL",
+      "magnitude": 2,
+      "targetAttribute": 0
+     }
+    ],
+    "armorType": 0,
+    "name": "Plasmoid Core",
+    "type": "Accessory",
+    "color": 9,
+    "quantity": 1
+   }
+  },
+  "consumables": {
+   "First_Aid_Kit": {
+    "healAmount": 25,
+    "name": "First-Aid Kit",
+    "type": "Consumable",
+    "color": "#8066CC",
+    "quantity": 1
+   }
+  },
+  "ammunition": {
+   "12_Gauge_Shells": {
+    "ammoType": "12 Gauge",
+    "name": "12 Gauge Shells",
+    "type": "Ammunition",
+    "color": 4,
+    "quantity": 12
+   }
+  },
+  "crafting": {},
+  "keyitems": {},
+  "spells": {
+   "Bless": {
+    "name": "Bless",
+    "description": "Bless an ally: +2 to attack rolls for 10 turns.",
+    "color": "#FFD54F",
+    "level": 1,
+    "school": "Enchantment",
+    "resolution": "BUFF",
+    "range": 4,
+    "targetType": "ALLY",
+    "damageDice": [
+     null,
+     null,
+     null
+    ],
+    "saveStat": "DEXTERITY",
+    "onSave": "NONE",
+    "riderMinTier": 1,
+    "addCastingMod": false,
+    "riderStatus": {
+     "name": "Blessed",
+     "effectType": 6,
+     "magnitude": 2,
+     "duration": 10,
+     "targetAttribute": -1
+    }
+   },
+   "Burning_Hands": {
+    "name": "Burning Hands",
+    "description": "A thin sheet of flame shoots from your fingertips in a 3-tile cone. Dexterity save for half. Allies in the cone get burned too.",
+    "color": "#FF8A65",
+    "level": 1,
+    "school": "Evocation",
+    "resolution": "SAVE",
+    "range": 0,
+    "targetType": "ENEMY",
+    "damageDice": [
+     "d6",
+     "d6",
+     "d8"
+    ],
+    "saveStat": "DEXTERITY",
+    "onSave": "HALF",
+    "riderMinTier": 1,
+    "addCastingMod": false,
+    "flatDamage": 0,
+    "area": "CONE",
+    "areaSize": 3,
+    "friendlyFire": true,
+    "upcastDie": "d6"
+   },
+   "Cure_Wounds": {
+    "name": "Cure Wounds",
+    "description": "Touch a creature to restore d8 + casting bonus HP (+d8 per slot level above 1st).",
+    "color": "#81C784",
+    "level": 1,
+    "school": "Evocation",
+    "resolution": "HEAL",
+    "range": 1,
+    "targetType": "ALLY",
+    "damageDice": [
+     "d8",
+     null,
+     null
+    ],
+    "saveStat": "DEXTERITY",
+    "onSave": "NONE",
+    "riderMinTier": 1,
+    "addCastingMod": true,
+    "upcastDie": "d8"
+   },
+   "Fire_Bolt": {
+    "name": "Fire Bolt",
+    "description": "Hurl a mote of fire. A tier 3 hit sets the target Burning.",
+    "color": "#FF7043",
+    "level": 0,
+    "school": "Evocation",
+    "resolution": "ATTACK",
+    "range": 8,
+    "targetType": "ENEMY",
+    "damageDice": [
+     "d4",
+     "d6",
+     "d10"
+    ],
+    "saveStat": "DEXTERITY",
+    "onSave": "NONE",
+    "riderStatus": {
+     "name": "Burning",
+     "effectType": 1,
+     "magnitude": 2,
+     "duration": 2,
+     "targetAttribute": -1
+    },
+    "riderMinTier": 3,
+    "addCastingMod": false,
+    "flatDamage": 0
+   },
+   "Fireball": {
+    "name": "Fireball",
+    "description": "A bead of fire blossoms into a radius-2 explosion up to 8 tiles away. Dexterity save for half; a tier 3 failure leaves targets Burning.",
+    "color": "#FF5722",
+    "level": 3,
+    "school": "Evocation",
+    "resolution": "SAVE",
+    "range": 8,
+    "targetType": "ENEMY",
+    "damageDice": [
+     "d10",
+     "d10",
+     "d12"
+    ],
+    "saveStat": "DEXTERITY",
+    "onSave": "HALF",
+    "riderMinTier": 3,
+    "addCastingMod": false,
+    "flatDamage": 0,
+    "area": "BURST",
+    "areaSize": 2,
+    "friendlyFire": true,
+    "upcastDie": "d6",
+    "riderStatus": {
+     "name": "Burning",
+     "effectType": 1,
+     "magnitude": 2,
+     "duration": 2,
+     "targetAttribute": -1
+    }
+   },
+   "Guiding_Bolt": {
+    "name": "Guiding Bolt",
+    "description": "A flash of light that leaves the target Illuminated (-2 AC) until the end of its next turn.",
+    "color": "#FFF59D",
+    "level": 1,
+    "school": "Evocation",
+    "resolution": "ATTACK",
+    "range": 8,
+    "targetType": "ENEMY",
+    "damageDice": [
+     "d12",
+     "d8",
+     "d10"
+    ],
+    "saveStat": "DEXTERITY",
+    "onSave": "NONE",
+    "riderMinTier": 1,
+    "addCastingMod": false,
+    "upcastDie": "d6",
+    "riderStatus": {
+     "name": "Illuminated",
+     "effectType": 5,
+     "magnitude": -2,
+     "duration": 2,
+     "targetAttribute": -1
+    }
+   },
+   "Hold_Person": {
+    "name": "Hold Person",
+    "description": "Wisdom save or the target is Held in place (no movement) until the end of its next turn.",
+    "color": "#9575CD",
+    "level": 2,
+    "school": "Enchantment",
+    "resolution": "SAVE",
+    "range": 6,
+    "targetType": "ENEMY",
+    "damageDice": [
+     null,
+     null,
+     null
+    ],
+    "saveStat": "WISDOM",
+    "onSave": "NONE",
+    "riderMinTier": 1,
+    "addCastingMod": false,
+    "riderStatus": {
+     "name": "Held",
+     "effectType": 4,
+     "magnitude": -99,
+     "duration": 2,
+     "targetAttribute": -1
+    }
+   },
+   "Lightning_Bolt": {
+    "name": "Lightning Bolt",
+    "description": "A 10-tile line of lightning blasts out from you toward your aim. Dexterity save for half.",
+    "color": "#FFEE58",
+    "level": 3,
+    "school": "Evocation",
+    "resolution": "SAVE",
+    "range": 0,
+    "targetType": "ENEMY",
+    "damageDice": [
+     "d10",
+     "d10",
+     "d10"
+    ],
+    "saveStat": "DEXTERITY",
+    "onSave": "HALF",
+    "riderMinTier": 1,
+    "addCastingMod": false,
+    "flatDamage": 0,
+    "area": "LINE",
+    "areaSize": 10,
+    "friendlyFire": true,
+    "upcastDie": "d6"
+   },
+   "Magic_Missile": {
+    "name": "Magic Missile",
+    "description": "Three glowing darts that always strike their target: 3d4 + 3 force damage, +1d4 per slot level above 1st.",
+    "color": "#B388FF",
+    "level": 1,
+    "school": "Evocation",
+    "resolution": "AUTO",
+    "range": 8,
+    "targetType": "ENEMY",
+    "damageDice": [
+     "d4",
+     "d4",
+     "d4"
+    ],
+    "saveStat": "DEXTERITY",
+    "onSave": "NONE",
+    "upcastDie": "d4",
+    "riderMinTier": 1,
+    "addCastingMod": false,
+    "flatDamage": 3
+   },
+   "Mass_Healing_Word": {
+    "name": "Mass Healing Word",
+    "description": "Words of restoration heal every ally within a radius-2 burst up to 8 tiles away.",
+    "color": "#A5D6A7",
+    "level": 3,
+    "school": "Evocation",
+    "resolution": "HEAL",
+    "range": 8,
+    "targetType": "ALLY",
+    "damageDice": [
+     "d4",
+     null,
+     null
+    ],
+    "saveStat": "DEXTERITY",
+    "onSave": "NONE",
+    "riderMinTier": 1,
+    "addCastingMod": true,
+    "flatDamage": 0,
+    "area": "BURST",
+    "areaSize": 2,
+    "friendlyFire": false,
+    "upcastDie": "d4"
+   },
+   "Ray_of_Frost": {
+    "name": "Ray of Frost",
+    "description": "A frigid beam that Chills the target, cutting its movement by 2 until the end of its next turn.",
+    "color": "#4FC3F7",
+    "level": 0,
+    "school": "Evocation",
+    "resolution": "ATTACK",
+    "range": 5,
+    "targetType": "ENEMY",
+    "damageDice": [
+     "d8",
+     "d6",
+     "d8"
+    ],
+    "saveStat": "DEXTERITY",
+    "onSave": "NONE",
+    "riderMinTier": 1,
+    "addCastingMod": false,
+    "riderStatus": {
+     "name": "Chilled",
+     "effectType": 4,
+     "magnitude": -2,
+     "duration": 2,
+     "targetAttribute": -1
+    }
+   },
+   "Sacred_Flame": {
+    "name": "Sacred Flame",
+    "description": "Radiant flame descends on a creature that fails a Dexterity save.",
+    "color": "#FFE082",
+    "level": 0,
+    "school": "Evocation",
+    "resolution": "SAVE",
+    "range": 6,
+    "targetType": "ENEMY",
+    "damageDice": [
+     "d8",
+     "d6",
+     "d8"
+    ],
+    "saveStat": "DEXTERITY",
+    "onSave": "NONE",
+    "riderMinTier": 1,
+    "addCastingMod": false
+   },
+   "Shatter": {
+    "name": "Shatter",
+    "description": "A painful ringing noise. Constitution save; half damage on a success.",
+    "color": "#BA68C8",
+    "level": 2,
+    "school": "Evocation",
+    "resolution": "SAVE",
+    "range": 6,
+    "targetType": "ENEMY",
+    "damageDice": [
+     "d8",
+     "d8",
+     "d8"
+    ],
+    "saveStat": "CONSTITUTION",
+    "onSave": "HALF",
+    "riderMinTier": 1,
+    "addCastingMod": false,
+    "upcastDie": "d8"
+   },
+   "Shield_of_Faith": {
+    "name": "Shield of Faith",
+    "description": "A shimmering field grants an ally +2 AC for 10 turns.",
+    "color": "#90CAF9",
+    "level": 1,
+    "school": "Abjuration",
+    "resolution": "BUFF",
+    "range": 4,
+    "targetType": "ALLY",
+    "damageDice": [
+     null,
+     null,
+     null
+    ],
+    "saveStat": "DEXTERITY",
+    "onSave": "NONE",
+    "riderMinTier": 1,
+    "addCastingMod": false,
+    "riderStatus": {
+     "name": "Shield of Faith",
+     "effectType": 5,
+     "magnitude": 2,
+     "duration": 10,
+     "targetAttribute": -1
+    }
+   },
+   "Thunderclap": {
+    "name": "Thunderclap",
+    "description": "A burst of thunder around you. Every enemy adjacent to you makes a Constitution save.",
+    "color": "#90A4AE",
+    "level": 0,
+    "school": "Evocation",
+    "resolution": "SAVE",
+    "range": 0,
+    "targetType": "ENEMY",
+    "damageDice": [
+     "d6",
+     "d4",
+     "d6"
+    ],
+    "saveStat": "CONSTITUTION",
+    "onSave": "NONE",
+    "riderMinTier": 1,
+    "addCastingMod": false,
+    "flatDamage": 0,
+    "area": "BURST",
+    "areaSize": 1,
+    "friendlyFire": false
+   },
+   "Thunderwave": {
+    "name": "Thunderwave",
+    "description": "A wave of thunderous force sweeps out from you. Constitution save for half. Hits everyone adjacent, friend or foe.",
+    "color": "#7986CB",
+    "level": 1,
+    "school": "Evocation",
+    "resolution": "SAVE",
+    "range": 0,
+    "targetType": "ENEMY",
+    "damageDice": [
+     "d8",
+     "d6",
+     "d8"
+    ],
+    "saveStat": "CONSTITUTION",
+    "onSave": "HALF",
+    "riderMinTier": 1,
+    "addCastingMod": false,
+    "flatDamage": 0,
+    "area": "BURST",
+    "areaSize": 1,
+    "friendlyFire": true,
+    "upcastDie": "d8"
+   }
+  },
+  "terrain": {
+   "Acid": {
+    "type": "Acid",
+    "health": 1,
+    "color": "#00FF00",
+    "collision": false,
+    "entityAboveTerrain": true,
+    "spritePath": "terrain/acid.png",
+    "row": 0,
+    "col": 0
+   },
+   "Red_Flower": {
+    "type": "Red Flower",
+    "health": 1,
+    "color": "#800000",
+    "collision": false,
+    "entityAboveTerrain": false,
+    "spritePath": "terrain/redflower.png",
+    "row": 0,
+    "col": 0
+   },
+   "Rock": {
+    "type": "Rock",
+    "health": 20,
+    "color": "#808080",
+    "row": 0,
+    "col": 0,
+    "collision": true,
+    "entityAboveTerrain": true
+   },
+   "Tree": {
+    "type": "Tree",
+    "health": 5,
+    "color": 8,
+    "row": 0,
+    "col": 0,
+    "spritePath": "terrain/tree.png",
+    "collision": true,
+    "entityAboveTerrain": true
+   }
+  },
+  "gridshapes": {},
+  "partyList": [
+   "Henry Keaton",
+   "Dan Dixon",
+   "Grand Wizard Man",
+   "NMB-15"
+  ],
+  "uiPrefs": {},
+  "enemyTags": []
+ },
+ "battle": {
+  "version": 1,
+  "rules": {
+   "compat": {
+    "turnStartAbilitiesDoubleFire": false,
+    "beginSkipsFirstStatusTick": false,
+    "durationZeroNeverExpires": true,
+    "npcEntitiesLegacySide": true,
+    "victoryOnAnyDefeat": false,
+    "removeCurrentSkipsNext": false,
+    "removalWrapNoRoundIncrement": false,
+    "pickupsBlockStanding": false,
+    "halfRequiresTier1Die": false,
+    "ammoCompatIgnoresLegacyField": false,
+    "entityNegativeHpPersists": false,
+    "rangeZeroResolvesOnCaster": true,
+    "preBattleEnemyPlacementResorts": true
+   }
+  },
+  "nextId": 21,
+  "board": {
+   "rows": 12,
+   "cols": 14,
+   "mask": null,
+   "elevation": [
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     1,
+     2,
+     2,
+     2,
+     3,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     1,
+     2,
+     2,
+     2,
+     2,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     1,
+     2,
+     2,
+     2,
+     2,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     1,
+     1,
+     1,
+     1,
+     1,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     -1,
+     -1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     -1,
+     -2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "ramps": [
+    {
+     "r": 5,
+     "c": 10,
+     "from": 1,
+     "to": 0,
+     "dir": "S"
+    },
+    {
+     "r": 5,
+     "c": 11,
+     "from": 1,
+     "to": 0,
+     "dir": "S"
+    }
+   ],
+   "theme": "arboretum",
+   "lights": [
+    {
+     "id": "grow1",
+     "name": "Grow lamp A",
+     "brightRadius": 3,
+     "dimRadius": 5,
+     "color": "#d8ffb0",
+     "at": {
+      "r": 1,
+      "c": 2
+     },
+     "on": true,
+     "groupId": "grow"
+    },
+    {
+     "id": "grow2",
+     "name": "Grow lamp B",
+     "brightRadius": 3,
+     "dimRadius": 5,
+     "color": "#d8ffb0",
+     "at": {
+      "r": 3,
+      "c": 12
+     },
+     "on": true,
+     "groupId": "grow"
+    },
+    {
+     "id": "torch",
+     "name": "Henry's torch",
+     "brightRadius": 2,
+     "dimRadius": 4,
+     "color": "#ffb366",
+     "attachedTo": "u1",
+     "on": true
+    },
+    {
+     "id": "svc",
+     "name": "Service bay floods",
+     "brightRadius": 4,
+     "dimRadius": 6,
+     "color": "#bfe3ff",
+     "at": {
+      "r": 9,
+      "c": 10
+     },
+     "on": false,
+     "groupId": "svc"
+    }
+   ],
+   "lightGroups": [
+    {
+     "id": "grow",
+     "name": "Grow lamps",
+     "on": true
+    },
+    {
+     "id": "svc",
+     "name": "Service bay (generator)",
+     "on": false
+    }
+   ],
+   "ambient": "dim",
+   "dmReveal": true
+  },
+  "units": [
+   {
+    "id": "u1",
+    "kind": "entity",
+    "r": 6,
+    "c": 3,
+    "altitude": 0,
+    "sourceName": "Henry Keaton",
+    "sheet": {
+     "name": "Henry Keaton",
+     "characterClass": "Warrior Survivalist ",
+     "color": "#8B0000",
+     "isParty": true,
+     "spritePath": "party/testsprites.png#0",
+     "level": 1,
+     "group": "OMEGA",
+     "totalHP": 36,
+     "currentHP": 20,
+     "armorClass": 14,
+     "status": [
+      {
+       "name": "Blessed",
+       "effectType": 6,
+       "magnitude": 2,
+       "duration": 2,
+       "targetAttribute": -1,
+       "extra": {}
+      }
+     ],
+     "baseAttributes": [
+      6,
+      2,
+      7,
+      2,
+      7,
+      3
+     ],
+     "tempAttributes": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "totalAttributes": [
+      6,
+      2,
+      7,
+      2,
+      7,
+      3
+     ],
+     "weapons": [
+      null,
+      {
+       "kind": "weapon",
+       "name": "Sledgehammer",
+       "type": "Weapon",
+       "color": "#808080",
+       "quantity": 1,
+       "damageDice": [
+        "d6",
+        "d6",
+        "d10"
+       ],
+       "statType": "STRENGTH",
+       "ammoType": null,
+       "modifiedAttributes": [
+        1,
+        0,
+        1,
+        0,
+        0,
+        0
+       ],
+       "abilities": [],
+       "legacyDamage": 0,
+       "extra": {}
+      }
+     ],
+     "accessories": [
+      null,
+      null,
+      null
+     ],
+     "inventory": [],
+     "wallet": 0,
+     "abilities": [],
+     "spellcastingStat": null,
+     "knownSpells": [],
+     "spellSlotsUsed": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "extra": {}
+    },
+    "instanceNumber": 0,
+    "baseName": "Henry Keaton",
+    "acAdjustment": 0,
+    "statAdjustment": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "diceOverride": [
+     null,
+     null,
+     null
+    ]
+   },
+   {
+    "id": "u2",
+    "kind": "entity",
+    "r": 8,
+    "c": 4,
+    "altitude": 0,
+    "sourceName": "Dan Dixon",
+    "sheet": {
+     "name": "Dan Dixon",
+     "characterClass": "Strategist Striker",
+     "color": "#000000",
+     "isParty": true,
+     "spritePath": "party/testsprites.png#4",
+     "level": 1,
+     "group": "OMEGA",
+     "totalHP": 30,
+     "currentHP": 9,
+     "armorClass": 13,
+     "status": [
+      {
+       "name": "Chilled",
+       "effectType": 4,
+       "magnitude": -2,
+       "duration": 1,
+       "targetAttribute": -1,
+       "extra": {}
+      }
+     ],
+     "baseAttributes": [
+      4,
+      5,
+      4,
+      2,
+      7,
+      5
+     ],
+     "tempAttributes": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "totalAttributes": [
+      4,
+      5,
+      4,
+      2,
+      7,
+      5
+     ],
+     "weapons": [
+      {
+       "kind": "weapon",
+       "name": "Shortbarrel Shotgun",
+       "type": "Weapon",
+       "color": "#FF0000",
+       "quantity": 1,
+       "damageDice": [
+        "d6",
+        "d4",
+        "d8"
+       ],
+       "statType": "DEXTERITY",
+       "ammoType": "12 Gauge",
+       "modifiedAttributes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "abilities": [],
+       "legacyDamage": 0,
+       "extra": {}
+      },
+      null
+     ],
+     "accessories": [
+      null,
+      null,
+      null
+     ],
+     "inventory": [
+      {
+       "kind": "ammunition",
+       "name": "12 Gauge Shells",
+       "type": "Ammunition",
+       "color": "#FF0000",
+       "quantity": 6,
+       "ammoType": "12 Gauge",
+       "legacyCompatibleWeaponType": null,
+       "legacyDamageBonus": 0,
+       "extra": {}
+      },
+      {
+       "kind": "consumable",
+       "name": "First-Aid Kit",
+       "type": "Consumable",
+       "color": "#8066CC",
+       "quantity": 2,
+       "healAmount": 25,
+       "effect": null,
+       "extra": {}
+      }
+     ],
+     "wallet": 0,
+     "abilities": [],
+     "spellcastingStat": null,
+     "knownSpells": [],
+     "spellSlotsUsed": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "extra": {}
+    },
+    "instanceNumber": 0,
+    "baseName": "Dan Dixon",
+    "acAdjustment": 0,
+    "statAdjustment": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "diceOverride": [
+     null,
+     null,
+     null
+    ]
+   },
+   {
+    "id": "u3",
+    "kind": "entity",
+    "r": 2,
+    "c": 9,
+    "altitude": 0,
+    "sourceName": "Grand Wizard Man",
+    "sheet": {
+     "name": "Grand Wizard Man",
+     "characterClass": "None",
+     "color": "#CCCCCC",
+     "isParty": true,
+     "spritePath": "party/testsprites.png#10",
+     "level": 12,
+     "group": "NPC",
+     "totalHP": 20,
+     "currentHP": 20,
+     "armorClass": 10,
+     "status": [
+      {
+       "name": "Shield of Faith",
+       "effectType": 5,
+       "magnitude": 2,
+       "duration": 8,
+       "targetAttribute": -1,
+       "extra": {}
+      }
+     ],
+     "baseAttributes": [
+      2,
+      12,
+      2,
+      11,
+      11,
+      11
+     ],
+     "tempAttributes": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "totalAttributes": [
+      2,
+      12,
+      2,
+      11,
+      11,
+      11
+     ],
+     "weapons": [
+      null,
+      null
+     ],
+     "accessories": [
+      null,
+      null,
+      null
+     ],
+     "inventory": [],
+     "wallet": 0,
+     "abilities": [],
+     "spellcastingStat": "INTELLIGENCE",
+     "knownSpells": [
+      "Fire Bolt",
+      "Ray of Frost",
+      "Sacred Flame",
+      "Thunderclap",
+      "Bless",
+      "Burning Hands",
+      "Cure Wounds",
+      "Guiding Bolt",
+      "Magic Missile",
+      "Shield of Faith",
+      "Thunderwave",
+      "Hold Person",
+      "Shatter",
+      "Fireball",
+      "Lightning Bolt",
+      "Mass Healing Word"
+     ],
+     "spellSlotsUsed": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "extra": {}
+    },
+    "instanceNumber": 0,
+    "baseName": "Grand Wizard Man",
+    "acAdjustment": 0,
+    "statAdjustment": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "diceOverride": [
+     null,
+     null,
+     null
+    ]
+   },
+   {
+    "id": "u4",
+    "kind": "entity",
+    "r": 7,
+    "c": 1,
+    "altitude": 0,
+    "sourceName": "NMB-15",
+    "sheet": {
+     "name": "NMB-15",
+     "characterClass": "Dark Stormmancer",
+     "color": "#0000FF",
+     "isParty": true,
+     "spritePath": "party/testsprites.png#2",
+     "level": 1,
+     "group": "OMEGA",
+     "totalHP": 24,
+     "currentHP": 18,
+     "armorClass": 10,
+     "status": [],
+     "baseAttributes": [
+      2,
+      7,
+      3,
+      7,
+      5,
+      3
+     ],
+     "tempAttributes": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "totalAttributes": [
+      2,
+      7,
+      3,
+      7,
+      5,
+      3
+     ],
+     "weapons": [
+      {
+       "kind": "weapon",
+       "name": "Plasmoid's Fulmen",
+       "type": "Weapon",
+       "color": "#FF0000",
+       "quantity": 1,
+       "damageDice": [
+        "d6",
+        "d8",
+        "d12"
+       ],
+       "statType": "INTELLIGENCE",
+       "ammoType": null,
+       "modifiedAttributes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "abilities": [],
+       "legacyDamage": 0,
+       "extra": {}
+      },
+      null
+     ],
+     "accessories": [
+      {
+       "kind": "accessory",
+       "name": "Plasmoid Core",
+       "type": "Accessory",
+       "color": "#0000FF",
+       "quantity": 1,
+       "defense": 1,
+       "modifiedAttributes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "abilities": [
+        {
+         "name": "REGEN",
+         "description": "Regenerates 2HP every turn",
+         "triggerType": "ON_TURN_START",
+         "effectType": "HEAL",
+         "magnitude": 2,
+         "targetAttribute": 0,
+         "statusName": null,
+         "abilityType": "PASSIVE",
+         "extra": {}
+        }
+       ],
+       "legacyArmorType": 0,
+       "extra": {}
+      },
+      null,
+      null
+     ],
+     "inventory": [
+      {
+       "kind": "accessory",
+       "name": "Plasmoid Core",
+       "type": "Accessory",
+       "color": "#0000FF",
+       "quantity": 1,
+       "defense": 0,
+       "modifiedAttributes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "abilities": [],
+       "legacyArmorType": 0,
+       "extra": {}
+      },
+      {
+       "kind": "consumable",
+       "name": "First-Aid Kit",
+       "type": "Consumable",
+       "color": "#000000",
+       "quantity": 1,
+       "healAmount": 25,
+       "effect": null,
+       "extra": {}
+      }
+     ],
+     "wallet": 0,
+     "abilities": [],
+     "spellcastingStat": null,
+     "knownSpells": [],
+     "spellSlotsUsed": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "extra": {}
+    },
+    "instanceNumber": 0,
+    "baseName": "NMB-15",
+    "acAdjustment": 0,
+    "statAdjustment": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "diceOverride": [
+     null,
+     null,
+     null
+    ]
+   },
+   {
+    "id": "u9",
+    "kind": "terrain",
+    "r": 4,
+    "c": 3,
+    "altitude": 0,
+    "type": "Rock",
+    "health": 20,
+    "color": "#808080",
+    "collision": true,
+    "entityAboveTerrain": true,
+    "spritePath": null,
+    "blocksLight": true
+   },
+   {
+    "id": "u10",
+    "kind": "terrain",
+    "r": 4,
+    "c": 4,
+    "altitude": 0,
+    "type": "Rock",
+    "health": 20,
+    "color": "#808080",
+    "collision": true,
+    "entityAboveTerrain": true,
+    "spritePath": null,
+    "blocksLight": true
+   },
+   {
+    "id": "u11",
+    "kind": "terrain",
+    "r": 10,
+    "c": 11,
+    "altitude": 0,
+    "type": "Tree",
+    "health": 5,
+    "color": "#008000",
+    "collision": true,
+    "entityAboveTerrain": true,
+    "spritePath": "terrain/tree.png",
+    "blocksLight": true
+   },
+   {
+    "id": "u12",
+    "kind": "terrain",
+    "r": 6,
+    "c": 8,
+    "altitude": 0,
+    "type": "Acid",
+    "health": 1,
+    "color": "#00FF00",
+    "collision": false,
+    "entityAboveTerrain": true,
+    "spritePath": "terrain/acid.png",
+    "blocksLight": false
+   },
+   {
+    "id": "u13",
+    "kind": "pickup",
+    "r": 5,
+    "c": 5,
+    "altitude": 0,
+    "item": {
+     "kind": "consumable",
+     "name": "First-Aid Kit",
+     "type": "Consumable",
+     "color": "#8066CC",
+     "quantity": 1,
+     "healAmount": 25,
+     "effect": null,
+     "extra": {}
+    }
+   },
+   {
+    "id": "u15",
+    "kind": "terrain",
+    "r": 5,
+    "c": 6,
+    "altitude": 0,
+    "type": "Rock",
+    "health": 20,
+    "color": "#808080",
+    "collision": true,
+    "entityAboveTerrain": true,
+    "spritePath": null,
+    "blocksLight": true
+   },
+   {
+    "id": "u16",
+    "kind": "terrain",
+    "r": 6,
+    "c": 6,
+    "altitude": 0,
+    "type": "Rock",
+    "health": 20,
+    "color": "#808080",
+    "collision": true,
+    "entityAboveTerrain": true,
+    "spritePath": null,
+    "blocksLight": true
+   },
+   {
+    "id": "u17",
+    "kind": "terrain",
+    "r": 7,
+    "c": 6,
+    "altitude": 0,
+    "type": "Rock",
+    "health": 20,
+    "color": "#808080",
+    "collision": true,
+    "entityAboveTerrain": true,
+    "spritePath": null,
+    "blocksLight": true
+   },
+   {
+    "id": "u18",
+    "kind": "terrain",
+    "r": 9,
+    "c": 6,
+    "altitude": 0,
+    "type": "Rock",
+    "health": 20,
+    "color": "#808080",
+    "collision": true,
+    "entityAboveTerrain": true,
+    "spritePath": null,
+    "blocksLight": true
+   },
+   {
+    "id": "u19",
+    "kind": "terrain",
+    "r": 10,
+    "c": 6,
+    "altitude": 0,
+    "type": "Rock",
+    "health": 20,
+    "color": "#808080",
+    "collision": true,
+    "entityAboveTerrain": true,
+    "spritePath": null,
+    "blocksLight": true
+   },
+   {
+    "id": "u5",
+    "kind": "enemy",
+    "r": 6,
+    "c": 4,
+    "altitude": 0,
+    "templateStem": "Melee Moongate Guard",
+    "name": "Melee Moongate Guard",
+    "baseName": "Melee Moongate Guard",
+    "instanceNumber": 1,
+    "health": 18,
+    "maxHealth": 18,
+    "mobility": 3,
+    "armorClass": 12,
+    "damageDice": [
+     "d4",
+     "d4",
+     "d4"
+    ],
+    "dexterity": 3,
+    "color": "#FF0000",
+    "spritePath": "party/testsprites.png#1",
+    "tags": [
+     "Humanoid"
+    ],
+    "attributes": null,
+    "statuses": [
+     {
+      "name": "Burning",
+      "effectType": 1,
+      "magnitude": 2,
+      "duration": 2,
+      "targetAttribute": -1,
+      "extra": {}
+     }
+    ],
+    "acAdjustment": 0,
+    "dexAdjustment": 0,
+    "diceOverride": [
+     null,
+     null,
+     null
+    ]
+   },
+   {
+    "id": "u6",
+    "kind": "enemy",
+    "r": 5,
+    "c": 2,
+    "altitude": 0,
+    "templateStem": "Melee Moongate Guard",
+    "name": "Melee Moongate Guard",
+    "baseName": "Melee Moongate Guard",
+    "instanceNumber": 2,
+    "health": 11,
+    "maxHealth": 18,
+    "mobility": 3,
+    "armorClass": 12,
+    "damageDice": [
+     "d4",
+     "d4",
+     "d4"
+    ],
+    "dexterity": 3,
+    "color": "#FF0000",
+    "spritePath": "party/testsprites.png#1",
+    "tags": [
+     "Humanoid"
+    ],
+    "attributes": null,
+    "statuses": [],
+    "acAdjustment": 0,
+    "dexAdjustment": 0,
+    "diceOverride": [
+     null,
+     null,
+     null
+    ]
+   },
+   {
+    "id": "u7",
+    "kind": "enemy",
+    "r": 8,
+    "c": 9,
+    "altitude": 3,
+    "templateStem": "Overgrown Hornet",
+    "name": "Overgrown Hornet",
+    "baseName": "Overgrown Hornet",
+    "instanceNumber": 1,
+    "health": 20,
+    "maxHealth": 20,
+    "mobility": 5,
+    "armorClass": 13,
+    "damageDice": [
+     "d4",
+     "d4",
+     "d6"
+    ],
+    "dexterity": 3,
+    "color": "#B3661A",
+    "spritePath": null,
+    "tags": [
+     "Beast"
+    ],
+    "attributes": [
+     2,
+     3,
+     2,
+     2,
+     2,
+     2
+    ],
+    "statuses": [
+     {
+      "name": "Illuminated",
+      "effectType": 5,
+      "magnitude": -2,
+      "duration": 2,
+      "targetAttribute": -1,
+      "extra": {}
+     }
+    ],
+    "acAdjustment": 0,
+    "dexAdjustment": 0,
+    "diceOverride": [
+     null,
+     null,
+     null
+    ]
+   },
+   {
+    "id": "u8",
+    "kind": "enemy",
+    "r": 3,
+    "c": 8,
+    "altitude": 0,
+    "templateStem": "Shielded Moongate Guard",
+    "name": "Shielded Moongate Guard",
+    "baseName": "Shielded Moongate Guard",
+    "instanceNumber": 1,
+    "health": 15,
+    "maxHealth": 15,
+    "mobility": 2,
+    "armorClass": 14,
+    "damageDice": [
+     "d4",
+     "d4",
+     "d4"
+    ],
+    "dexterity": 2,
+    "color": "#CC3333",
+    "spritePath": "party/testsprites.png#8",
+    "tags": [],
+    "attributes": null,
+    "statuses": [],
+    "acAdjustment": 0,
+    "dexAdjustment": 0,
+    "diceOverride": [
+     null,
+     null,
+     null
+    ]
+   },
+   {
+    "id": "u20",
+    "kind": "enemy",
+    "r": 1,
+    "c": 11,
+    "altitude": 0,
+    "templateStem": "Dr. Petra Ilyas",
+    "name": "Dr. Petra Ilyas",
+    "baseName": "Dr. Petra Ilyas",
+    "instanceNumber": 1,
+    "health": 19,
+    "maxHealth": 25,
+    "mobility": 4,
+    "armorClass": 11,
+    "damageDice": [
+     "d4",
+     "d4",
+     "d4"
+    ],
+    "dexterity": 6,
+    "color": "#80334D",
+    "spritePath": "party/testsprites.png#9",
+    "tags": [
+     "Humanoid"
+    ],
+    "attributes": null,
+    "statuses": [],
+    "acAdjustment": 0,
+    "dexAdjustment": 0,
+    "diceOverride": [
+     null,
+     null,
+     null
+    ]
+   }
+  ],
+  "graveyard": [],
+  "enemyInstanceCounts": {
+   "Melee Moongate Guard": 2,
+   "Overgrown Hornet": 1,
+   "Shielded Moongate Guard": 1,
+   "Dr. Petra Ilyas": 1
+  },
+  "turn": {
+   "started": true,
+   "ended": false,
+   "roundStartMode": "NORMAL",
+   "order": [
+    "u20",
+    "u1",
+    "u7",
+    "u3",
+    "u5",
+    "u2",
+    "u8",
+    "u6",
+    "u4"
+   ],
+   "currentIndex": 1,
+   "round": 3,
+   "initiative": {
+    "u20": {
+     "total": 22,
+     "d20": 16,
+     "mod": 6
+    },
+    "u1": {
+     "total": 19,
+     "d20": 17,
+     "mod": 2
+    },
+    "u7": {
+     "total": 17,
+     "d20": 14,
+     "mod": 3
+    },
+    "u3": {
+     "total": 16,
+     "d20": 4,
+     "mod": 12
+    },
+    "u5": {
+     "total": 14,
+     "d20": 11,
+     "mod": 3
+    },
+    "u2": {
+     "total": 13,
+     "d20": 8,
+     "mod": 5
+    },
+    "u8": {
+     "total": 9,
+     "d20": 7,
+     "mod": 2
+    },
+    "u6": {
+     "total": 7,
+     "d20": 4,
+     "mod": 3
+    },
+    "u4": {
+     "total": 5,
+     "d20": 3,
+     "mod": 2
+    }
+   },
+   "pendingTies": [],
+   "enemiesDefeated": 0,
+   "victory": null,
+   "placementQueue": []
+  },
+  "pending": null,
+  "log": [
+   {
+    "n": 1,
+    "text": "Henry Keaton placed at (6, 4)"
+   },
+   {
+    "n": 2,
+    "text": "Dan Dixon placed at (7, 3)"
+   },
+   {
+    "n": 3,
+    "text": "Grand Wizard Man placed at (2, 10)"
+   },
+   {
+    "n": 4,
+    "text": "NMB-15 placed at (8, 4)"
+   },
+   {
+    "n": 5,
+    "text": "Spider #1 placed at (2, 12)"
+   },
+   {
+    "n": 6,
+    "text": "Snake #1 placed at (7, 7)"
+   },
+   {
+    "n": 7,
+    "text": "Overgrown Hornet #1 placed at (8, 9)"
+   },
+   {
+    "n": 8,
+    "text": "Human Puppet #1 placed at (9, 2)"
+   },
+   {
+    "n": 9,
+    "text": "Rock placed at (4, 3)"
+   },
+   {
+    "n": 10,
+    "text": "Rock placed at (4, 4)"
+   },
+   {
+    "n": 11,
+    "text": "Tree placed at (10, 11)"
+   },
+   {
+    "n": 12,
+    "text": "Acid placed at (6, 8)"
+   },
+   {
+    "n": 13,
+    "text": "First-Aid Kit dropped at (5, 5)"
+   },
+   {
+    "n": 14,
+    "text": "Greatsword dropped at (3, 6)"
+   },
+   {
+    "n": 15,
+    "text": "Rock placed at (5, 6)"
+   },
+   {
+    "n": 16,
+    "text": "Rock placed at (6, 6)"
+   },
+   {
+    "n": 17,
+    "text": "Rock placed at (7, 6)"
+   },
+   {
+    "n": 18,
+    "text": "Rock placed at (9, 6)"
+   },
+   {
+    "n": 19,
+    "text": "Rock placed at (10, 6)"
+   }
+  ]
+ }
+}

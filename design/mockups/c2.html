@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>C2 — Spotlight, round 2</title>
+<!--
+  One layout, switchable by query string:
+    ?skin=glass|obsidian|verdigris|moonstone
+    &plates=roll   attacker/target info lives inside the roll panel (only while rolling)
+    &plates=dock   selected + target plates docked bottom-left / bottom-right (whenever selected)
+    &mode=field    Field mode (G): lighting / height / spawn / terrain / board / TV / history
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Marcellus&family=Manrope:wght@400;500;600;700;800&family=Saira+Condensed:wght@500;600;700&family=Nunito+Sans:wght@400;600;700;800&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ================= skins ================= */
+  :root, [data-skin=glass] {
+    --fh: 'Chakra Petch', sans-serif; --fb: Inter, sans-serif; --fh-scale: 1;
+    --panel: rgba(13,19,25,.70); --blur: blur(14px) saturate(1.2); --radius: 14px;
+    --edge: rgba(220,240,255,.14); --edge-2: rgba(220,240,255,.26);
+    --panel-shadow: inset 0 0 0 1px var(--edge), inset 0 1px 0 rgba(255,255,255,.08), 0 18px 40px rgba(0,0,0,.45);
+    --ink: #eef3f7; --ink-2: #a9b6c1; --ink-3: #6f7d89; --chip: rgba(255,255,255,.06);
+    --now: #ffd36b; --now-ink: #1c1604; --party: #c4f36b; --enemy: #ff7a66; --up: #7ee787; --down: #ff6b5e;
+    --board-chip: rgba(5,8,11,.82); --board-ink: #eef3f7;
+  }
+  [data-skin=obsidian] {
+    --fh: Marcellus, serif; --fb: Manrope, sans-serif; --fh-scale: 1.04;
+    --panel: linear-gradient(180deg, rgba(20,19,23,.96), rgba(10,9,12,.96)); --blur: none; --radius: 3px;
+    --edge: rgba(201,168,98,.22); --edge-2: rgba(201,168,98,.45);
+    --panel-shadow: inset 0 0 0 1px #2b261d, inset 0 0 0 4px rgba(10,9,12,.0), inset 0 0 0 5px rgba(201,168,98,.42), 0 18px 40px rgba(0,0,0,.55);
+    --ink: #f1ead9; --ink-2: #b8ad95; --ink-3: #7c7360; --chip: rgba(201,168,98,.07);
+    --now: #e4c072; --now-ink: #1d1606; --party: #a9d99a; --enemy: #e5735f; --up: #8fdc8a; --down: #f0715e;
+    --board-chip: rgba(12,11,14,.88); --board-ink: #f1ead9;
+  }
+  [data-skin=verdigris] {
+    --fh: 'Saira Condensed', sans-serif; --fb: 'Nunito Sans', sans-serif; --fh-scale: 1.12;
+    --panel: linear-gradient(160deg, rgba(18,44,40,.93), rgba(8,22,20,.95)); --blur: none; --radius: 2px;
+    --edge: rgba(95,179,161,.28); --edge-2: rgba(95,179,161,.5);
+    --panel-shadow: inset 0 0 0 1px rgba(95,179,161,.35), inset 0 2px 0 rgba(199,124,74,.35), 0 18px 40px rgba(0,0,0,.5);
+    --ink: #e6f1ec; --ink-2: #9fbdb4; --ink-3: #64857c; --chip: rgba(95,179,161,.09);
+    --now: #e9a25c; --now-ink: #2a1505; --party: #a6e88f; --enemy: #ff8068; --up: #8ee88a; --down: #ff7563;
+    --board-chip: rgba(6,20,18,.88); --board-ink: #e6f1ec;
+  }
+  [data-skin=moonstone] {
+    --fh: Sora, sans-serif; --fb: Inter, sans-serif; --fh-scale: .96;
+    --panel: rgba(234,239,243,.92); --blur: blur(16px) saturate(1.1); --radius: 18px;
+    --edge: rgba(23,32,43,.10); --edge-2: rgba(23,32,43,.22);
+    --panel-shadow: inset 0 0 0 1px rgba(255,255,255,.7), 0 18px 40px rgba(0,0,0,.4);
+    --ink: #16202b; --ink-2: #4b5a69; --ink-3: #8593a1; --chip: rgba(23,32,43,.06);
+    --now: #f0a81c; --now-ink: #2a1a00; --party: #3d9a2c; --enemy: #dc4a36; --up: #23963a; --down: #d63c2c;
+    --board-chip: rgba(236,241,245,.92); --board-ink: #16202b;
+  }
+  /* status family colours (shared) */
+  :root { --buff: #f7c548; --buff-d: #a8761c; --debuff: #a98bff; --debuff-d: #5b3fc4; --dot: #ff9a4a; --dot-d: #b8410f;
+    --event: #ff8a7a; --event-d: #a5302a; --neutral: #9fc3d9; --neutral-d: #3e5b70; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1536px; height: 960px; overflow: hidden; background: #05080b; }
+  body { font-family: var(--fb); color: var(--ink); position: relative; font-size: 13px; }
+  * { font-variant-numeric: lining-nums; }
+  [data-skin=obsidian] :is(.round .n, .fx-h .t, .ft .n, .ft .hp, .card .nm2, .who b, .roll-h .t, .dmg b, .vsd .v, .fc b, .bnm, .plate .n, .plate .hpl b, .fsec h4, .hex b, .ft .stats b, .meter .mark b, .card .ini, .holdtxt) { font-weight: 400 !important; letter-spacing: .02em; }
+  [data-skin=moonstone] .bnm span { color: #1f6fa8 !important; }
+  .hd { font-family: var(--fh); }
+  .board { position: absolute; left: 0; top: -40px; width: 1536px; height: 960px; background: url(../scene/board-full-1920x1200.png) 0 0 / 1536px 960px no-repeat; }
+  .shade { position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse 320px 230px at 700px 575px, rgba(5,8,11,0) 55%, rgba(5,8,11,.45) 100%), linear-gradient(180deg, rgba(5,8,11,0) 72%, rgba(5,8,11,.8) 92%); }
+  [data-mode=field] .shade { background: rgba(5,8,11,.12); }
+  .panel { position: absolute; background: var(--panel); backdrop-filter: var(--blur); border-radius: var(--radius); box-shadow: var(--panel-shadow); }
+  [data-skin=verdigris] .panel::before, [data-skin=verdigris] .panel::after { content: ''; position: absolute; width: 14px; height: 14px; border: 2px solid #c77c4a; pointer-events: none; }
+  [data-skin=verdigris] .panel::before { left: -1px; top: -1px; border-right: 0; border-bottom: 0; }
+  [data-skin=verdigris] .panel::after { right: -1px; bottom: -1px; border-left: 0; border-top: 0; }
+  [data-skin=obsidian] .panel::before { content: '◆'; position: absolute; left: 50%; top: -7px; transform: translateX(-50%); font-size: 10px; color: #c9a862; text-shadow: 0 0 6px rgba(201,168,98,.6); }
+  .k { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 5px; font: 600 10.5px var(--fb);
+    color: var(--ink-2); background: var(--chip); box-shadow: inset 0 0 0 1px var(--edge-2); }
+  .ico { width: 16px; height: 16px; display: inline-block; } .ico svg { width: 100%; height: 100%; display: block; }
+  .lbl { font: 700 10.5px var(--fb); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+  .up { color: var(--up) !important; } .down { color: var(--down) !important; }
+
+  /* ================= emblems / pips ================= */
+  .emb { display: inline-block; flex: none; }
+  .emb svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .pips { display: inline-flex; gap: 3px; align-items: center; }
+  .pips i { width: 7px; height: 7px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px currentColor; }
+  .pips i.f { background: currentColor; }
+  .pips.sm i { width: 5px; height: 5px; box-shadow: inset 0 0 0 1px currentColor; }
+  .fam-buff { color: var(--buff); } .fam-debuff { color: var(--debuff); } .fam-dot { color: var(--dot); } .fam-event { color: var(--event); } .fam-neutral { color: var(--neutral); }
+  [data-skin=moonstone] .fam-buff { color: #b98500; } [data-skin=moonstone] .fam-debuff { color: #6a4bd8; } [data-skin=moonstone] .fam-dot { color: #d0601a; } [data-skin=moonstone] .fam-event { color: #c8392c; } [data-skin=moonstone] .fam-neutral { color: #3b6f91; }
+
+  /* ================= top ================= */
+  .round { left: 18px; top: 16px; height: 50px; display: flex; align-items: center; gap: 14px; padding: 0 18px 0 16px; border-radius: calc(var(--radius) + 10px); }
+  [data-skin=obsidian] .round, [data-skin=verdigris] .round { border-radius: var(--radius); }
+  .round .n { font: 700 calc(28px * var(--fh-scale)) var(--fh); line-height: 1; }
+  .round .n small { font: 700 11px var(--fb); color: var(--ink-3); letter-spacing: .16em; margin-right: 6px; vertical-align: 5px; }
+  .round .area { font-size: 12.5px; color: var(--ink-2); line-height: 1.3; }
+  .round .amb { display: flex; align-items: center; gap: 6px; padding-left: 14px; margin-left: 2px; border-left: 1px solid var(--edge); font-weight: 600; font-size: 12.5px; }
+  .round .amb .bar { width: 46px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #000, #3b4d63 40%, #fff3d0); position: relative; }
+  .round .amb .bar::after { content: ''; position: absolute; left: 35%; top: -3px; width: 3px; height: 12px; border-radius: 2px; background: var(--ink); }
+  .tr { right: 18px; top: 16px; display: flex; gap: 6px; padding: 5px; border-radius: calc(var(--radius) + 10px); align-items: center; }
+  [data-skin=obsidian] .tr, [data-skin=verdigris] .tr { border-radius: var(--radius); }
+  .pill { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 20px; font-weight: 600; font-size: 13px; color: var(--ink-2); }
+  [data-skin=obsidian] .pill, [data-skin=verdigris] .pill { border-radius: 2px; }
+  .pill.hi { color: var(--ink); background: var(--chip); box-shadow: inset 0 0 0 1px var(--edge); }
+  .pill .live { width: 8px; height: 8px; border-radius: 50%; background: #ff5d5d; box-shadow: 0 0 8px #ff5d5d; }
+  .pill .ico { width: 17px; height: 17px; }
+  .pill.next { color: var(--now-ink); background: linear-gradient(180deg, color-mix(in srgb, var(--now) 70%, #fff), var(--now)); box-shadow: 0 6px 20px color-mix(in srgb, var(--now) 35%, transparent); }
+  .pill.next .k { color: var(--now-ink); background: rgba(255,255,255,.4); box-shadow: none; }
+  .pill.field.on { color: var(--now-ink); background: var(--now); }
+
+  /* ================= effects tracker ================= */
+  .fx { left: 86px; top: 78px; width: 344px; padding: 12px 0 8px; }
+  .fx-h { display: flex; align-items: center; gap: 8px; padding: 0 14px 8px; border-bottom: 1px solid var(--edge); }
+  .fx-h .t { font: 700 calc(15px * var(--fh-scale)) var(--fh); }
+  .fx-h .c { font: 700 11px var(--fb); color: var(--ink-3); }
+  .fx-h .r { margin-left: auto; display: flex; gap: 6px; }
+  .fx-grp { padding: 7px 14px 2px; font: 700 9.5px var(--fb); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); display: flex; align-items: center; gap: 8px; }
+  .fx-grp::after { content: ''; flex: 1; height: 1px; background: var(--edge); }
+  .fx-row { display: grid; grid-template-columns: 32px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 6px 14px; }
+  .fx-row .nm { font-weight: 700; font-size: 13px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fx-row .nm span { font-weight: 500; color: var(--ink-2); }
+  .fx-row .sub { font-size: 11.5px; color: var(--ink-2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fx-row .end { text-align: right; }
+  .fx-row .end .w { font: 700 11px var(--fb); color: var(--ink-2); margin-top: 4px; white-space: nowrap; }
+  .fx-row.soon { background: linear-gradient(90deg, color-mix(in srgb, var(--debuff) 16%, transparent), transparent); }
+  .fx-row.soon .end .w { color: var(--debuff); }
+  .fx-add { display: flex; gap: 8px; padding: 8px 14px 2px; border-top: 1px solid var(--edge); margin-top: 4px; font-size: 11.5px; color: var(--ink-3); }
+
+  .dock { left: 18px; top: 78px; width: 58px; padding: 6px 0; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .dk { position: relative; width: 48px; height: 50px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--ink-2); font-size: 9.5px; font-weight: 600; }
+  .dk .ico { width: 19px; height: 19px; }
+  .dk.head { height: 54px; color: var(--ink); background: var(--chip); box-shadow: inset 0 0 0 1px var(--edge-2); }
+  .dk.head .k { position: absolute; top: 2px; right: 2px; min-width: 14px; height: 14px; font-size: 9px; padding: 0 3px; }
+  .dk.on { color: var(--now-ink); background: var(--now); box-shadow: none; }
+  .dk.cur { color: var(--ink); background: var(--chip); box-shadow: inset 2px 0 0 var(--now); }
+  .dk.sep { height: 1px; width: 32px; background: var(--edge); margin: 4px 0; }
+  /* ================= board overlays ================= */
+  .bu { position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; gap: 3px; pointer-events: none; }
+  .hpp { display: flex; gap: 1.5px; padding: 3px; border-radius: 5px; background: var(--board-chip); box-shadow: inset 0 0 0 1px var(--edge); }
+  .hpp i { width: 3px; height: 8px; border-radius: 1px; background: rgba(128,140,150,.35); }
+  .hpp.party i.f { background: var(--party); } .hpp.enemy i.f { background: var(--enemy); }
+  .hpp i.loss { background: #fff; animation: flash .7s ease-in-out infinite alternate; }
+  @keyframes flash { to { background: rgba(255,122,102,.3); } }
+  .bsts { display: flex; gap: 2px; padding: 2px 4px 2px 2px; border-radius: 12px; background: var(--board-chip); align-items: center; }
+  .bsts .pips { margin: 0 2px 0 1px; }
+  .bnm { font: 700 calc(11px * var(--fh-scale)) var(--fh); letter-spacing: .05em; padding: 1px 7px; border-radius: 8px; background: var(--board-chip); color: var(--board-ink); }
+  .ring { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none; }
+  .ring.now { width: 70px; height: 34px; box-shadow: 0 0 0 2px var(--now), 0 0 18px var(--now); }
+  .ring.tg { width: 66px; height: 32px; box-shadow: 0 0 0 2px var(--enemy), 0 0 18px var(--enemy); }
+  .svgl { position: absolute; left: 0; top: 0; pointer-events: none; }
+  /* status effects drawn on the board (stand-ins for in-engine particles) */
+  .vfx { position: absolute; pointer-events: none; mix-blend-mode: screen; }
+
+  /* ================= roll panel ================= */
+  .roll { padding: 0; overflow: hidden; }
+  [data-plates=roll] .roll { left: 862px; top: 292px; width: 656px; }
+  [data-plates=dock] .roll { left: 1006px; top: 270px; width: 512px; }
+  .roll-h { display: flex; align-items: center; gap: 10px; padding: 12px 18px 0; }
+  .roll-h .t { font: 700 calc(15px * var(--fh-scale)) var(--fh); }
+  .roll-h .t em { font-style: normal; color: var(--ink-3); margin: 0 6px; }
+  .roll-h .w { margin-left: auto; font-size: 12px; color: var(--ink-2); }
+  .fighters { display: grid; grid-template-columns: 1fr 92px 1fr; }
+  .ft { position: relative; padding: 14px 16px 10px; display: grid; grid-template-columns: 74px 1fr; gap: 12px; }
+  .ft.l { background: linear-gradient(90deg, color-mix(in srgb, var(--party) 15%, transparent), transparent); }
+  .ft.r { grid-template-columns: 1fr 74px; text-align: right; background: linear-gradient(270deg, color-mix(in srgb, var(--enemy) 16%, transparent), transparent); }
+  .ft .pt { height: 92px; display: flex; align-items: flex-end; justify-content: center; }
+  .ft .pt img { width: 62px; image-rendering: pixelated; filter: drop-shadow(0 4px 0 rgba(0,0,0,.35)); }
+  .ft.l .pt img { transform: scaleX(-1); }       /* sheet sprites face left: flip the attacker so they face each other */
+  .ft.r .pt { order: 2; }
+  .ft .n { font: 700 calc(17px * var(--fh-scale)) var(--fh); line-height: 1; white-space: nowrap; }
+  .ft .s { font-size: 11.5px; color: var(--ink-2); margin-top: 3px; }
+  .ft .hp { font: 700 calc(16px * var(--fh-scale)) var(--fh); margin-top: 7px; }
+  .ft .hp .to { color: var(--enemy); }
+  .ft .hpbar { height: 6px; border-radius: 3px; background: rgba(128,140,150,.22); margin-top: 4px; position: relative; overflow: hidden; }
+  .ft .hpbar i { position: absolute; top: 0; bottom: 0; }
+  .ft .hpbar i.loss { background: repeating-linear-gradient(135deg, var(--enemy) 0 4px, transparent 4px 8px); }
+  .ft .stats { display: flex; gap: 10px; margin-top: 7px; font-size: 11.5px; color: var(--ink-3); }
+  .ft.r .stats { justify-content: flex-end; }
+  .ft .stats b { font: 700 calc(14px * var(--fh-scale)) var(--fh); color: var(--ink); margin-left: 3px; }
+  .ft .stcards { grid-column: 1 / 3; order: 3; display: flex; gap: 6px; margin-top: 2px; }
+  .ft.r .stcards { justify-content: flex-end; }
+  .stc { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border-radius: 22px; background: var(--chip); box-shadow: inset 0 0 0 1px var(--edge); }
+  [data-skin=obsidian] .stc, [data-skin=verdigris] .stc { border-radius: 3px; }
+  .stc .n2 { font-weight: 800; font-size: 12.5px; line-height: 1.1; text-align: left; }
+  .stc .f { font-size: 11px; color: var(--ink-2); }
+  .vsd { display: grid; place-items: center; position: relative; }
+  .vsd svg { width: 82px; height: 82px; filter: drop-shadow(0 0 16px color-mix(in srgb, var(--now) 45%, transparent)); }
+  .vsd .v { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -56%); font: 700 34px var(--fh); color: var(--now-ink); }
+  .vsd .t { position: absolute; bottom: 22px; font: 700 9.5px var(--fb); letter-spacing: .16em; color: var(--now); }
+  .formula { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 16px 0; border-top: 1px solid var(--edge); }
+  [data-plates=dock] .formula { border-top: 0; padding-top: 12px; }
+  .fc { white-space: nowrap; display: flex; align-items: baseline; gap: 5px; height: 34px; padding: 0 11px; border-radius: 17px; background: var(--chip); box-shadow: inset 0 0 0 1px var(--edge); }
+  [data-skin=obsidian] .fc, [data-skin=verdigris] .fc { border-radius: 3px; }
+  .fc b { font: 700 calc(18px * var(--fh-scale)) var(--fh); line-height: 34px; } .fc span { font-size: 11.5px; color: var(--ink-2); }
+  .fc.up { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--up) 70%, transparent); } .fc.up b, .fc.up span { color: var(--up); }
+  .fc.sum { background: color-mix(in srgb, var(--now) 15%, transparent); } .fc.sum b { font-size: calc(22px * var(--fh-scale)); }
+  .op { color: var(--ink-3); font: 600 15px var(--fb); }
+  .meter { margin: 26px 18px 0; position: relative; }
+  .meter .bar { display: grid; grid-template-columns: repeat(18, 1fr); gap: 3px; }
+  .meter .bar i { height: 11px; border-radius: 2px; }
+  .meter .bar i.miss { background: color-mix(in srgb, var(--down) 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--down) 45%, transparent); }
+  .meter .bar i.t1 { background: color-mix(in srgb, var(--party) 30%, transparent); }
+  .meter .bar i.t2 { background: var(--party); }
+  .meter .bar i.t3 { background: color-mix(in srgb, var(--now) 18%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--now) 55%, transparent); }
+  .meter .mark { position: absolute; top: -7px; width: 3px; height: 25px; border-radius: 2px; background: var(--ink); box-shadow: 0 0 10px var(--ink); }
+  .meter .mark b { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font: 700 12px var(--fh); white-space: nowrap; color: var(--ink); }
+  .meter .lg { display: grid; grid-template-columns: 6fr 5fr 3fr 4fr; margin-top: 6px; font: 700 10.5px var(--fb); letter-spacing: .08em; color: var(--ink-3); }
+  .meter .lg span:nth-child(1) { color: color-mix(in srgb, var(--down) 80%, var(--ink-3)); }
+  .meter .lg .on { color: var(--party); }
+  .tray { display: flex; align-items: center; gap: 10px; margin: 12px 18px 0; padding-top: 12px; border-top: 1px solid var(--edge); }
+  .hex { width: 48px; height: 48px; position: relative; display: grid; place-items: center; }
+  .hex svg { position: absolute; inset: 0; }
+  .hex b { position: relative; font: 700 21px var(--fh); color: #10141a; }
+  .hex small { position: absolute; top: -12px; font: 600 9.5px var(--fb); letter-spacing: .08em; color: var(--ink-3); white-space: nowrap; }
+  .hex.typing svg { filter: drop-shadow(0 0 10px var(--now)); }
+  .hex.typing b::after { content: ''; display: inline-block; width: 2px; height: 18px; margin-left: 2px; background: #10141a; vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .dmg { margin-left: auto; text-align: right; }
+  .dmg b { font: 700 calc(40px * var(--fh-scale)) var(--fh); line-height: .9; color: var(--enemy); text-shadow: 0 0 18px color-mix(in srgb, var(--enemy) 50%, transparent); }
+  .dmg div { font-size: 11.5px; color: var(--ink-2); margin-top: 3px; white-space: nowrap; }
+  .rkeys { display: flex; gap: 12px; padding: 10px 18px 12px; font-size: 11px; color: var(--ink-3); }
+
+  /* ================= docked plates ================= */
+  .plate { top: 576px; width: 384px; height: 216px; padding: 14px 16px; display: grid; grid-template-columns: 92px 1fr; gap: 14px; }
+  .plate.me { left: 18px; } .plate.them { right: 18px; grid-template-columns: 1fr 92px; text-align: right; }
+  .plate .pt { height: 128px; border-radius: calc(var(--radius) * .6); position: relative; overflow: hidden; display: flex; align-items: flex-end; justify-content: center;
+    background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--party) 28%, transparent), transparent 70%), var(--chip); box-shadow: inset 0 0 0 1px var(--edge); }
+  .plate.them .pt { order: 2; background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--enemy) 30%, transparent), transparent 70%), var(--chip); }
+  .plate .pt img { width: 70px; margin-bottom: 22px; image-rendering: pixelated; }
+  .plate.me .pt img { transform: scaleX(-1); }
+  .plate .tag { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.35); padding: 3px 0; text-align: center; font: 700 9.5px var(--fb); letter-spacing: .16em; }
+  .plate .n { font: 700 calc(19px * var(--fh-scale)) var(--fh); line-height: 1.05; }
+  .plate .s { font-size: 11.5px; color: var(--ink-2); margin-top: 2px; }
+  .plate .hpl { display: flex; align-items: baseline; gap: 6px; margin-top: 8px; }
+  .plate.them .hpl { justify-content: flex-end; }
+  .plate .hpl b { font: 700 calc(26px * var(--fh-scale)) var(--fh); line-height: 1; } .plate .hpl small { font-size: 14px; color: var(--ink-2); }
+  .plate .hpbar { height: 8px; border-radius: 4px; background: rgba(128,140,150,.22); margin-top: 5px; position: relative; overflow: hidden; }
+  .plate .hpbar i { position: absolute; top: 0; bottom: 0; }
+  .plate .hpbar i.loss { background: repeating-linear-gradient(135deg, var(--enemy) 0 4px, transparent 4px 8px); }
+  .plate .stats { display: flex; gap: 12px; margin-top: 8px; font-size: 11.5px; color: var(--ink-3); }
+  .plate.them .stats { justify-content: flex-end; }
+  .plate .stats b { font: 700 calc(15px * var(--fh-scale)) var(--fh); color: var(--ink); margin-left: 3px; }
+  .plate .cards { grid-column: 1 / 3; order: 3; display: flex; gap: 6px; }
+  .plate.them .cards { justify-content: flex-end; }
+
+  /* ================= action bar + rail ================= */
+  .abar { left: 50%; transform: translateX(-50%); top: 734px; display: flex; align-items: center; gap: 4px; padding: 6px; }
+  .who { display: flex; align-items: center; gap: 10px; padding: 0 14px 0 8px; margin-right: 4px; border-right: 1px solid var(--edge); height: 44px; }
+  .who img { width: 28px; image-rendering: pixelated; transform: scaleX(-1); }
+  .who b { font: 700 calc(15px * var(--fh-scale)) var(--fh); display: block; line-height: 1.1; } .who span { font-size: 11.5px; color: var(--ink-2); }
+  .ab { position: relative; width: 62px; height: 52px; border-radius: calc(var(--radius) * .8); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--ink-2); font-size: 11px; font-weight: 600; }
+  .ab .ico { width: 19px; height: 19px; }
+  .ab .k { position: absolute; top: 3px; right: 3px; min-width: 15px; height: 14px; font-size: 9.5px; padding: 0 3px; }
+  .ab.on { color: #10141a; background: linear-gradient(180deg, color-mix(in srgb, var(--enemy) 55%, #fff), var(--enemy)); box-shadow: 0 6px 18px color-mix(in srgb, var(--enemy) 35%, transparent); }
+  .ab.on .k { color: #5a1a12; background: rgba(255,255,255,.35); box-shadow: none; }
+  .ab.off { opacity: .4; }
+  .rail { left: 18px; right: 18px; top: 806px; height: 138px; display: flex; align-items: flex-end; gap: 8px; padding: 10px 14px; }
+  .card { position: relative; width: 84px; height: 108px; border-radius: calc(var(--radius) * .7); overflow: hidden; flex: none; background: var(--chip); box-shadow: inset 0 0 0 1px var(--edge); }
+  .card.party { background: linear-gradient(180deg, color-mix(in srgb, var(--party) 16%, transparent), transparent 75%), var(--chip); }
+  .card.enemy { background: linear-gradient(180deg, color-mix(in srgb, var(--enemy) 18%, transparent), transparent 75%), var(--chip); }
+  .card img { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); width: 40px; image-rendering: pixelated; }
+  .card .gl { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; font: 700 14px var(--fh); color: #ffd0a6; background: #6b3a14; }
+  .card .ini { position: absolute; left: 6px; top: 5px; font: 700 12px var(--fh); color: var(--ink-2); }
+  .card .nm2 { position: absolute; left: 0; right: 0; bottom: 20px; text-align: center; font: 700 calc(11.5px * var(--fh-scale)) var(--fh); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+  .card .hb { position: absolute; left: 8px; right: 8px; bottom: 10px; height: 4px; border-radius: 2px; background: rgba(128,140,150,.3); overflow: hidden; }
+  .card .hb i { display: block; height: 100%; }
+  .card .cs { position: absolute; right: 4px; top: 4px; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .card.now { width: 116px; height: 136px; margin-top: -40px; box-shadow: inset 0 0 0 2px var(--now), 0 0 22px color-mix(in srgb, var(--now) 40%, transparent); }
+  .card.now img { width: 54px; top: 14px; } .card.now .nm2 { font-size: calc(14px * var(--fh-scale)); bottom: 22px; }
+  .card.now .tagnow { position: absolute; left: 50%; top: -1px; transform: translateX(-50%); font: 700 9.5px var(--fb); letter-spacing: .16em; color: var(--now-ink); background: var(--now); padding: 2px 8px; border-radius: 0 0 6px 6px; }
+  .card.past { opacity: .42; width: 70px; height: 92px; } .card.past img { width: 34px; }
+  .card.tgt { box-shadow: inset 0 0 0 2px var(--enemy); }
+  .card .ribbon { position: absolute; left: 0; right: 0; top: 54px; text-align: center; font: 700 9px var(--fb); letter-spacing: .14em; color: #10141a; background: var(--neutral); padding: 2px 0; }
+  .rsep { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 40px; height: 108px; color: var(--ink-3); font: 700 11px var(--fh); }
+  .rsep::before, .rsep::after { content: ''; flex: 1; width: 1px; background: var(--edge-2); }
+  .card.ghost { background: transparent; box-shadow: none; outline: 1.5px dashed color-mix(in srgb, var(--enemy) 60%, transparent); outline-offset: -3px; }
+  .card.ghost .gl { background: rgba(77,128,77,.6); color: #dff0d4; } .card.ghost .nm2 { color: var(--enemy); }
+  .card.hold { width: 190px; background: transparent; box-shadow: none; outline: 1.5px dashed var(--edge-2); outline-offset: -2px; display: grid; place-items: center; text-align: center; line-height: 1.7; }
+  .holdtxt { font: 700 13px var(--fh); letter-spacing: .16em; color: var(--ink-3); } .holdtxt span { font: 500 10.5px var(--fb); letter-spacing: 0; }
+
+  /* ================= field mode ================= */
+  .banner { left: 50%; top: 742px; transform: translateX(-50%); height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 18px; border-radius: 22px; font-weight: 700; }
+  .banner .dotp { width: 9px; height: 9px; border-radius: 50%; background: var(--now); box-shadow: 0 0 10px var(--now); }
+  .fieldp { left: 86px; top: 78px; width: 380px; height: 712px; padding: 0; overflow: hidden; }
+  .tabs { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--edge); }
+  .tab { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 0 8px; font-size: 10.5px; font-weight: 700; color: var(--ink-3); position: relative; }
+  .tab .ico { width: 18px; height: 18px; }
+  .tab.on { color: var(--ink); } .tab.on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; background: var(--now); }
+  .fsec { padding: 14px 16px 6px; }
+  .fsec h4 { display: flex; align-items: center; justify-content: space-between; font: 700 calc(14px * var(--fh-scale)) var(--fh); margin-bottom: 10px; }
+  .slider { position: relative; height: 34px; }
+  .slider .track { position: absolute; left: 0; right: 0; top: 12px; height: 10px; border-radius: 5px; background: linear-gradient(90deg, #000 0%, #121c2c 20%, #3b4d63 45%, #9fb2c4 75%, #fff4d6 100%); box-shadow: inset 0 0 0 1px var(--edge-2); }
+  .slider .thumb { position: absolute; top: 5px; left: calc(35% - 12px); width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px var(--now), 0 4px 10px rgba(0,0,0,.4); }
+  .slider .val { position: absolute; left: calc(35% - 22px); top: -16px; font: 700 12px var(--fh); color: var(--ink); width: 44px; text-align: center; }
+  .scale { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--ink-3); margin-top: 2px; }
+  .presets { display: flex; gap: 6px; margin-top: 10px; }
+  .presets div { flex: 1; text-align: center; padding: 6px 0; border-radius: 8px; font-size: 11.5px; font-weight: 700; color: var(--ink-2); background: var(--chip); box-shadow: inset 0 0 0 1px var(--edge); }
+  .presets .on { color: var(--now-ink); background: var(--now); box-shadow: none; }
+  .toggle { width: 36px; height: 20px; border-radius: 10px; background: rgba(128,140,150,.3); position: relative; flex: none; }
+  .toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+  .toggle.on { background: var(--now); } .toggle.on::after { left: 19px; }
+  .lrow { display: grid; grid-template-columns: 22px 1fr auto 36px; gap: 10px; align-items: center; padding: 7px 16px; }
+  .lrow .bulb { width: 14px; height: 14px; border-radius: 50%; margin-left: 4px; }
+  .lrow .n { font-weight: 700; font-size: 13px; } .lrow .s { font-size: 11px; color: var(--ink-3); }
+  .lrow .r { font: 600 11px var(--fb); color: var(--ink-2); text-align: right; }
+  .lrow.grp { padding-top: 10px; } .lrow.grp .n { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+  .lrow.child { padding-left: 30px; }
+  .lrow.sel { background: color-mix(in srgb, var(--now) 13%, transparent); box-shadow: inset 3px 0 0 var(--now); }
+  .lrow.off .n { color: var(--ink-3); }
+  .edit { margin: 8px 16px 0; padding: 12px; border-radius: calc(var(--radius) * .7); background: var(--chip); box-shadow: inset 0 0 0 1px var(--edge); }
+  .edit .row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--ink-2); }
+  .sw { display: flex; gap: 6px; } .sw i { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.3); }
+  .sw i.on { box-shadow: 0 0 0 2px var(--panel-solid, #fff), 0 0 0 4px var(--now); }
+  .step { display: flex; align-items: center; gap: 0; border-radius: 6px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--edge-2); }
+  .step span { width: 26px; height: 24px; display: grid; place-items: center; color: var(--ink-2); font-weight: 700; }
+  .step b { width: 34px; text-align: center; font: 700 13px var(--fh); color: var(--ink); }
+  .fbtns { display: flex; gap: 8px; padding: 12px 16px; }
+  .fbtn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; height: 34px; border-radius: 8px; font-weight: 700; font-size: 12px; color: var(--ink); background: var(--chip); box-shadow: inset 0 0 0 1px var(--edge-2); }
+  .pin { position: absolute; transform: translate(-50%, -100%); pointer-events: none; display: flex; flex-direction: column; align-items: center; }
+  .pin .head { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--board-chip); box-shadow: inset 0 0 0 2px currentColor; }
+  .pin .head .ico { width: 16px; height: 16px; }
+  .pin .stem { width: 2px; height: 10px; background: currentColor; }
+  .pin .lab { margin-top: 2px; font: 700 10.5px var(--fb); padding: 1px 6px; border-radius: 6px; background: var(--board-chip); color: var(--board-ink); white-space: nowrap; }
+  .pin.off { color: #7d8a96 !important; }
+  .hchip { position: absolute; transform: translate(-50%, -50%); font: 700 11px var(--fb); padding: 2px 7px; border-radius: 7px; background: var(--board-chip); color: #9fd8ff; box-shadow: inset 0 0 0 1px rgba(159,216,255,.45); }
+  .hchip.neg { color: #c6b4ff; box-shadow: inset 0 0 0 1px rgba(198,180,255,.45); }
+</style>
+</head>
+<body>
+<div class="board"></div>
+<div class="shade"></div>
+<div id="ui"></div>
+<script src="scene-data.js"></script>
+<script>
+const q = new URLSearchParams(location.search);
+const SKIN = q.get('skin') ?? 'glass', PLATES = q.get('plates') ?? 'roll', MODE = q.get('mode') ?? 'combat';
+Object.assign(document.body.dataset, { skin: SKIN, plates: PLATES, mode: MODE });
+const S = window.SCENE, I = S.ICON, DY = -40;
+const P = (id) => S.pos('full', id, 0, DY);
+
+// ---------- emblems: medallion + unique glyph, ring colour = family ----------
+const GLYPH = {
+  blessed: '<path d="M12 3l1.6 5.1L19 6.5l-3.3 4.2L21 12l-5.3 1.3L19 17.5l-5.4-1.6L12 21l-1.6-5.1L5 17.5l3.3-4.2L3 12l5.3-1.3L5 6.5l5.4 1.6z" fill="#fff"/><circle cx="12" cy="12" r="2.6" fill="FAM"/>',
+  burning: '<path d="M12 3.5c.8 3.4 4.6 4.8 4.6 9.6a4.6 4.6 0 01-9.2 0c0-2.4 1.2-3.6 2.2-4.5.1 1.5.8 2.4 1.7 2.8C10.6 8.6 11.6 6 12 3.5z" fill="#fff"/><path d="M12 12.5c.4 1.4 1.9 2 1.9 3.6a1.9 1.9 0 01-3.8 0c0-1 .6-1.6 1-2 .1.6.4 1 .9 1.1-.2-1 0-1.9 0-2.7z" fill="FAM"/>',
+  chilled: '<g stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none"><path d="M12 3.5v17M4.6 7.75l14.8 8.5M4.6 16.25l14.8-8.5"/><path d="M9.6 5.2L12 7.4l2.4-2.2M9.6 18.8L12 16.6l2.4 2.2M4.4 10.6l3.1-.9-.7-3.2M19.6 13.4l-3.1.9.7 3.2M4.4 13.4l3.1.9-.7 3.2M19.6 10.6l-3.1-.9.7-3.2"/></g>',
+  illuminated: '<g fill="#fff"><path d="M12 7.5c-4.2 0-7 4.5-7 4.5s2.8 4.5 7 4.5 7-4.5 7-4.5-2.8-4.5-7-4.5z"/></g><circle cx="12" cy="12" r="2.4" fill="FAM"/><g stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M12 2.8v2.4M5.2 5.2l1.6 1.6M18.8 5.2l-1.6 1.6M12 18.8v2.4"/></g>',
+  shield: '<path d="M12 3.2l6.8 2.6v5.4c0 4.4-2.9 8-6.8 9.6-3.9-1.6-6.8-5.2-6.8-9.6V5.8z" fill="#fff"/><path d="M12 7.6l1.1 2.6 2.8.2-2.1 1.8.7 2.7L12 13.5l-2.5 1.4.7-2.7-2.1-1.8 2.8-.2z" fill="FAM"/>',
+  readied: '<g stroke="#fff" stroke-width="2" stroke-linecap="round" fill="none"><path d="M5 19L17 7M14.5 5.5l4 4M19 19L7 7M9.5 5.5l-4 4"/></g>',
+  reinforce: '<g fill="#fff"><circle cx="8" cy="8.5" r="2.4"/><circle cx="16" cy="8.5" r="2.4"/><path d="M3.8 17c0-2.5 1.9-4.2 4.2-4.2s4.2 1.7 4.2 4.2zM11.8 17c0-2.5 1.9-4.2 4.2-4.2s4.2 1.7 4.2 4.2z"/></g>',
+  power: '<path d="M13.5 3L6 13.2h5l-1.5 7.8L18 10.8h-5z" fill="#fff"/>',
+};
+const FAMHEX = { buff: ['#ffd76a', '#a8761c'], debuff: ['#b89cff', '#5b3fc4'], dot: ['#ffab5e', '#b8410f'], event: ['#ff9a8a', '#a5302a'], neutral: ['#b5d6ea', '#3e5b70'] };
+let embN = 0;
+function emblem(key, fam, size = 28) {
+  const [a, b] = FAMHEX[fam], id = 'eg' + embN++;
+  return `<span class="emb" style="width:${size}px;height:${size}px"><svg viewBox="0 0 24 24">
+    <defs><radialGradient id="${id}" cx="40%" cy="32%" r="75%"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></radialGradient></defs>
+    <circle cx="12" cy="12" r="11.2" fill="url(#${id})"/><circle cx="12" cy="12" r="11.2" fill="none" stroke="rgba(255,255,255,.55)" stroke-width=".9"/>
+    <circle cx="12" cy="12" r="9.6" fill="none" stroke="rgba(0,0,0,.25)" stroke-width=".8"/>
+    <g transform="translate(12 12) scale(.72) translate(-12 -12)">${GLYPH[key].replaceAll('FAM', b)}</g></svg></span>`;
+}
+const pips = (left, max, cls = '') => `<span class="pips ${cls}">${Array.from({ length: max }, (_, i) => `<i class="${i < left ? 'f' : ''}"></i>`).join('')}</span>`;
+
+// ---------- the effects in play (with source and when each one ends) ----------
+const FX = [
+  { key: 'chilled', name: 'Chilled', on: 'u2', fam: 'debuff', fx: '−2 MOB', src: 'Ray of Frost · G. Wizard', left: 1, max: 2, ends: "Dan's turn", soon: true },
+  { key: 'burning', name: 'Burning', on: 'u5', fam: 'dot', fx: '2 dmg each turn', src: 'Fire Bolt · G. Wizard', left: 2, max: 2, ends: 'R4' },
+  { key: 'illuminated', name: 'Illuminated', on: 'u7', fam: 'debuff', fx: '−2 AC', src: 'Guiding Bolt · Dan', left: 2, max: 2, ends: 'R4' },
+  { key: 'blessed', name: 'Blessed', on: 'u1', fam: 'buff', fx: '+2 hit · +1 dmg', src: 'Bless · G. Wizard', left: 2, max: 3, ends: 'R5' },
+  { key: 'shield', name: 'Shield of Faith', on: 'u3', fam: 'buff', fx: '+2 AC', src: 'own spell', left: 8, max: 8, ends: 'R10' },
+];
+const OTHER = [
+  { key: 'readied', name: 'Readied', on: 'u8', fam: 'neutral', fx: 'strike whoever climbs the ramp', ends: 'on trigger' },
+  { key: 'reinforce', name: 'Falsiradix ×2', fam: 'event', fx: 'arrive at the east vent', ends: 'R4', left: 1, max: 1 },
+  { key: 'power', name: 'Generator restored', fam: 'neutral', fx: 'service bay floods switch on', ends: 'R5', left: 2, max: 2, timer: true },
+];
+const fxOf = (id) => FX.filter((f) => f.on === id);
+const short = (id) => S.byId[id].short;
+let h = '';
+
+// ---------- top ----------
+h += `<div class="panel round"><div class="n"><small>RND</small>3</div><div class="area">${S.area}<br><span style="color:var(--ink-3)">Henry's turn · 2 of 9</span></div>
+  <div class="amb"><span class="bar"></span>35%</div></div>`;
+h += `<div class="panel tr">
+  <div class="pill"><span class="ico">${I.undo}</span><span class="k">Ctrl Z</span></div>
+  <div class="pill hi"><span class="live"></span>TV</div>
+  <div class="pill"><span class="ico">${I.gear}</span></div>
+  ${MODE === 'field' ? '' : '<div class="pill next">End turn <span class="k">Space</span></div>'}
+</div>`;
+
+// ---------- dock: Field mode + shortcuts straight into its tabs ----------
+{
+  const items = [['lamp', 'Light'], ['height', 'Height'], ['spawn', 'Spawn'], ['tag', 'Terrain'], ['gear', 'Board'], ['tv', 'TV'], ['undo', 'History']];
+  h += `<div class="panel dock"><div class="dk head ${MODE === 'field' ? 'on' : ''}"><span class="k">G</span><span class="ico">${I.height}</span>Field</div><div class="dk sep"></div>
+    ${items.map(([i, l], n) => `<div class="dk ${MODE === 'field' && n === 0 ? 'cur' : ''}"><span class="ico">${I[i]}</span>${l}</div>`).join('')}</div>`;
+}
+// ---------- board: rings, effects, HP pips ----------
+const hp = P('u1'), gp = P('u5');
+function boardFx() {
+  let s = '';
+  // Burning: licking flames + embers at Guard #1's feet
+  const g = P('u5');
+  s += `<svg class="vfx" style="left:${g.x - 40}px;top:${g.feet - 70}px" width="80" height="84" viewBox="0 0 80 84">
+    <defs><radialGradient id="fl" cx="50%" cy="85%" r="70%"><stop offset="0" stop-color="#fff2a8"/><stop offset=".35" stop-color="#ffab3d"/><stop offset=".8" stop-color="#ff4b1f" stop-opacity=".7"/><stop offset="1" stop-color="#ff2a00" stop-opacity="0"/></radialGradient>
+    <filter id="gl"><feGaussianBlur stdDeviation="1.6"/></filter></defs>
+    <ellipse cx="40" cy="72" rx="34" ry="11" fill="#ff6a1f" opacity=".45" filter="url(#gl)"/>
+    <g filter="url(#gl)" fill="url(#fl)"><path d="M18 74c-4-10 2-14 4-24 4 8 9 10 7 24z"/><path d="M34 76c-5-14 3-22 6-36 5 12 11 16 8 36z"/><path d="M52 74c-3-9 3-13 5-21 3 7 8 9 6 21z"/></g>
+    <g fill="#ffd27a"><circle cx="24" cy="30" r="1.6"/><circle cx="50" cy="20" r="1.3"/><circle cx="58" cy="38" r="1.1"/><circle cx="31" cy="12" r="1"/></g></svg>`;
+  // Blessed: a halo that sits on Henry's head (anchored to the sprite's top), plus a few rising motes
+  const b = P('u1');
+  s += `<svg class="vfx" style="left:${b.x - 32}px;top:${b.head - 14}px" width="64" height="86" viewBox="0 0 64 86">
+    <defs><filter id="gb"><feGaussianBlur stdDeviation="1.8"/></filter></defs>
+    <ellipse cx="32" cy="14" rx="15" ry="4.6" fill="none" stroke="#ffd76a" stroke-width="3.2" filter="url(#gb)"/>
+    <path d="M17 14 A15 4.6 0 0 1 47 14" fill="none" stroke="#fff6cf" stroke-width="1.6" opacity=".55"/>
+    <path d="M17 14 A15 4.6 0 0 0 47 14" fill="none" stroke="#fff6cf" stroke-width="1.8"/>
+    <g fill="#fff1b0"><circle cx="10" cy="52" r="1.6"/><circle cx="56" cy="38" r="1.5"/><circle cx="14" cy="28" r="1.1"/><circle cx="52" cy="70" r="1.3"/></g></svg>`;
+  // Chilled: frost ring + shards at Dan's feet, cold tint over him
+  const d = P('u2');
+  s += `<svg class="vfx" style="left:${d.x - 44}px;top:${d.head - 6}px" width="88" height="108" viewBox="0 0 88 108">
+    <defs><radialGradient id="ct" cx="50%" cy="55%" r="55%"><stop offset="0" stop-color="#8fd3ff" stop-opacity=".35"/><stop offset="1" stop-color="#8fd3ff" stop-opacity="0"/></radialGradient><filter id="gc"><feGaussianBlur stdDeviation="1.4"/></filter></defs>
+    <ellipse cx="44" cy="54" rx="30" ry="46" fill="url(#ct)"/>
+    <ellipse cx="44" cy="92" rx="36" ry="12" fill="none" stroke="#bfe8ff" stroke-width="2.2" filter="url(#gc)"/>
+    <g fill="#d9f3ff" opacity=".9"><path d="M12 92l4-14 4 14z"/><path d="M66 94l3-11 4 11z"/><path d="M30 101l3-9 3 9z"/><path d="M54 101l2-8 3 8z"/></g></svg>`;
+  // Shield of Faith: a full bubble around G. Wizard (encloses head to feet), resting on a ground ring
+  const w = P('u3'), bh = w.feet - w.head;
+  s += `<svg class="vfx" style="left:${w.x - 52}px;top:${w.head - 26}px" width="104" height="${bh + 44}" viewBox="0 0 104 ${bh + 44}">
+    <defs><radialGradient id="sd" cx="50%" cy="45%" r="55%"><stop offset=".55" stop-color="#ffe7a1" stop-opacity="0"/><stop offset=".92" stop-color="#ffe7a1" stop-opacity=".28"/><stop offset="1" stop-color="#ffe7a1" stop-opacity=".5"/></radialGradient>
+      <clipPath id="bub"><ellipse cx="52" cy="${(bh + 44) / 2 - 4}" rx="46" ry="${(bh + 44) / 2 - 6}"/></clipPath></defs>
+    <ellipse cx="52" cy="${bh + 32}" rx="44" ry="10" fill="rgba(255,231,161,.14)" stroke="#ffe7a1" stroke-opacity=".7" stroke-width="1.4"/>
+    <ellipse cx="52" cy="${(bh + 44) / 2 - 4}" rx="46" ry="${(bh + 44) / 2 - 6}" fill="url(#sd)" stroke="#ffe7a1" stroke-opacity=".8" stroke-width="1.6"/>
+    <g clip-path="url(#bub)" stroke="#fff3c4" stroke-opacity=".22" fill="none" stroke-width="1"><path d="M0 30h104M0 60h104M0 90h104M20 0v140M52 0v140M84 0v140"/></g>
+    <path d="M22 ${(bh + 44) / 2 - 30} Q34 12 62 10" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2.4" stroke-linecap="round"/></svg>`;
+  // Illuminated: light shaft down onto the hornet
+  const o = P('u7');
+  s += `<svg class="vfx" style="left:${o.x - 40}px;top:${o.head - 120}px" width="80" height="196" viewBox="0 0 80 196">
+    <defs><linearGradient id="sh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3d6ff" stop-opacity="0"/><stop offset=".7" stop-color="#d9c8ff" stop-opacity=".45"/><stop offset="1" stop-color="#d9c8ff" stop-opacity=".1"/></linearGradient></defs>
+    <path d="M30 0 L50 0 L70 196 L10 196 Z" fill="url(#sh)"/><ellipse cx="40" cy="150" rx="26" ry="8" fill="#e8dcff" opacity=".35"/></svg>`;
+  return s;
+}
+if (MODE !== 'field') {
+  h += `<div class="ring now" style="left:${hp.x}px;top:${hp.feet - 2}px"></div><div class="ring tg" style="left:${gp.x}px;top:${gp.feet - 2}px"></div>`;
+  h += `<svg class="svgl" width="1536" height="960"><defs><marker id="ah" markerWidth="8" markerHeight="8" refX="5" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--now)"/></marker></defs>
+    <path d="M ${hp.x - 6} ${hp.head + 6} Q ${hp.x - 40} ${hp.head - 60} ${gp.x - 16} ${gp.head + 20}" fill="none" stroke="var(--now)" stroke-width="2.5" stroke-dasharray="6 5" marker-end="url(#ah)"/></svg>`;
+}
+h += boardFx();
+const offs = { u1: [86, 86], u5: [74, 0], u6: [-26, 2], u4: [-62, 62], u2: [26, 4], u8: [0, 14], u3: [-4, 6], u20: [0, 12], u7: [0, -10] };
+if (MODE !== 'field') for (const u of S.units) {
+  const p = P(u.id), [ox, oy] = offs[u.id];
+  const n = u.max > 24 ? Math.ceil(u.max / 2) : u.max, pp = [];
+  for (let i = 0; i < n; i++) { const v = (i + 1) * u.max / n; pp.push(`<i class="${v <= u.hp ? (u.target && v > S.attack.hpAfter ? 'loss' : 'f') : ''}"></i>`); }
+  const st = fxOf(u.id).map((f) => `<span class="bsts">${emblem(f.key, f.fam, 18)}${pips(f.left, Math.min(f.max, 3), 'sm fam-' + f.fam)}</span>`).join('');
+  h += `<div class="bu" style="left:${p.x + ox}px;top:${p.head + oy}px">
+    ${st ? `<div style="display:flex;gap:3px">${st}</div>` : ''}
+    <div class="hpp ${u.side}">${pp.join('')}</div>
+    ${u.current || u.target || u.fly ? `<div class="bnm">${u.current || u.target ? u.short : ''}${u.fly ? ` <span style="color:#9fd8ff">▲${u.fly}</span>` : ''}</div>` : ''}
+  </div>`;
+}
+
+// ---------- effects tracker ----------
+function fxRow(f) {
+  const who = f.on ? `<span>on ${short(f.on)}</span>` : '';
+  return `<div class="fx-row ${f.soon ? 'soon' : ''}">${emblem(f.key, f.fam, 32)}
+    <div><div class="nm">${f.name} ${who}</div><div class="sub">${f.fx}${f.src ? ' · ' + f.src : ''}</div></div>
+    <div class="end">${f.left ? pips(f.left, f.max, 'fam-' + f.fam) : ''}<div class="w">${f.ends}</div></div></div>`;
+}
+if (MODE !== 'field') {
+  h += `<div class="panel fx"><div class="fx-h"><span class="t">Active effects</span><span class="c">${FX.length + OTHER.length}</span><span class="r"><span class="k">T</span></span></div>
+    <div class="fx-grp">On creatures · soonest first</div>${FX.map(fxRow).join('')}
+    <div class="fx-grp">Readied · arrivals · timers</div>${OTHER.map(fxRow).join('')}
+    <div class="fx-add"><span>+ timer</span><span>·</span><span>click an effect to edit / end it</span></div></div>`;
+}
+
+// ---------- plates & roll ----------
+const A = S.attack, me = S.byId.u1, them = S.byId.u5;
+const statusCard = (f, big) => `<div class="stc">${emblem(f.key, f.fam, big ? 30 : 26)}<div><div class="n2">${f.name}</div><div class="f">${f.fx} ${pips(f.left, Math.min(f.max, 4), 'sm fam-' + f.fam)}</div></div></div>`;
+const meStats = `<span>ATK<b class="up">+9</b></span><span>AC<b>14</b></span><span>MOB<b>2</b></span><span>DMG<b>d6·d6·d10</b></span>`;
+const themStats = `<span>AC<b>12</b></span><span>MOB<b>3</b></span><span>ATK<b>+3</b></span><span>DEX sv<b>+3</b></span>`;
+const hpBar = (u, after) => `<div class="hpbar"><i style="left:0;width:${(after ?? u.hp) / u.max * 100}%;background:${u.side === 'party' ? 'var(--party)' : 'var(--enemy)'}"></i>${after != null ? `<i class="loss" style="left:${after / u.max * 100}%;width:${(u.hp - after) / u.max * 100}%"></i>` : ''}</div>`;
+const d20svg = `<svg viewBox="0 0 84 84"><defs><linearGradient id="dg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff1c0"/><stop offset="1" stop-color="var(--now)"/></linearGradient></defs>
+  <polygon points="42,3 78,23 78,61 42,81 6,61 6,23" fill="url(#dg)"/><polygon points="42,3 78,23 42,30 6,23" fill="rgba(255,255,255,.35)"/><polyline points="6,61 42,30 78,61" fill="none" stroke="rgba(0,0,0,.15)" stroke-width="2"/></svg>`;
+const hexsvg = (c) => `<svg viewBox="0 0 50 50"><polygon points="25,2 46,13.5 46,36.5 25,48 4,36.5 4,13.5" fill="${c}"/></svg>`;
+// margin bar: −6 … +11, MISS < 0, T1 0–4, T2 5–7, T3 8+
+let cells = '';
+for (let m = -6; m <= 11; m++) cells += `<i class="${m < 0 ? 'miss' : m <= 4 ? 't1' : m <= 7 ? 't2' : 't3'}"></i>`;
+const markPct = ((A.margin + 6) + .5) / 18 * 100;
+const meter = `<div class="meter"><div class="bar">${cells}</div><span class="mark" style="left:calc(${markPct}% - 1.5px)"><b>+${A.margin}</b></span>
+  <div class="lg"><span>MISS · below AC</span><span>T1 · 0–4</span><span class="on">T2 · 5–7</span><span style="text-align:right;white-space:nowrap">T3 · 8+ (2 more)</span></div></div>`;
+const formula = `<div class="formula">
+  <div class="fc"><b>9</b><span>d20</span></div><span class="op">+</span><div class="fc"><b>7</b><span>STR</span></div><span class="op">+</span>
+  <div class="fc up"><b>2</b><span>Blessed</span></div><span class="op">=</span><div class="fc sum"><b>18</b></div><span class="op">vs</span><div class="fc"><b>12</b><span>AC</span></div></div>`;
+const tray = `<div class="tray">
+  <div class="hex">${hexsvg('#eef3f7')}<small>T1 d6</small><b>4</b></div><span class="op">+</span>
+  <div class="hex typing">${hexsvg('#ffe08f')}<small>T2 d6</small><b>5</b></div><span class="op">+</span>
+  <div class="fc" style="height:30px"><b style="line-height:30px;font-size:16px">4</b><span>STR ½</span></div><span class="op">+</span>
+  <div class="fc up" style="height:30px"><b style="line-height:30px;font-size:16px">1</b><span>Blessed</span></div>
+  <div class="dmg"><b>−14</b><div>Guard #1 · 18 → 4</div></div></div>`;
+const keys = `<div class="rkeys"><span><span class="k">Enter</span> apply</span><span><span class="k">Tab</span> next die</span><span><span class="k">Esc</span> back</span><span><span class="k">X</span> nat 20 ×1.5</span></div>`;
+
+if (MODE !== 'field' && PLATES === 'roll') {
+  h += `<div class="panel roll">
+    <div class="fighters">
+      <div class="ft l"><div class="pt"><img src="${me.portrait}"></div>
+        <div><div class="n">Henry Keaton</div><div class="s">Sledgehammer</div><div class="hp" style="color:var(--party)">20 <span style="color:var(--ink-3);font-size:12px">/ 36</span></div>${hpBar(me)}
+          <div class="stats">${meStats.replace('<span>DMG<b>d6·d6·d10</b></span>', '')}</div></div>
+        <div class="stcards">${fxOf('u1').map((f) => statusCard(f, true)).join('')}</div></div>
+      <div class="vsd">${d20svg}<span class="v">${A.d20}</span><span class="t">D20</span></div>
+      <div class="ft r"><div class="pt"><img src="${them.portrait}"></div>
+        <div><div class="n">Moongate Guard #1</div><div class="s">Humanoid · security</div><div class="hp">18 <span class="to">→ 4</span></div>${hpBar(them, 4)}
+          <div class="stats">${themStats.replace('<span>DEX sv<b>+3</b></span>', '')}</div></div>
+        <div class="stcards">${fxOf('u5').map((f) => statusCard(f, true)).join('')}</div></div>
+    </div>${formula}${meter}${tray}${keys}</div>`;
+}
+if (MODE !== 'field' && PLATES === 'dock') {
+  h += `<div class="panel roll"><div class="roll-h"><span class="t">Henry <em>→</em> Guard #1</span><span class="w">Sledgehammer · d6/d6/d10</span></div>${formula}${meter}${tray}${keys}</div>`;
+  h += `<div class="panel plate me"><div class="pt"><span class="tag" style="color:var(--party)">SELECTED</span><img src="${me.portrait}"></div>
+    <div><div class="n">Henry Keaton</div><div class="s">Warrior Survivalist · Lv 1</div>
+      <div class="hpl"><b>20</b><small>/ 36</small></div>${hpBar(me)}<div class="stats">${meStats}</div></div>
+    <div class="cards">${fxOf('u1').map((f) => statusCard(f, true)).join('')}</div></div>`;
+  h += `<div class="panel plate them"><div class="pt"><span class="tag" style="color:var(--enemy)">TARGET</span><img src="${them.portrait}"></div>
+    <div><div class="n">Moongate Guard #1</div><div class="s">Humanoid · Moongate security</div>
+      <div class="hpl"><b>18</b><small>/ 18</small><b style="font-size:18px;color:var(--enemy)">→ 4</b></div>${hpBar(them, 4)}<div class="stats">${themStats}</div></div>
+    <div class="cards">${fxOf('u5').map((f) => statusCard(f, true)).join('')}</div></div>`;
+}
+
+// ---------- action bar + rail ----------
+if (MODE !== 'field') {
+  h += `<div class="panel abar">
+    ${PLATES === 'roll' ? `<div class="who"><img src="${me.portrait}"><div><b>Henry Keaton</b><span>20/36 · AC 14 · MOB 2</span></div></div>` : ''}
+    <div class="ab"><span class="k">F</span><span class="ico">${I.move}</span>Move</div>
+    <div class="ab on"><span class="k">E</span><span class="ico">${I.attack}</span>Attack</div>
+    <div class="ab off"><span class="k">C</span><span class="ico">${I.cast}</span>Cast</div>
+    <div class="ab"><span class="k">R</span><span class="ico">${I.item}</span>Item</div>
+    <div class="ab"><span class="k">S</span><span class="ico">${I.tag}</span>Status</div>
+    <div class="ab"><span class="k">H</span><span class="ico">${I.heart}</span>± HP</div>
+    <div class="ab"><span class="k">D</span><span class="ico">${I.clock}</span>Delay</div></div>`;
+}
+const card = (u, cls = '') => {
+  const pct = u.hp / u.max, c = pct > .5 ? (u.side === 'enemy' ? 'var(--enemy)' : 'var(--party)') : pct > .25 ? 'var(--now)' : 'var(--down)';
+  const em = fxOf(u.id).map((f) => `${emblem(f.key, f.fam, 20)}${pips(f.left, Math.min(f.max, 3), 'sm fam-' + f.fam)}`).join('');
+  return `<div class="card ${u.side} ${cls} ${u.target ? 'tgt' : ''}">
+    ${u.current ? '<span class="tagnow">NOW</span>' : `<span class="ini">${u.init}</span>`}
+    ${u.portrait ? `<img src="${u.portrait}">` : `<div class="gl">${u.glyph}</div>`}
+    ${em ? `<div class="cs">${em}</div>` : ''}${u.readied ? '<div class="ribbon">READIED</div>' : ''}
+    <div class="nm2">${u.short}</div><div class="hb"><i style="width:${pct * 100}%;background:${c}"></i></div></div>`;
+};
+h += `<div class="panel rail" style="${MODE === 'field' ? 'opacity:.45' : ''}">
+  ${card(S.byId.u20, 'past')}${S.units.slice(1).map((u) => card(u, u.current ? 'now' : '')).join('')}
+  <div class="rsep">R4</div>${card(S.byId.u20)}
+  <div class="card ghost"><span class="ini">?</span><div class="gl">FX</div><div class="nm2">Falsiradix ×2</div></div>
+  <div class="rsep"></div><div class="card hold"><div class="holdtxt">HOLD<br><span>drag a card here to delay<br><span class="k">D</span> delay · <span class="k">Y</span> ready</span></div></div></div>`;
+
+// ---------- field mode ----------
+if (MODE === 'field') {
+  h += `<div class="panel banner"><span class="dotp"></span>Field mode <span style="font-weight:500;color:var(--ink-2)">· edits apply live · players see changes as you make them</span><span class="k">G</span> exit</div>`;
+  const tabs = [['lamp', 'Light', 1], ['height', 'Height'], ['spawn', 'Spawn'], ['tag', 'Terrain'], ['gear', 'Board'], ['tv', 'TV'], ['undo', 'History']];
+  h += `<div class="panel fieldp">
+    <div class="fsec" style="padding-bottom:0"><div class="lbl">Field · Light</div></div>
+    <div class="fsec"><h4><span>Ambient light</span><span class="lbl" style="letter-spacing:.08em">whole board</span></h4>
+      <div class="slider"><div class="track"></div><span class="val">35%</span><div class="thumb"></div></div>
+      <div class="scale"><span>0% pitch black</span><span>dim</span><span>100% daylight</span></div>
+      <div class="presets"><div>Blackout 0</div><div>Night 15</div><div class="on">Dim 35</div><div>Lit 70</div><div>Day 100</div></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;font-size:12px;color:var(--ink-2)"><span>DM reveal · I can see into the dark</span><span class="toggle on"></span></div>
+    </div>
+    <div class="fsec" style="padding-bottom:0"><h4><span>Lights on the board</span><span class="lbl" style="letter-spacing:.08em">4</span></h4></div>
+    <div class="lrow grp"><span></span><div><div class="n">Grow lamps</div></div><span class="r">group</span><span class="toggle on"></span></div>
+    <div class="lrow child"><span class="bulb" style="background:#d8ffb0;box-shadow:0 0 10px #d8ffb0"></span><div><div class="n">Grow lamp A</div><div class="s">C2 · bright 3 · dim 5</div></div><span class="r"></span><span class="toggle on"></span></div>
+    <div class="lrow child sel"><span class="bulb" style="background:#d8ffb0;box-shadow:0 0 10px #d8ffb0"></span><div><div class="n">Grow lamp B</div><div class="s">M4 · bright 3 · dim 5</div></div><span class="r"></span><span class="toggle on"></span></div>
+    <div class="lrow"><span class="bulb" style="background:#ffb366;box-shadow:0 0 10px #ffb366"></span><div><div class="n">Henry's torch</div><div class="s">carried by Henry · bright 2 · dim 4</div></div><span class="r"></span><span class="toggle on"></span></div>
+    <div class="lrow off"><span class="bulb" style="box-shadow:inset 0 0 0 1.5px #bfe3ff"></span><div><div class="n">Service bay floods</div><div class="s">K10 · generator offline</div></div><span class="r">R5 timer</span><span class="toggle"></span></div>
+    <div class="edit"><div class="lbl">Grow lamp B · selected on board</div>
+      <div class="row"><span>Colour</span><span class="sw"><i class="on" style="background:#d8ffb0"></i><i style="background:#ffe3b0"></i><i style="background:#ffb366"></i><i style="background:#bfe3ff"></i><i style="background:#ff6a5a"></i><i style="background:#b89cff"></i></span></div>
+      <div class="row"><span>Bright / dim radius</span><span style="display:flex;gap:8px"><span class="step"><span>−</span><b>3</b><span>+</span></span><span class="step"><span>−</span><b>5</b><span>+</span></span></span></div>
+      <div class="row"><span>Flicker</span><span class="toggle"></span></div></div>
+    <div class="fbtns"><div class="fbtn"><span class="ico">${I.lamp}</span>Place light</div><div class="fbtn"><span class="ico">${I.spawn}</span>Attach to creature</div></div>
+  </div>`;
+  // lamp pins + radius rings for the selected lamp, height chips
+  const lamps = [[806, 62, 164, 'Grow lamp B', '#d8ffb0', true, true], [1074, 324, 432, 'Service bay', '#bfe3ff', false]];
+  const sel = lamps[0];
+  h += `<svg class="svgl" width="1536" height="960">
+    <ellipse cx="${sel[0]}" cy="${sel[2]}" rx="250" ry="142" fill="rgba(216,255,176,.05)" stroke="rgba(216,255,176,.45)" stroke-width="1.5" stroke-dasharray="7 6"/>
+    <ellipse cx="${sel[0]}" cy="${sel[2]}" rx="150" ry="86" fill="rgba(216,255,176,.09)" stroke="#d8ffb0" stroke-width="2"/>
+    <text x="${sel[0] + 156}" y="${sel[2] + 4}" fill="#d8ffb0" font-family="Inter" font-weight="700" font-size="11">bright 3</text>
+    <text x="${sel[0] + 254}" y="${sel[2] + 4}" fill="rgba(216,255,176,.75)" font-family="Inter" font-weight="700" font-size="11">dim 5</text></svg>`;
+  for (const [x, top, , name, col, on, isSel] of lamps)
+    h += `<div class="pin ${on ? '' : 'off'}" style="left:${x}px;top:${top - 6}px;color:${col}"><div class="head" style="${isSel ? `box-shadow:inset 0 0 0 2px ${col},0 0 0 3px var(--now),0 0 16px ${col}` : ''}"><span class="ico">${I.lamp}</span></div><div class="stem"></div><div class="lab">${name}${on ? '' : ' · off'}</div></div>`;
+  const tp = P('u1');
+  h += `<div class="pin" style="left:${tp.x - 30}px;top:${tp.head - 4}px;color:#ffb366"><div class="head"><span class="ico">${I.lamp}</span></div><div class="stem"></div><div class="lab">Torch · Henry</div></div>`;
+  [['u20', '+15 ft', 60, -10], ['u3', '+10 ft', -74, -30], ['u8', '+5 ft', -70, 0]].forEach(([id, t, dx, dy]) => { const p = P(id); h += `<div class="hchip" style="left:${p.x + dx}px;top:${p.feet + dy}px">${t}</div>`; });
+  h += `<div class="hchip neg" style="left:${tp.x + 150}px;top:${tp.feet + 70}px">−5 / −10 ft</div>`;
+  const hn = P('u7'); h += `<div class="hchip" style="left:${hn.x - 70}px;top:${hn.head + 46}px">▲ flying 15 ft</div>`;
+}
+document.getElementById('ui').innerHTML = h;
+</script>
+</body>
+</html>

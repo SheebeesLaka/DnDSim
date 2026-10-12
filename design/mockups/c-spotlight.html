@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>C — Spotlight (DM screen mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --glass: rgba(13,19,25,.68); --glass-2: rgba(22,30,38,.78); --edge: rgba(220,240,255,.14); --edge-2: rgba(220,240,255,.26);
+    --ink: #eef3f7; --ink-2: #a9b6c1; --ink-3: #6f7d89;
+    --party: #c4f36b; --enemy: #ff7a66; --now: #ffd36b; --magic: #a98bff; --dot: #ff9a4a; --cool: #9fd8ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1536px; height: 960px; overflow: hidden; background: #05080b; }
+  body { font-family: Inter, system-ui, sans-serif; color: var(--ink); position: relative; font-size: 13px; }
+  .hd { font-family: 'Chakra Petch', sans-serif; }
+  .board { position: absolute; left: 0; top: -40px; width: 1536px; height: 960px; background: url(../scene/board-full-1920x1200.png) 0 0 / 1536px 960px no-repeat; }
+  .spot { position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse 300px 220px at 700px 575px, rgba(5,8,11,0) 0%, rgba(5,8,11,0) 55%, rgba(5,8,11,.5) 100%),
+                linear-gradient(180deg, rgba(5,8,11,.0) 70%, rgba(5,8,11,.85) 92%); }
+  .glass { position: absolute; background: var(--glass); backdrop-filter: blur(14px) saturate(1.2); border-radius: 14px;
+    box-shadow: inset 0 0 0 1px var(--edge), inset 0 1px 0 rgba(255,255,255,.08), 0 18px 40px rgba(0,0,0,.45); }
+  .k { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 5px; font: 600 10.5px Inter;
+    color: var(--ink-2); background: rgba(255,255,255,.07); box-shadow: inset 0 0 0 1px var(--edge-2); }
+  .ico { width: 16px; height: 16px; display: inline-block; } .ico svg { width: 100%; height: 100%; display: block; }
+  .lbl { font: 600 10.5px Inter; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+
+  /* top-left round + lighting */
+  .round { left: 18px; top: 16px; height: 52px; display: flex; align-items: center; gap: 14px; padding: 0 16px 0 14px; border-radius: 26px; }
+  .round .n { font: 700 28px 'Chakra Petch'; line-height: 1; }
+  .round .n small { font-size: 12px; color: var(--ink-3); letter-spacing: .14em; margin-right: 6px; vertical-align: 4px; }
+  .round .area { font-size: 12.5px; color: var(--ink-2); line-height: 1.25; }
+  .lights { left: 18px; top: 78px; display: flex; gap: 6px; padding: 6px; border-radius: 22px; }
+  .lchip { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px 0 9px; border-radius: 16px; font-weight: 600; font-size: 12.5px; color: var(--ink-2); }
+  .lchip .b { width: 10px; height: 10px; border-radius: 50%; }
+  .lchip.on { color: var(--ink); background: rgba(255,255,255,.06); box-shadow: inset 0 0 0 1px var(--edge); }
+  .lchip.amb { color: var(--cool); }
+  .lchip .ico { width: 14px; height: 14px; }
+
+  /* top-right */
+  .tr { right: 18px; top: 16px; display: flex; gap: 6px; padding: 6px; border-radius: 26px; align-items: center; }
+  .pill { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 20px; font-weight: 600; font-size: 13px; color: var(--ink-2); }
+  .pill.hi { color: var(--ink); background: rgba(255,255,255,.07); box-shadow: inset 0 0 0 1px var(--edge); }
+  .pill .live { width: 8px; height: 8px; border-radius: 50%; background: #ff5d5d; box-shadow: 0 0 8px #ff5d5d; }
+  .pill .ico { width: 17px; height: 17px; }
+  .next { color: #1c1604 !important; background: linear-gradient(180deg, #ffe08f, #f5bf43) !important; box-shadow: 0 6px 20px rgba(255,211,107,.35) !important; }
+  .next .k { color: #5c4508; background: rgba(255,255,255,.4); box-shadow: none; }
+
+  /* stage dock */
+  .dock { left: 18px; top: 300px; width: 56px; padding: 8px 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .dk { width: 44px; height: 50px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--ink-2); font-size: 9.5px; font-weight: 600; }
+  .dk .ico { width: 19px; height: 19px; }
+  .dk.sep { height: 1px; width: 30px; background: var(--edge); margin: 4px 0; }
+  .dock .cap { font: 700 9px Inter; letter-spacing: .16em; color: var(--ink-3); writing-mode: vertical-rl; transform: rotate(180deg); margin-top: 6px; }
+
+  /* unit plates on board */
+  .up { position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; gap: 3px; pointer-events: none; }
+  .pips { display: flex; gap: 1.5px; padding: 3px; border-radius: 5px; background: rgba(5,8,11,.82); box-shadow: inset 0 0 0 1px var(--edge); }
+  .pips i { width: 3px; height: 8px; border-radius: 1px; background: #2a333c; }
+  .pips.party i.f { background: var(--party); } .pips.enemy i.f { background: var(--enemy); }
+  .pips i.loss { background: #fff; animation: flash .7s ease-in-out infinite alternate; }
+  @keyframes flash { from { background: #fff; } to { background: rgba(255,122,102,.35); } }
+  .sts { display: flex; gap: 3px; }
+  .si { display: flex; align-items: center; gap: 2px; height: 18px; padding: 0 5px 0 3px; border-radius: 9px; font: 700 10.5px 'Chakra Petch'; color: #10141a; }
+  .si .ico { width: 12px; height: 12px; }
+  .si.buff { background: var(--now); } .si.debuff { background: var(--magic); } .si.dot { background: var(--dot); }
+  .nm { font: 700 11px 'Chakra Petch'; letter-spacing: .06em; padding: 1px 7px; border-radius: 8px; background: rgba(5,8,11,.82); }
+  .nm.enemy { color: #ffb2a6; } .nm.party { color: #e2fbb8; }
+  .ring { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none; }
+  .ring.now { width: 70px; height: 34px; box-shadow: 0 0 0 2px var(--now), 0 0 18px var(--now); }
+  .ring.tg { width: 66px; height: 32px; box-shadow: 0 0 0 2px var(--enemy), 0 0 18px var(--enemy); animation: tg 1s ease-in-out infinite; }
+  @keyframes tg { 50% { transform: translate(-50%, -50%) scale(1.12); } }
+  .arc { position: absolute; left: 0; top: 0; pointer-events: none; }
+  .fly { font: 700 10.5px 'Chakra Petch'; color: var(--cool); }
+
+  /* clash panel */
+  .clash { left: 948px; top: 360px; width: 568px; height: 352px; padding: 0; overflow: hidden; }
+  .clash-top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; height: 118px; }
+  .fighter { position: relative; display: flex; align-items: flex-end; gap: 10px; padding: 12px 16px; overflow: hidden; }
+  .fighter.l { background: linear-gradient(90deg, rgba(196,243,107,.16), transparent); }
+  .fighter.r { flex-direction: row-reverse; text-align: right; background: linear-gradient(270deg, rgba(255,122,102,.18), transparent); }
+  .fighter img { width: 60px; image-rendering: pixelated; filter: drop-shadow(0 4px 0 rgba(0,0,0,.4)); }
+  .fighter.r img { transform: scaleX(-1); }
+  .fighter .n { font: 700 19px 'Chakra Petch'; line-height: 1; }
+  .fighter .s { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
+  .fighter .hp { font: 700 15px 'Chakra Petch'; margin-top: 6px; }
+  .fighter .hp .to { color: var(--enemy); }
+  .vs-d20 { width: 112px; display: grid; place-items: center; position: relative; }
+  .vs-d20 svg { width: 84px; height: 84px; filter: drop-shadow(0 0 16px rgba(255,211,107,.45)); }
+  .vs-d20 .v { position: absolute; font: 700 34px 'Chakra Petch'; color: #1b1604; top: 50%; left: 50%; transform: translate(-50%, -54%); }
+  .vs-d20 .t { position: absolute; bottom: 4px; font: 700 9.5px Inter; letter-spacing: .16em; color: var(--now); }
+  .formula { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 12px 16px 0; }
+  .fx { display: flex; align-items: baseline; gap: 5px; height: 34px; padding: 0 11px; border-radius: 17px; background: rgba(255,255,255,.05); box-shadow: inset 0 0 0 1px var(--edge); }
+  .fx b { font: 700 18px 'Chakra Petch'; line-height: 34px; } .fx span { font-size: 11.5px; color: var(--ink-2); }
+  .fx.buff { box-shadow: inset 0 0 0 1px rgba(255,211,107,.6); } .fx.buff b { color: var(--now); }
+  .fx.sum { background: rgba(255,211,107,.12); } .fx.sum b { font-size: 22px; }
+  .opx { color: var(--ink-3); font: 600 15px 'Chakra Petch'; }
+  .meter { margin: 14px 18px 0; }
+  .meter .bar { position: relative; display: grid; grid-template-columns: repeat(14, 1fr); gap: 3px; }
+  .meter .bar i { height: 10px; border-radius: 2px; background: rgba(255,255,255,.08); }
+  .meter .bar i.t1 { background: rgba(196,243,107,.35); } .meter .bar i.t2 { background: var(--party); } .meter .bar i.t3 { background: rgba(255,211,107,.18); box-shadow: inset 0 0 0 1px rgba(255,211,107,.5); }
+  .meter .bar .mark { position: absolute; top: -6px; width: 3px; height: 22px; border-radius: 2px; background: #fff; box-shadow: 0 0 10px #fff; }
+  .meter .lg { display: grid; grid-template-columns: 5fr 3fr 6fr; margin-top: 6px; font: 600 10.5px Inter; letter-spacing: .1em; color: var(--ink-3); }
+  .meter .lg .on { color: var(--party); }
+  .tierflag { position: absolute; right: 18px; top: 136px; font: 700 13px 'Chakra Petch'; color: #10141a; background: var(--party); padding: 2px 10px; border-radius: 10px; }
+  .tray { display: flex; align-items: center; gap: 10px; margin: 14px 18px 0; padding-top: 14px; border-top: 1px solid var(--edge); }
+  .hex { width: 50px; height: 50px; position: relative; display: grid; place-items: center; }
+  .hex svg { position: absolute; inset: 0; }
+  .hex b { position: relative; font: 700 21px 'Chakra Petch'; color: #10141a; }
+  .hex small { position: absolute; top: -12px; font: 600 9.5px Inter; letter-spacing: .08em; color: var(--ink-3); }
+  .hex.typing svg { filter: drop-shadow(0 0 10px var(--now)); }
+  .hex.typing b::after { content: ''; display: inline-block; width: 2px; height: 18px; margin-left: 2px; background: #10141a; vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .dmgout { margin-left: auto; text-align: right; }
+  .dmgout b { font: 700 40px 'Chakra Petch'; line-height: .9; color: var(--enemy); text-shadow: 0 0 18px rgba(255,122,102,.5); }
+  .dmgout div { font-size: 11.5px; color: var(--ink-2); margin-top: 3px; }
+  .clash-keys { position: absolute; left: 18px; bottom: 10px; display: flex; gap: 12px; font-size: 11px; color: var(--ink-3); }
+
+  /* action bar */
+  .abar { left: 50%; transform: translateX(-50%); top: 734px; display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 16px; }
+  .who { display: flex; align-items: center; gap: 10px; padding: 0 14px 0 8px; margin-right: 4px; border-right: 1px solid var(--edge); height: 44px; }
+  .who b { font: 700 15px 'Chakra Petch'; display: block; line-height: 1.1; } .who span { font-size: 11.5px; color: var(--ink-2); }
+  .ab { position: relative; width: 62px; height: 52px; border-radius: 11px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--ink-2); font-size: 11px; font-weight: 600; }
+  .ab .ico { width: 19px; height: 19px; }
+  .ab .k { position: absolute; top: 3px; right: 3px; min-width: 15px; height: 14px; font-size: 9.5px; padding: 0 3px; }
+  .ab.on { color: #10141a; background: linear-gradient(180deg, #ffb0a4, var(--enemy)); box-shadow: 0 6px 18px rgba(255,122,102,.35); }
+  .ab.on .k { color: #5a1a12; background: rgba(255,255,255,.35); box-shadow: none; }
+  .ab.off { opacity: .4; }
+
+  /* turn rail */
+  .rail { left: 18px; right: 18px; top: 806px; height: 138px; display: flex; align-items: flex-end; gap: 8px; padding: 10px 14px; border-radius: 16px; }
+  .card { position: relative; width: 84px; height: 108px; border-radius: 10px; overflow: hidden; flex: none;
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); box-shadow: inset 0 0 0 1px var(--edge); }
+  .card.party { background: linear-gradient(180deg, rgba(196,243,107,.14), rgba(196,243,107,.02) 70%); }
+  .card.enemy { background: linear-gradient(180deg, rgba(255,122,102,.16), rgba(255,122,102,.02) 70%); }
+  .card img { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); width: 40px; image-rendering: pixelated; }
+  .card .gl { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; font: 700 14px 'Chakra Petch'; color: #ffd0a6; background: #6b3a14; }
+  .card .ini { position: absolute; left: 6px; top: 5px; font: 700 12px 'Chakra Petch'; color: var(--ink-2); }
+  .card .nm2 { position: absolute; left: 0; right: 0; bottom: 20px; text-align: center; font: 700 11.5px 'Chakra Petch'; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+  .card .hb { position: absolute; left: 8px; right: 8px; bottom: 10px; height: 4px; border-radius: 2px; background: rgba(0,0,0,.5); overflow: hidden; }
+  .card .hb i { display: block; height: 100%; }
+  .card .cs { position: absolute; right: 4px; top: 4px; display: flex; flex-direction: column; gap: 2px; }
+  .card .cs .si { height: 16px; padding: 0 4px 0 2px; font-size: 9.5px; }
+  .card .cs .si .ico { width: 10px; height: 10px; }
+  .card.now { width: 116px; height: 136px; margin-top: -40px; box-shadow: inset 0 0 0 2px var(--now), 0 0 22px rgba(255,211,107,.4); }
+  .card.now img { width: 54px; top: 12px; }
+  .card.now .nm2 { font-size: 14px; bottom: 22px; }
+  .card.now .tagnow { position: absolute; left: 50%; top: -1px; transform: translateX(-50%); font: 700 9.5px Inter; letter-spacing: .16em; color: #1c1604; background: var(--now); padding: 2px 8px; border-radius: 0 0 6px 6px; }
+  .card.past { opacity: .42; width: 70px; height: 92px; } .card.past img { width: 34px; }
+  .card.tgt { box-shadow: inset 0 0 0 2px var(--enemy); }
+  .card.ready .ribbon { position: absolute; left: 0; right: 0; top: 50px; text-align: center; font: 700 9px Inter; letter-spacing: .14em; color: #10141a; background: var(--cool); padding: 2px 0; }
+  .rsep { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 46px; height: 108px; color: var(--ink-3); font: 700 11px 'Chakra Petch'; }
+  .rsep::before, .rsep::after { content: ''; flex: 1; width: 1px; background: linear-gradient(180deg, transparent, var(--edge-2), transparent); }
+  .card.ghost { background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255,122,102,.5); border: none; outline: 1.5px dashed rgba(255,122,102,.55); outline-offset: -4px; }
+  .card.ghost .gl { background: rgba(77,128,77,.6); color: #dff0d4; }
+  .card.ghost .nm2 { color: #ffb2a6; }
+  .card.hold { width: 190px; height: 108px; line-height: 1.7; background: transparent; box-shadow: none; outline: 1.5px dashed var(--edge-2); outline-offset: -2px; display: grid; place-items: center; }
+  .holdtxt { text-align: center; font: 700 13px 'Chakra Petch'; letter-spacing: .16em; color: var(--ink-3); }
+  .holdtxt span { font: 500 10.5px Inter; letter-spacing: 0; }
+  .railtip { position: absolute; right: 30px; top: 818px; display: flex; gap: 12px; font-size: 11px; color: var(--ink-3); }
+</style>
+</head>
+<body>
+<div class="board"></div>
+<div class="spot"></div>
+<div id="ui"></div>
+<script src="scene-data.js"></script>
+<script>
+const S = window.SCENE, I = S.ICON, DY = -40;
+const P = (id) => S.pos('full', id, 0, DY);
+const si = (s) => `<span class="si ${s.k}"><span class="ico">${I[s.icon]}</span>${s.t}</span>`;
+let h = '';
+
+// round + lighting
+h += `<div class="glass round"><div class="n"><small>RND</small>3</div><div class="area">${S.area}<br><span style="color:var(--ink-3)">Henry's turn · 2 of 9</span></div></div>
+<div class="glass lights">
+  <div class="lchip on amb"><span class="ico">${I.eye}</span>Dim</div>
+  ${S.lighting.lights.map((l) => `<div class="lchip ${l.on ? 'on' : ''}"><span class="b" style="background:${l.on ? l.color : 'transparent'};box-shadow:${l.on ? `0 0 8px ${l.color}` : `inset 0 0 0 1.5px ${l.color}`}"></span>${l.name.replace(' floods', '')}${l.note ? ' <span style="color:var(--ink-3);font-weight:500">· gen</span>' : ''}</div>`).join('')}
+  <div class="lchip" style="padding:0 10px"><span class="ico">${I.lamp}</span><span class="k">L</span></div>
+</div>`;
+h += `<div class="glass tr">
+  <div class="pill"><span class="ico">${I.undo}</span><span class="k">Ctrl Z</span></div>
+  <div class="pill hi"><span class="live"></span>TV live</div>
+  <div class="pill"><span class="ico">${I.gear}</span></div>
+  <div class="pill next">End turn <span class="k">Space</span></div>
+</div>`;
+
+// stage dock
+h += `<div class="glass dock">
+  <div class="dk"><span class="ico">${I.lamp}</span>Light</div>
+  <div class="dk"><span class="ico">${I.height}</span>Height</div>
+  <div class="dk"><span class="ico">${I.spawn}</span>Spawn</div>
+  <div class="dk sep"></div>
+  <div class="dk"><span class="ico">${I.tv}</span>TV</div>
+  <div class="cap">STAGE · G</div>
+</div>`;
+
+// board: rings, arc, unit plates
+const hp = P('u1'), gp = P('u5');
+h += `<div class="ring now" style="left:${hp.x}px;top:${hp.feet - 2}px"></div><div class="ring tg" style="left:${gp.x}px;top:${gp.feet - 2}px"></div>`;
+h += `<svg class="arc" width="1536" height="960"><defs><marker id="ah" markerWidth="8" markerHeight="8" refX="5" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#ffd36b"/></marker></defs>
+  <path d="M ${hp.x + 10} ${hp.head + 10} Q ${(hp.x + gp.x) / 2 - 30} ${hp.head - 60} ${gp.x - 14} ${gp.head + 26}" fill="none" stroke="#ffd36b" stroke-width="2.5" stroke-dasharray="6 5" marker-end="url(#ah)"/>
+  <path d="M ${gp.x + 60} ${gp.head - 20} L ${948} ${430}" stroke="rgba(255,122,102,.5)" stroke-width="1.5" fill="none"/></svg>`;
+const offs = { u1: [86, 86], u5: [74, 0], u6: [-26, 2], u4: [-62, 62], u2: [22, 4], u8: [0, 14], u3: [0, 12], u20: [0, 12], u7: [0, -6] };
+for (const u of S.units) {
+  const p = P(u.id), [ox, oy] = offs[u.id];
+  const n = u.max > 24 ? Math.ceil(u.max / 2) : u.max, pips = [];
+  for (let i = 0; i < n; i++) {
+    const v = (i + 1) * u.max / n;
+    pips.push(`<i class="${v <= u.hp ? (u.target && v > S.attack.hpAfter ? 'loss' : 'f') : ''}"></i>`);
+  }
+  h += `<div class="up" style="left:${p.x + ox}px;top:${p.head + oy}px">
+    ${u.statuses.length ? `<div class="sts">${u.statuses.map(si).join('')}</div>` : ''}
+    <div class="pips ${u.side}">${pips.join('')}</div>
+    ${u.current || u.target || u.fly ? `<div class="nm ${u.side}">${u.current || u.target ? u.short : ''}${u.fly ? ` <span class="fly">▲${u.fly}</span>` : ''}</div>` : ''}
+  </div>`;
+}
+
+// clash panel
+const A = S.attack, me = S.byId.u1, them = S.byId.u5;
+const d20svg = `<svg viewBox="0 0 84 84"><defs><linearGradient id="dg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff1c0"/><stop offset="1" stop-color="#f2b93a"/></linearGradient></defs>
+  <polygon points="42,3 78,23 78,61 42,81 6,61 6,23" fill="url(#dg)"/><polygon points="42,3 78,23 42,30 6,23" fill="rgba(255,255,255,.35)"/><polyline points="6,61 42,30 78,61" fill="none" stroke="rgba(0,0,0,.15)" stroke-width="2"/></svg>`;
+const hexsvg = (c) => `<svg viewBox="0 0 50 50"><polygon points="25,2 46,13.5 46,36.5 25,48 4,36.5 4,13.5" fill="${c}"/></svg>`;
+let meter = '';
+for (let m = 0; m < 14; m++) meter += `<i class="${m < 5 ? 't1' : m < 8 ? 't2' : 't3'}"></i>`;
+h += `<div class="glass clash">
+  <div class="clash-top">
+    <div class="fighter l"><img src="${me.portrait}"><div><div class="n">Henry</div><div class="s">Sledgehammer · d6/d6/d10</div><div class="hp" style="color:var(--party)">20/36</div></div></div>
+    <div class="vs-d20">${d20svg}<span class="v">${A.d20}</span><span class="t">D20</span></div>
+    <div class="fighter r"><img src="${them.portrait}"><div><div class="n">Guard #1</div><div class="s">AC 12 · Burning 2r</div><div class="hp">18 <span class="to">→ 4</span></div></div></div>
+  </div>
+  <div class="formula">
+    <div class="fx"><b>9</b><span>d20</span></div><span class="opx">+</span>
+    <div class="fx"><b>7</b><span>STR</span></div><span class="opx">+</span>
+    <div class="fx buff"><b>2</b><span>Blessed</span></div><span class="opx">=</span>
+    <div class="fx sum"><b>18</b></div><span class="opx">vs</span>
+    <div class="fx"><b>12</b><span>AC</span></div>
+  </div>
+  <div class="meter">
+    <div class="bar">${meter}<span class="mark" style="left:calc(${(6.5 / 14) * 100}% - 1px)"></span></div>
+    <div class="lg"><span>T1 · margin 0–4</span><span class="on">T2 · 5–7</span><span style="text-align:right">T3 · 8+ &nbsp;(+2 more)</span></div>
+  </div>
+  <div class="tray">
+    <div class="hex">${hexsvg('#eef3f7')}<small>T1 d6</small><b>4</b></div><span class="opx">+</span>
+    <div class="hex typing">${hexsvg('#ffe08f')}<small>T2 d6</small><b>5</b></div><span class="opx">+</span>
+    <div class="fx" style="height:30px"><b style="line-height:30px;font-size:16px">5</b><span>STR ½</span></div>
+    <div class="dmgout"><b>−14</b><div>Guard #1 → 4 HP</div></div>
+  </div>
+  <div class="clash-keys"><span><span class="k">Enter</span> apply</span><span><span class="k">Tab</span> next die</span><span><span class="k">Esc</span> back</span><span><span class="k">X</span> nat 20 ×1.5</span></div>
+</div>`;
+
+// action bar
+h += `<div class="glass abar">
+  <div class="who"><img src="${me.portrait}" style="width:28px;image-rendering:pixelated"><div><b>Henry Keaton</b><span>20/36 · AC 14 · MOB 2</span></div></div>
+  <div class="ab"><span class="k">F</span><span class="ico">${I.move}</span>Move</div>
+  <div class="ab on"><span class="k">E</span><span class="ico">${I.attack}</span>Attack</div>
+  <div class="ab off"><span class="k">C</span><span class="ico">${I.cast}</span>Cast</div>
+  <div class="ab"><span class="k">R</span><span class="ico">${I.item}</span>Item</div>
+  <div class="ab"><span class="k">S</span><span class="ico">${I.tag}</span>Status</div>
+  <div class="ab"><span class="k">H</span><span class="ico">${I.heart}</span>± HP</div>
+  <div class="ab"><span class="k">D</span><span class="ico">${I.clock}</span>Delay</div>
+</div>`;
+
+// turn rail
+const card = (u, cls = '') => {
+  const pct = u.hp / u.max;
+  const c = pct > .5 ? (u.side === 'enemy' ? 'var(--enemy)' : 'var(--party)') : pct > .25 ? 'var(--now)' : '#ff5d5d';
+  return `<div class="card ${u.side} ${cls} ${u.readied ? 'ready' : ''} ${u.target ? 'tgt' : ''}">
+    ${u.current ? '<span class="tagnow">NOW</span>' : `<span class="ini">${u.init}</span>`}
+    ${u.portrait ? `<img src="${u.portrait}">` : `<div class="gl">${u.glyph}</div>`}
+    ${u.statuses.length ? `<div class="cs">${u.statuses.map(si).join('')}</div>` : ''}
+    ${u.readied ? '<div class="ribbon">READIED</div>' : ''}
+    <div class="nm2">${u.short}</div><div class="hb"><i style="width:${pct * 100}%;background:${c}"></i></div>
+  </div>`;
+};
+h += `<div class="glass rail">
+  ${card(S.byId.u20, 'past')}
+  ${S.units.slice(1).map((u) => card(u, u.current ? 'now' : '')).join('')}
+  <div class="rsep">R4</div>
+  ${card(S.byId.u20)}
+  <div class="card enemy ghost"><span class="ini">?</span><div class="gl">FX</div><div class="nm2">Falsiradix ×2</div></div>
+  <div class="rsep"></div>
+  <div class="card hold"><div class="holdtxt">HOLD<br><span>drag a card here to delay<br><span class="k">D</span> delay · <span class="k">Y</span> ready</span></div></div>
+</div>
+`;
+
+document.getElementById('ui').innerHTML = h;
+</script>
+</body>
+</html>

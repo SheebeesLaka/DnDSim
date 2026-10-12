@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Round 2 — Spotlight variations</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0b0d10; color: #e8ecef; font: 15px/1.4 system-ui, sans-serif; padding: 28px; }
+  h1 { font-size: 22px; margin-bottom: 4px; } p.sub { color: #8b96a0; margin-bottom: 20px; }
+  .grid { display: grid; gap: 22px; } .g2 { grid-template-columns: 1fr 1fr; } .g3 { grid-template-columns: 1fr 1fr 1fr; }
+  figure img { display: block; width: 100%; border-radius: 8px; box-shadow: 0 0 0 1px #262c33; }
+  figcaption { margin-top: 8px; } figcaption b { font-size: 17px; } figcaption span { color: #8b96a0; display: block; font-size: 13.5px; }
+  section { display: none; } body[data-s=skins] .skins, body[data-s=layouts] .layouts { display: block; }
+</style>
+</head>
+<body>
+<section class="skins">
+  <h1>Round 2 · four looks on the same Spotlight layout</h1>
+  <p class="sub">Identical layout and content: only the visual style changes. Roll-panel plates, mid-attack.</p>
+  <div class="grid g2">
+    <figure><img src="shots/c2-glass-roll.png"><figcaption><b>1 · Glass</b><span>baseline from round 1: frosted dark glass, Chakra Petch + Inter</span></figcaption></figure>
+    <figure><img src="shots/c2-obsidian-roll.png"><figcaption><b>2 · Obsidian &amp; Gilt</b><span>matte black, thin gold inlay with diamond studs, Marcellus serif + Manrope: fantasy, premium</span></figcaption></figure>
+    <figure><img src="shots/c2-verdigris-roll.png"><figcaption><b>3 · Verdigris</b><span>weathered teal/copper with copper corner brackets, Saira Condensed + Nunito Sans: worn facility meets arboretum</span></figcaption></figure>
+    <figure><img src="shots/c2-moonstone-roll.png"><figcaption><b>4 · Moonstone</b><span>pale frosted ceramic panels, dark ink, Sora + Inter: maximum contrast against the dark board</span></figcaption></figure>
+  </div>
+</section>
+<section class="layouts">
+  <h1>Round 2 · where the attacker / target info lives, and Field mode</h1>
+  <p class="sub">All in the Glass look so only the layout differs.</p>
+  <div class="grid g3">
+    <figure><img src="shots/c2-glass-roll.png"><figcaption><b>Plates inside the roll panel</b><span>only while rolling; the board stays clear otherwise</span></figcaption></figure>
+    <figure><img src="shots/c2-glass-dock.png"><figcaption><b>Docked plates</b><span>selected creature bottom-left, target bottom-right, whenever something is selected; slimmer roll panel</span></figcaption></figure>
+    <figure><img src="shots/c2-glass-field.png"><figcaption><b>Field mode (G)</b><span>ambient slider + presets, lights list with group / single toggles, selected light's radius on the board</span></figcaption></figure>
+  </div>
+</section>
+<script>document.body.dataset.s = new URLSearchParams(location.search).get('s') ?? 'skins';</script>
+</body>
+</html>
