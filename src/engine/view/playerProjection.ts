@@ -1,8 +1,8 @@
 /**
  * The player window's view (R13.5, R13.6): applies every display.player.*
- * option, strips DM-only affordances, renames enemies, hides what stands in
- * darkness (DM reveal never leaks), and shows the DM's area template only when
- * allowed. Pure: a BoardVM in, a BoardVM out.
+ * option, strips DM-only affordances, renames enemies, hides enemies and loose
+ * items that stand in darkness (DM reveal never leaks), and shows the DM's area
+ * template only when allowed. Pure: a BoardVM in, a BoardVM out.
  */
 import type { BoardVM, UnitVM } from './boardViewModel.ts';
 import type { PlayerDisplayOptions } from './displayOptions.ts';
@@ -28,8 +28,11 @@ export function projectForPlayer(
   const renamed = (u: { id: string; side: string; name: string }): string =>
     !opts.enemyNames && u.side === 'enemy' ? (names.get(u.id) ?? 'Enemy') : u.name;
 
+  // the party knows where it stands and the scenery is part of the board: only what
+  // could lurk (enemies, others' creatures) or lie unnoticed (pickups) hides in the dark
+  const hiddenInDark = (u: UnitVM) => u.inDarkness && u.kind !== 'terrain' && u.side !== 'party';
   const units: UnitVM[] = vm.units
-    .filter((u) => !u.inDarkness)
+    .filter((u) => !hiddenInDark(u))
     .map((u) => {
       const enemy = u.side === 'enemy';
       return {

@@ -90,29 +90,32 @@ export function computeLighting(state: BattleState): Map<string, CellLight> {
     const src = lightPosition(state, light);
     if (!src) continue;
     const reach = Math.max(light.brightRadius, light.dimRadius);
-    for (
-      let r = Math.max(0, Math.floor(src.r - reach));
-      r <= Math.min(rows - 1, Math.ceil(src.r + reach));
-      r++
-    ) {
-      for (
-        let c = Math.max(0, Math.floor(src.c - reach));
-        c <= Math.min(cols - 1, Math.ceil(src.c + reach));
-        c++
-      ) {
+    // a tile the light only partly covers (its centre is outside the radius, but some of it is
+    // inside) is dim at least: the creature on it stands half in the light and players see it
+    const span = Math.ceil(reach + 0.5);
+    for (let r = Math.max(0, src.r - span); r <= Math.min(rows - 1, src.r + span); r++) {
+      for (let c = Math.max(0, src.c - span); c <= Math.min(cols - 1, src.c + span); c++) {
         const d = Math.hypot(r - src.r, c - src.c);
-        if (d > reach + 0.01) continue;
+        const near = Math.hypot(
+          Math.max(0, Math.abs(r - src.r) - 0.5),
+          Math.max(0, Math.abs(c - src.c) - 0.5),
+        );
+        const partial = d > reach + 0.01;
+        if (partial && near >= reach - 0.01) continue;
         if (blocksLightAt(state, r, c)) continue;
         if (!hasLineOfLight(state, src, r, c)) continue;
         const cell = map.get(`${r},${c}`);
         if (!cell) continue;
-        const level: LightLevel = d <= light.brightRadius + 0.01 ? 'bright' : 'dim';
+        const level: LightLevel = !partial && d <= light.brightRadius + 0.01 ? 'bright' : 'dim';
         if (rank[level] > rank[cell.level]) cell.level = level;
         cell.sources.push({
           id: light.id,
           color: light.color,
-          strength:
-            level === 'bright' ? 1 - d / (reach + 1) : 0.45 - (d - light.brightRadius) / (reach * 2.5),
+          strength: partial
+            ? Math.max(0.05, 0.2 * (1 - (d - reach)))
+            : level === 'bright'
+              ? 1 - d / (reach + 1)
+              : 0.45 - (d - light.brightRadius) / (reach * 2.5),
         });
       }
     }

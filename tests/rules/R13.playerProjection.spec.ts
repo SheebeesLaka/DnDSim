@@ -101,7 +101,8 @@ describe('projectForPlayer', () => {
           brightRadius: 1,
           dimRadius: 1,
           color: '#fff',
-          at: { r: 4, c: 4 },
+          // diagonal to the Snake (4,4): the radius reaches part of its tile, not the centre
+          at: { r: 5, c: 5 },
           on: true,
         },
       },
@@ -114,6 +115,9 @@ describe('projectForPlayer', () => {
     expect(vm.highlights.move.length).toBeGreaterThan(0);
     expect(vm.units.find((u) => u.id === 'u1')?.selected).toBe(true);
     expect(vm.units.find((u) => u.id === 'u4')?.inDarkness).toBe(true);
+    // a partly lit tile is dim: the Snake on it is seen
+    expect(vm.cells[4]?.[4]?.light).toBe('dim');
+    expect(vm.units.find((u) => u.id === 'u5')?.inDarkness).toBe(false);
     const hidden = projectForPlayer(
       vm,
       { ...DEFAULT_DISPLAY_OPTIONS, enemyHp: 'HIDDEN', enemyNames: false, partyHpNumbers: false },
@@ -122,6 +126,13 @@ describe('projectForPlayer', () => {
     expect(hidden.highlights.move).toEqual([]);
     expect(hidden.units.every((u) => !u.selected)).toBe(true);
     expect(hidden.units.some((u) => u.id === 'u4')).toBe(false); // Spider stands in the dark
+    // the party and the scenery stay on the TV in the dark; only enemies and pickups hide
+    const allDark = { ...vm, units: vm.units.map((u) => ({ ...u, inDarkness: true })) };
+    const darkIds = projectForPlayer(allDark, DEFAULT_DISPLAY_OPTIONS, dark.turn.order).units.map(
+      (u) => u.id,
+    );
+    expect(darkIds).toEqual(expect.arrayContaining(['u1', 'u2', 'u3', 'u6']));
+    expect(darkIds.some((id) => id === 'u4' || id === 'u5')).toBe(false);
     expect(hidden.units.find((u) => u.id === 'u1')).toMatchObject({
       showHpNumbers: false,
       showHpRing: true,
