@@ -29,6 +29,13 @@ interface AtlasMaterials {
   grey: THREE.MeshLambertMaterial;
   depth: THREE.MeshDepthMaterial;
   distance: THREE.MeshDistanceMaterial;
+  /**
+   * The shadow caster's own (invisible) material. It must carry the map and alphaTest:
+   * three copies them from an object's material onto its custom depth/distance
+   * material on every shadow pass, so a plain material here would wipe the cut-out
+   * from the shared depth/distance materials and sprites would cast square shadows.
+   */
+  shadowOnly: THREE.MeshBasicMaterial;
   ghost: THREE.MeshBasicMaterial;
 }
 
@@ -45,6 +52,12 @@ function cutoutMaterials(texture: THREE.Texture): AtlasMaterials {
       side: THREE.DoubleSide,
     }),
     distance: new THREE.MeshDistanceMaterial({ ...common, side: THREE.DoubleSide }),
+    shadowOnly: new THREE.MeshBasicMaterial({
+      ...common,
+      colorWrite: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
     ghost: ghostMaterial(texture),
   };
 }
@@ -188,7 +201,6 @@ export class UnitLayer {
   /** 1 / cos(pitch): upright billboards are this much taller than their art so they project 1:1 */
   private stretch = 1;
   /** drawn into shadow maps only (through the body's depth materials), invisible on screen */
-  private shadowOnlyMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 
   materialsFor(atlas: SpriteAtlas): AtlasMaterials {
     let m = this.atlasMats.get(atlas);
@@ -460,7 +472,7 @@ export class UnitLayer {
       n.ghost = new THREE.Mesh(n.body.geometry, mats.ghost);
       n.ghost.renderOrder = 20;
       n.ghost.visible = false;
-      n.shadow = new THREE.Mesh(n.body.geometry, this.shadowOnlyMat);
+      n.shadow = new THREE.Mesh(n.body.geometry, mats.shadowOnly);
       n.shadow.castShadow = true;
       n.shadow.raycast = () => {};
       n.root.add(n.body, n.ghost, n.shadow);
@@ -470,6 +482,7 @@ export class UnitLayer {
     n.body.customDistanceMaterial = mats.distance;
     if (n.ghost) n.ghost.material = mats.ghost;
     if (n.shadow) {
+      n.shadow.material = mats.shadowOnly;
       n.shadow.customDepthMaterial = mats.depth;
       n.shadow.customDistanceMaterial = mats.distance;
     }
@@ -634,6 +647,7 @@ export class UnitLayer {
       m.grey.dispose();
       m.depth.dispose();
       m.distance.dispose();
+      m.shadowOnly.dispose();
       m.ghost.dispose();
       m.texture.dispose();
     }
@@ -643,7 +657,6 @@ export class UnitLayer {
       t.top.dispose();
     }
     this.slabTex.dispose();
-    this.shadowOnlyMat.dispose();
     this.tickGeo.dispose();
     this.tickMat.dispose();
     this.tetherMat.dispose();
