@@ -50,7 +50,7 @@ await shot('03-roll-d20');
 await page.keyboard.press('Enter');
 await page.keyboard.press('4');
 await shot('04-roll-dice');
-await page.keyboard.press('5');
+await page.keyboard.press('3');
 await page.keyboard.press('Enter');
 await page.waitForTimeout(300);
 await shot('05-after-hit');

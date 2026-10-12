@@ -2236,6 +2236,10 @@
 }
 
 /* ---------- player (TV) ---------- */
+/* read from across a room: every panel scales up like a 130% display setting */
+.sp.tv .sp-ui {
+  zoom: 1.3;
+}
 .sp.tv {
   font-size: 15px;
 }

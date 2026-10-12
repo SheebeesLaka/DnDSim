@@ -477,7 +477,7 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
   }
   function openTv(): void {
     if (tvWin && !tvWin.closed) tvWin.focus();
-    else tvWin = window.open('/player.html', 'dndsim-player');
+    else tvWin = window.open('/player.html?ui=next', 'dndsim-player');
     renderUI();
   }
 
