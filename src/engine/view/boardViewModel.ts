@@ -25,6 +25,9 @@ import {
 } from '../selectors/lighting.ts';
 import { armorClass, health, maxHealth, movement } from '../selectors/stats.ts';
 import { displayInitiative } from '../rules/initiative.ts';
+import { ambientLevelOf } from '../selectors/lighting.ts';
+import { buildEffectRows, unitEffects, type EffectRowVM, type EffectVM } from './effects.ts';
+import { buildRollVM, type RollDraft, type RollVM } from './rollPreview.ts';
 import type { BattleState, Cell, EngineAssets, LightLevel, UnitId, UnitKind } from '../types.ts';
 
 export type Mode =
@@ -33,14 +36,23 @@ export type Mode =
   | { kind: 'attack'; unitId: UnitId }
   | { kind: 'pickup'; unitId: UnitId }
   | { kind: 'cast'; unitId: UnitId; spellName: string; slotLevel: number; lockedCells?: Cell[] }
-  | { kind: 'placeObject'; key: string }
-  | { kind: 'elevation'; delta: number };
+  | { kind: 'placeObject'; key: string; remaining?: number; arrivalId?: string }
+  | { kind: 'elevation'; delta: number }
+  /** Field ▸ Light: the next tile click places a new light there */
+  | { kind: 'placeLight' }
+  /** Field ▸ Light: the next creature click carries the selected light */
+  | { kind: 'attachLight'; lightId: string };
 
 /** The slice of the DM session the view model depends on. */
 export interface ViewSession {
   selectedId: UnitId | null;
   mode: Mode;
   hover: Cell | null;
+  /** digits typed into the roll panel but not submitted (shown live, TV included) */
+  rollDraft?: RollDraft;
+  /** Field mode is open (lamp pins, radius rings) */
+  fieldMode?: boolean;
+  selectedLightId?: string | null;
 }
 
 export type Side = 'party' | 'enemy' | 'other';
@@ -79,6 +91,8 @@ export interface UnitVM {
   spritePath: string | null;
   /** a party member down at 0 HP making death saves (F-14 fixed); absent/null otherwise */
   dying?: { successes: number; failures: number } | null;
+  /** statuses with family, effect line and countdown (emblems, pips, board effects) */
+  effects?: EffectVM[];
 }
 
 export interface Highlights {
@@ -103,6 +117,7 @@ export interface LightVM {
   attachedTo: UnitId | null;
   /** the light group it belongs to (room-wide switches animate as a power-on) */
   groupId?: string | null;
+  flicker?: boolean;
 }
 
 export interface StripEntry {
@@ -115,6 +130,13 @@ export interface StripEntry {
   showHpBar: boolean;
   current: boolean;
   initiative: { total: number; d20: number; mod: number } | null;
+  /** turn-rail extras */
+  acted?: boolean;
+  readied?: string | null;
+  effects?: EffectVM[];
+  spritePath?: string | null;
+  color?: string;
+  dying?: boolean;
 }
 
 export interface BoardVM {
@@ -140,6 +162,24 @@ export interface BoardVM {
   round: number;
   /** pending DM input, for the player strip's inline initiative state */
   pendingKind: string | null;
+  /** 0 (pitch black) … 100 (daylight) */
+  ambientLevel?: number;
+  /** the roll being entered, live (null when nothing is being rolled) */
+  roll?: RollVM | null;
+  /** Active effects, soonest-ending first */
+  effects?: EffectRowVM[];
+  selectedId?: UnitId | null;
+  /** delayed combatants (turn rail Hold pocket) and queued reinforcements (ghost cards) */
+  held?: StripEntry[];
+  arrivals?: {
+    id: string;
+    name: string;
+    count: number;
+    round: number;
+    spritePath: string | null;
+    color: string;
+  }[];
+  field?: { on: boolean; selectedLightId: string | null };
 }
 
 const initialsOf = (name: string): string => {
@@ -178,20 +218,37 @@ export function buildStrip(state: BattleState): StripEntry[] {
   for (const id of ids) {
     const u = combatantById(state, id);
     if (!u) continue;
-    const init = state.turn.initiative[id];
-    out.push({
-      id,
-      name: unitName(u),
-      side: sideOf(state, id),
-      hp: health(u),
-      maxHp: maxHealth(u),
-      showHpNumbers: true,
-      showHpBar: true,
-      current: state.turn.started && id === current,
-      initiative: init ? { total: displayInitiative(init.total), d20: init.d20, mod: init.mod } : null,
-    });
+    out.push(stripEntry(state, u, current));
   }
   return out;
+}
+
+function stripEntry(
+  state: BattleState,
+  u: NonNullable<ReturnType<typeof combatantById>>,
+  current: UnitId | undefined,
+): StripEntry {
+  const init = state.turn.initiative[u.id];
+  const idx = state.turn.order.indexOf(u.id);
+  return {
+    id: u.id,
+    name: unitName(u),
+    side: sideOf(state, u.id),
+    hp: health(u),
+    maxHp: maxHealth(u),
+    showHpNumbers: true,
+    showHpBar: true,
+    current: state.turn.started && u.id === current,
+    initiative: init
+      ? { total: displayInitiative(Math.round(init.d20 + init.mod)), d20: init.d20, mod: init.mod }
+      : null,
+    acted: state.turn.started && idx !== -1 && idx < state.turn.currentIndex,
+    readied: state.turn.readied?.[u.id] ?? null,
+    effects: unitEffects(state, u),
+    spritePath: u.kind === 'entity' ? u.sheet.spritePath : u.spritePath,
+    color: u.kind === 'entity' ? u.sheet.color : u.color,
+    dying: u.kind === 'entity' && !!u.dying,
+  };
 }
 
 export function phaseLabel(state: BattleState): string {
@@ -273,6 +330,7 @@ export function buildBoardViewModel(
               ? u.spritePath
               : null,
       dying: u.kind === 'entity' && u.dying ? { ...u.dying } : null,
+      effects: combatant ? unitEffects(state, combatant) : [],
     };
   });
 
@@ -291,6 +349,7 @@ export function buildBoardViewModel(
         dimRadius: l.dimRadius,
         attachedTo: l.attachedTo ?? null,
         groupId: l.groupId ?? null,
+        flicker: l.flicker ?? false,
       },
     ];
   });
@@ -356,6 +415,26 @@ export function buildBoardViewModel(
     started: state.turn.started,
     round: state.turn.round,
     pendingKind: state.pending?.kind ?? null,
+    ambientLevel: ambientLevelOf(state.board),
+    roll: buildRollVM(state, session.rollDraft),
+    effects: buildEffectRows(state, assets),
+    selectedId: session.selectedId,
+    held: (state.turn.held ?? []).flatMap((id) => {
+      const u = combatantById(state, id);
+      return u ? [stripEntry(state, u, current)] : [];
+    }),
+    arrivals: (state.turn.arrivals ?? []).map((a) => {
+      const tpl = assets.enemies[a.templateStem];
+      return {
+        id: a.id,
+        name: tpl?.name ?? a.templateStem,
+        count: a.count,
+        round: a.round,
+        spritePath: tpl?.spritePath ?? null,
+        color: tpl?.color ?? '#888',
+      };
+    }),
+    field: { on: session.fieldMode ?? false, selectedLightId: session.selectedLightId ?? null },
   };
 }
 

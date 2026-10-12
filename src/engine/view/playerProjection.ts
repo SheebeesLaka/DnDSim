@@ -59,9 +59,50 @@ export function projectForPlayer(
     };
   });
 
+  const visible = new Set(units.map((u) => u.id));
+  const hpShown = (side: string): 'exact' | 'bar' | 'none' =>
+    side !== 'enemy'
+      ? 'exact'
+      : opts.enemyHp === 'EXACT'
+        ? 'exact'
+        : opts.enemyHp === 'VAGUE'
+          ? 'bar'
+          : 'none';
+  const fighter = <F extends { id: string; side: string; name: string } | null>(f: F): F =>
+    f === null ? f : { ...f, name: renamed(f), hpShown: hpShown(f.side) };
+  const roll = vm.roll
+    ? {
+        ...vm.roll,
+        attacker: fighter(vm.roll.attacker),
+        target: fighter(vm.roll.target),
+        area:
+          vm.roll.area?.map((r) => {
+            const side = vm.units.find((u) => u.id === r.id)?.side ?? 'other';
+            return { ...r, name: renamed({ id: r.id, side, name: r.name }) };
+          }) ?? null,
+      }
+    : null;
+  // players see what is happening, not what the DM has planned: no queued arrivals or
+  // timers, no enemy readied actions, nothing about creatures they cannot see
+  const effects = (vm.effects ?? [])
+    .filter((r) => r.kind !== 'arrival' && r.kind !== 'timer')
+    .filter((r) => !(r.kind === 'readied' && r.side === 'enemy'))
+    .filter((r) => r.unitId === null || visible.has(r.unitId))
+    .map((r) => {
+      if (!r.unitId || !r.unitName) return r;
+      const name = renamed({ id: r.unitId, side: r.side ?? 'other', name: r.unitName });
+      return { ...r, unitName: name, endsLabel: r.endsLabel.replace(r.unitName.replace(/ #\d+$/, ''), name) };
+    });
+
   return {
     ...vm,
     dmReveal: false,
+    roll,
+    effects,
+    arrivals: [],
+    field: { on: false, selectedLightId: null },
+    selectedId: vm.selectedId && visible.has(vm.selectedId) ? vm.selectedId : null,
+    held: (vm.held ?? []).map((e) => ({ ...e, name: renamed(e) })),
     units,
     // players only see a tombstone on a tile they can see
     graves: (vm.graves ?? []).filter((g) => vm.cells[g.r]?.[g.c]?.light !== 'dark'),
