@@ -14,6 +14,7 @@ import type {
   BoardProjector,
   BoardRenderer,
   BoardRendererHandlers,
+  CameraPose,
   FloatingText,
   OverlayStyle,
 } from '../BoardRenderer.ts';
@@ -113,6 +114,11 @@ export class ThreeRenderer implements BoardRenderer {
   private overlayStyle: OverlayStyle = 'classic';
   private drawHooks = new Set<(p: BoardProjector) => void>();
   private panAnim: { dx: number; dy: number; doneX: number; doneY: number; start: number } | null = null;
+  /** camera mirroring: listeners on the DM side, the pose to hold on the player side */
+  private cameraListeners = new Set<(pose: CameraPose) => void>();
+  private lastPoseKey = '';
+  private followed: CameraPose | null = null;
+  private followSettle = 0;
   private readonly projector: Omit<BoardProjector, 'width' | 'height'> = {
     unit: (id) => {
       const a = this.units.anchors(id);
@@ -253,7 +259,8 @@ export class ThreeRenderer implements BoardRenderer {
     this.graves.update(vm.graves ?? [], (r, c) => this.tiles.topY(r, c));
     if (rebuilt && !this.fitted) {
       this.fitted = true;
-      this.fitBoard();
+      if (this.followed) this.applyFollow();
+      else this.fitBoard();
     }
     this.cam.setMode(this.view.camera);
     this.applyView();
@@ -372,6 +379,32 @@ export class ThreeRenderer implements BoardRenderer {
     return () => this.zoomListeners.delete(fn);
   }
 
+  onCameraMove(fn: (pose: CameraPose) => void): () => void {
+    this.cameraListeners.add(fn);
+    fn(this.cam.pose);
+    return () => this.cameraListeners.delete(fn);
+  }
+
+  followCamera(pose: CameraPose): void {
+    const turned = !this.followed || this.followed.yaw !== pose.yaw || this.followed.tilt !== pose.tilt;
+    this.followed = pose;
+    if (!this.fitted) return; // the first render applies it
+    this.applyFollow();
+    // ghosts, chips and shadow maps depend on the angle: catch up once a turn stops
+    if (turned) {
+      clearTimeout(this.followSettle);
+      this.followSettle = window.setTimeout(() => this.vm && this.render(this.vm), 150);
+    }
+  }
+
+  private applyFollow(): void {
+    if (!this.followed) return;
+    this.cam.follow(this.followed);
+    this.applyView();
+    this.notifyZoom();
+    this.invalidate();
+  }
+
   /** Frame the whole board (largest whole zoom that fits); the zoom bar follows. */
   private fitBoard(): void {
     this.cam.fit(this.tiles.bounds);
@@ -392,6 +425,8 @@ export class ThreeRenderer implements BoardRenderer {
   destroy(): void {
     this.destroyed = true;
     cancelAnimationFrame(this.raf);
+    clearTimeout(this.followSettle);
+    this.cameraListeners.clear();
     this.resizeObs?.disconnect();
     this.unsubLibrary?.();
     this.units.dispose();
@@ -419,10 +454,12 @@ export class ThreeRenderer implements BoardRenderer {
     this.view = next;
     this.post?.setEnabled({ bloom: next.bloom, blur: next.blur });
     // an angle we just settled on ourselves (orbit -> prefs -> back here) is a no-op;
-    // while the user is orbiting, the drag owns the camera
+    // while the user is orbiting, the drag owns the camera; a window mirroring the DM
+    // takes its angle from the DM's live pose instead (prefs only catch up on settle)
     // (before the board is first shown it jumps instead of tweening in)
     if (
       !this.orbiting &&
+      !this.followed &&
       this.cam.setAngles(next.yaw * DEG, next.pitch * DEG, this.fitted ? performance.now() : undefined)
     ) {
       this.applyView();
@@ -431,7 +468,8 @@ export class ThreeRenderer implements BoardRenderer {
     if (cameraChanged) {
       this.cam.setMode(next.camera);
       if (this.vm) this.render(this.vm);
-      this.fitBoard();
+      if (this.followed) this.applyFollow();
+      else this.fitBoard();
     }
     this.invalidate();
   }
@@ -460,7 +498,8 @@ export class ThreeRenderer implements BoardRenderer {
     this.post?.setSize(w, h);
     this.overlay.resize(w, h, this.gl.getPixelRatio());
     this.cam.setViewport(w, h);
-    if (this.fitted) this.fitBoard();
+    if (this.followed) this.applyFollow();
+    else if (this.fitted) this.fitBoard();
     this.invalidate();
   }
 
@@ -535,6 +574,14 @@ export class ThreeRenderer implements BoardRenderer {
     if (this.drawHooks.size > 0) {
       const p: BoardProjector = { ...this.projector, width: this.overlay.width, height: this.overlay.height };
       for (const fn of this.drawHooks) fn(p);
+    }
+    if (this.cameraListeners.size > 0) {
+      const pose = this.cam.pose;
+      const key = `${pose.x}|${pose.z}|${pose.zoom}|${pose.yaw}|${pose.tilt}|${pose.width}|${pose.height}`;
+      if (key !== this.lastPoseKey) {
+        this.lastPoseKey = key;
+        for (const fn of this.cameraListeners) fn(pose);
+      }
     }
     if (this.stats.frames === 0) this.stats.firstFrameAt = performance.now();
     this.stats.frames++;

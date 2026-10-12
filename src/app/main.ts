@@ -190,6 +190,8 @@ async function boot(): Promise<void> {
     window.addEventListener('beforeunload', () => void persister.flush());
     pub.publish([]);
     const renderer = pickRenderer(params, { view: viewOptionsFromPrefs(prefs.all, 'dm') });
+    // the TV shows what the DM's camera shows, moving with it
+    const unsubCamera = renderer.onCameraMove?.((pose) => pub.publishCamera(pose)) ?? (() => undefined);
     battle = { store, host: battleHost, flush: () => persister.flush() };
     showBattle();
     const unmount = mountSpotlightScreen(battleHost, {
@@ -207,6 +209,7 @@ async function boot(): Promise<void> {
         pub.publishVictory(null);
         unmount();
         unsubPrefs();
+        unsubCamera();
         pub.stop();
         transport.close();
         const finished = store.battle;

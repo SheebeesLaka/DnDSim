@@ -5,6 +5,7 @@
  */
 import type { BattleEvent } from '../engine/types.ts';
 import type { BoardVM } from '../engine/view/boardViewModel.ts';
+import type { CameraPose } from '../ui/renderer/BoardRenderer.ts';
 import type { Transport, WireMessage } from './transport/Transport.ts';
 
 export interface ReplicaDoc {
@@ -17,6 +18,8 @@ export interface ReplicaDoc {
 export class ReplicaStore {
   private doc: ReplicaDoc = { vm: null, prefs: {}, victory: null, seq: -1 };
   private listeners = new Set<(doc: ReplicaDoc, events: BattleEvent[]) => void>();
+  private cameraListeners = new Set<(pose: CameraPose) => void>();
+  private lastCamera: CameraPose | null = null;
   private unsub: () => void;
 
   constructor(private transport: Transport) {
@@ -33,7 +36,19 @@ export class ReplicaStore {
     return () => this.listeners.delete(fn);
   }
 
+  /** The DM's camera, as it moves (and the latest one at once, if known). Kept off the doc: no re-render. */
+  onCamera(fn: (pose: CameraPose) => void): () => void {
+    this.cameraListeners.add(fn);
+    if (this.lastCamera) fn(this.lastCamera);
+    return () => this.cameraListeners.delete(fn);
+  }
+
   receive(m: WireMessage): void {
+    if (m.t === 'camera') {
+      this.lastCamera = m.pose;
+      for (const l of [...this.cameraListeners]) l(m.pose);
+      return;
+    }
     if (m.t === 'snapshot') {
       // ignore stale, out-of-order snapshots from a previous DM session
       if (m.seq < this.doc.seq && this.doc.seq - m.seq < 1_000_000) return;
@@ -63,19 +78,26 @@ export function publishStore(
   publish: (events: BattleEvent[]) => void;
   publishPrefs: () => void;
   publishVictory: (party: ReplicaDoc['victory']) => void;
+  publishCamera: (pose: CameraPose) => void;
   stop: () => void;
 } {
+  let camera: CameraPose | null = null;
   let seq = 0;
   const publish = (events: BattleEvent[]) =>
     transport.send({ t: 'snapshot', vm: getSnapshot(), events, seq: seq++ });
   const publishPrefs = () => transport.send({ t: 'prefs', prefs: getPrefs(), seq: seq++ });
   const publishVictory = (party: ReplicaDoc['victory']) =>
     transport.send({ t: 'victory', party, seq: seq++ });
+  const publishCamera = (pose: CameraPose) => {
+    camera = pose;
+    transport.send({ t: 'camera', pose, seq: seq++ });
+  };
   const unsub = transport.onMessage((m) => {
     if (m.t === 'hello') {
       publishPrefs();
       publish([]);
+      if (camera) publishCamera(camera);
     }
   });
-  return { publish, publishPrefs, publishVictory, stop: unsub };
+  return { publish, publishPrefs, publishVictory, publishCamera, stop: unsub };
 }

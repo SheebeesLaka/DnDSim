@@ -10,6 +10,7 @@
  * screen-north and dropping the heading offset so the map is square.
  */
 import * as THREE from 'three';
+import type { CameraPose } from '../BoardRenderer.ts';
 import {
   AZIMUTH_OFFSET,
   AZIMUTHS,
@@ -119,6 +120,33 @@ export class TacticalCamera {
     const s = Math.sin(this.pitch),
       c = Math.cos(this.pitch);
     return new THREE.Vector3(Math.sin(this.view) * c, s, Math.cos(this.view) * c);
+  }
+
+  /** The live pose (mid-turn too), for mirroring onto another window. */
+  get pose(): CameraPose {
+    return {
+      x: this.target.x,
+      z: this.target.y,
+      zoom: this.zoom,
+      yaw: this.heading,
+      tilt: this.tilt,
+      width: this.width,
+      height: this.height,
+    };
+  }
+
+  /**
+   * Jump to another camera's pose. The zoom is scaled by how much larger this
+   * viewport is (whole steps, rounded down), so it shows at least what the other one does.
+   */
+  follow(p: CameraPose): void {
+    this.tween = null;
+    this.heading = p.yaw;
+    this.tilt = clampTilt(p.tilt);
+    this.target.set(p.x, p.z);
+    const scale = Math.min(this.width / Math.max(1, p.width), this.height / Math.max(1, p.height));
+    this.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.floor(p.zoom * scale + 1e-6)));
+    this.update();
   }
 
   setViewport(width: number, height: number): void {

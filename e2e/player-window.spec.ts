@@ -63,4 +63,23 @@ test('the player window mirrors the DM board and honours display options', async
       ),
     )
     .toBeGreaterThan(0);
+  // the TV camera moves with the DM's: pan the DM board and the TV centres on the same ground point
+  await dm.keyboard.press('Escape');
+  await dm.mouse.move(600, 420);
+  await dm.mouse.down();
+  await dm.mouse.move(690, 370, { steps: 6 });
+  await dm.mouse.up();
+  type Cam = { cam: { target: { x: number; y: number } } };
+  const dmTarget = await dm.evaluate(() => {
+    const t = (window as unknown as { dndsim: { renderer: Cam } }).dndsim.renderer.cam.target;
+    return { x: t.x, y: t.y };
+  });
+  await expect
+    .poll(() =>
+      player.evaluate(() => {
+        const t = (window as unknown as { dndsimPlayer: { renderer: Cam } }).dndsimPlayer.renderer.cam.target;
+        return { x: t.x, y: t.y };
+      }),
+    )
+    .toEqual(dmTarget);
 });

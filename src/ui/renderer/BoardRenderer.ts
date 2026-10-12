@@ -80,4 +80,23 @@ export interface BoardRenderer {
   ): void;
   /** The sprite store the board draws from (portraits reuse it). */
   readonly library?: SpriteLibrary;
+  /** DM side: hear every camera move (pan, zoom, orbit, reframe), once per drawn frame. */
+  onCameraMove?(fn: (pose: CameraPose) => void): () => void;
+  /** Player side: mirror the DM's camera from now on (also across resizes). */
+  followCamera?(pose: CameraPose): void;
+}
+
+/** Where a board camera looks: enough for another window to show the same view. */
+export interface CameraPose {
+  /** ground point the view is centred on */
+  x: number;
+  z: number;
+  /** whole zoom step (CSS pixels per texel) */
+  zoom: number;
+  /** heading and tactical tilt, radians */
+  yaw: number;
+  tilt: number;
+  /** the sender's viewport, CSS pixels: the receiver scales the zoom to show at least as much */
+  width: number;
+  height: number;
 }

@@ -176,9 +176,11 @@ export function mountTvScreen(root: HTMLElement, replica: ReplicaStore, renderer
     }
   });
   const unsubLib = library?.onChange(() => render()) ?? (() => undefined);
+  const unsubCamera = replica.onCamera((pose) => renderer.followCamera?.(pose));
   render();
   return () => {
     unsub();
+    unsubCamera();
     unsubLib();
     unsubDraw();
     decor?.destroy();
