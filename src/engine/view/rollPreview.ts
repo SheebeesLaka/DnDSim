@@ -43,8 +43,10 @@ export interface RollDraft {
   dice: string[];
   areaD20s: string[];
   d10: string;
+  /** which die / target the DM is typing into (dice and area steps) */
+  cursor?: number;
 }
-export const emptyDraft = (): RollDraft => ({ d20: '', dice: [], areaD20s: [], d10: '' });
+export const emptyDraft = (): RollDraft => ({ d20: '', dice: [], areaD20s: [], d10: '', cursor: 0 });
 
 export interface StatLineVM {
   label: string;
@@ -209,15 +211,15 @@ export function fighterVM(state: BattleState, u: Unit, hpAfter: number | null): 
   };
 }
 
-function dieVMs(dice: readonly string[], typed: readonly string[]): DieVM[] {
+function dieVMs(dice: readonly string[], typed: readonly string[], cursor?: number): DieVM[] {
   const out = dice.map((d, i) => ({
     die: d,
     typed: typed[i] ?? '',
     value: parseDie(typed[i], dieMax(d)),
     active: false,
   }));
-  const first = out.findIndex((d) => d.value === null);
-  if (first >= 0) (out[first] as DieVM).active = true;
+  const at = cursor !== undefined && cursor < out.length ? cursor : out.findIndex((d) => d.value === null);
+  if (at >= 0 && out[at]) (out[at]).active = true;
   return out;
 }
 
@@ -402,7 +404,7 @@ export function buildRollVM(state: BattleState, draft: RollDraft = emptyDraft())
   // ---- damage dice ----
   if (p.kind === 'damage') {
     vm.halve = p.halve;
-    vm.dice = dieVMs(p.dice, draft.dice);
+    vm.dice = dieVMs(p.dice, draft.dice, draft.cursor);
   } else if (vm.tier !== null && vm.tier > 0) {
     vm.previewDice =
       flow.flow === 'attack'
@@ -478,7 +480,7 @@ function areaVM(
   vm.attacker = caster ? fighterVM(state, caster, null) : null;
   const save = res === 'SAVE';
   const area = p.kind === 'damage' || p.kind === 'confirm' ? p.area : undefined;
-  if (p.kind === 'damage') vm.dice = dieVMs(p.dice, draft.dice);
+  if (p.kind === 'damage') vm.dice = dieVMs(p.dice, draft.dice, draft.cursor);
   const rolled = vm.dice.map((d) => d.value ?? 0);
   const anyDie = vm.dice.some((d) => d.value !== null);
   vm.complete = vm.dice.length > 0 && vm.dice.every((d) => d.value !== null);

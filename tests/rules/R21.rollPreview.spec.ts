@@ -78,7 +78,7 @@ describe('roll preview: attack', () => {
       { type: 'ATTACK', attackerId: 'u1', targetId: 'u4' },
       { type: 'SUBMIT_ROLL', d20: 20 },
     );
-    const vm = buildRollVM(s, draft({ dice: ['4'] }));
+    const vm = buildRollVM(s, draft({ dice: ['4'], cursor: 1 }));
     expect(vm?.crit).toBe(true);
     expect(vm?.dice.map((d) => d.active)).toEqual([false, true, false]);
     expect(vm?.complete).toBe(false);

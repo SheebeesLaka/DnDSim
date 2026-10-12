@@ -25,6 +25,10 @@ interface PointEntry {
   /** the engine's on/off */
   on: boolean;
   tween: { kind: LightTween; from: number; start: number; delay: number } | null;
+  /** an unsteady light: its intensity wavers (torches, failing fixtures) */
+  flicker: boolean;
+  /** 1 for steady lights; the waver multiplier otherwise */
+  waver: number;
 }
 
 export type LightTween = 'fade-in' | 'fade-out' | 'power-on';
@@ -152,7 +156,18 @@ export class LightLayer {
         const cord = new THREE.Line(new THREE.BufferGeometry(), this.cordMat);
         this.group.add(light, bulb, cord);
         // a light that already exists when the board loads is simply on or off
-        e = { light, bulb, cord, key: '', color: l.color, level: l.on ? 1 : 0, on: l.on, tween: null };
+        e = {
+          light,
+          bulb,
+          cord,
+          key: '',
+          color: l.color,
+          level: l.on ? 1 : 0,
+          on: l.on,
+          tween: null,
+          flicker: false,
+          waver: 1,
+        };
         this.points.set(l.id, e);
       }
       if (l.on !== e.on) {
@@ -164,6 +179,11 @@ export class LightLayer {
       if (e.key !== key) {
         e.key = key;
         this.applyPoint(e, l, y, ground);
+      }
+      e.flicker = l.flicker === true;
+      if (!e.flicker && e.waver !== 1) {
+        e.waver = 1;
+        this.applyLevel(e);
       }
       // keep the shadow while a switched-off light fades, so it doesn't pop
       const wantsShadow = (l.on || e.level > 0) && shadowBudget.left > 0;
@@ -210,7 +230,7 @@ export class LightLayer {
 
   /** Light intensity and bulb glow for the entry's current level. */
   private applyLevel(e: PointEntry): void {
-    e.light.intensity = LIGHT_INTENSITY * e.level * this.pointScale;
+    e.light.intensity = LIGHT_INTENSITY * e.level * this.pointScale * e.waver;
     e.light.visible = e.level > 0.001;
     const mat = e.bulb.material as THREE.MeshBasicMaterial;
     // > 1 when lit so bloom picks the bulb up
@@ -221,6 +241,17 @@ export class LightLayer {
   tick(now = performance.now()): boolean {
     let busy = false;
     for (const e of this.points.values()) {
+      if (e.flicker && e.level > 0) {
+        // two detuned waves plus a rare dip: reads as a flame / a failing tube, not a strobe
+        const t = now / 1000;
+        e.waver =
+          0.82 +
+          0.1 * Math.sin(t * 9.3 + e.color.length) +
+          0.06 * Math.sin(t * 23.7) -
+          (Math.sin(t * 1.7) > 0.97 ? 0.25 : 0);
+        this.applyLevel(e);
+        busy = true;
+      }
       if (!e.tween) continue;
       const { level, done } = lightTweenLevel(e.tween.kind, now - e.tween.start, e.tween.from, e.tween.delay);
       e.level = level;
@@ -270,11 +301,14 @@ export class LightLayer {
       this.board = { rows: vm.rows, cols: vm.cols };
       this.placeSun();
     }
-    const key = `${vm.ambient}|${vm.view}|${vm.dmReveal}`;
+    const key = `${vm.ambient}|${vm.ambientLevel ?? ''}|${vm.view}|${vm.dmReveal}`;
     if (key === this.ambientKey) return;
     const first = this.ambientKey === '';
     this.ambientKey = key;
-    const to = ambientLevels(vm.ambient, vm.view, vm.dmReveal);
+    const to =
+      vm.ambientLevel !== undefined
+        ? ambientLevelsAt(vm.ambientLevel, vm.view, vm.dmReveal)
+        : ambientLevels(vm.ambient, vm.view, vm.dmReveal);
     if (first) {
       this.ambientTween = null;
       this.setAmbientLevels(to);
@@ -383,4 +417,16 @@ export function ambientLevels(
     return { ambient: 0.5, hemi: 0.4, sun: 0.9, sunColor: new THREE.Color('#b9c8ff'), points: 0.7 };
   const reveal = view === 'dm' ? (dmReveal ? 0.55 : 0.22) : 0.06;
   return { ambient: reveal, hemi: reveal * 0.6, sun: 0, sunColor: new THREE.Color('#b9c8ff'), points: 1 };
+}
+
+/**
+ * The 0–100 ambient slider as room light: 0 is the dark profile, 35 the dim one,
+ * 100 the bright one, blended in between so every notch of the slider shows.
+ */
+export function ambientLevelsAt(level: number, view: BoardVM['view'], dmReveal: boolean): AmbientLevels {
+  const v = Math.max(0, Math.min(100, level));
+  const dark = ambientLevels('dark', view, dmReveal);
+  const dim = ambientLevels('dim', view, dmReveal);
+  const bright = ambientLevels('bright', view, dmReveal);
+  return v <= 35 ? lerpLevels(dark, dim, v / 35) : lerpLevels(dim, bright, (v - 35) / 65);
 }

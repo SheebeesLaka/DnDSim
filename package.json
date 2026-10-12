@@ -2,7 +2,7 @@
   "name": "dndsim",
   "version": "0.2.0",
   "private": true,
-  "description": "Cassandralis Combat Simulator \u2014 TypeScript + Vite rebuild",
+  "description": "Cassandralis Combat Simulator — TypeScript + Vite rebuild",
   "type": "module",
   "engines": {
     "node": ">=20.19"
@@ -23,6 +23,8 @@
     "check": "npm run lint && npm run typecheck && npm run test:coverage && npm run build && npm run test:e2e"
   },
   "dependencies": {
+    "@fontsource/chakra-petch": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
     "@hono/node-server": "^1.14.0",
     "hono": "^4.7.0",
     "immer": "^10.1.1",

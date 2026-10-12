@@ -11,9 +11,11 @@ import type { BoardVM } from '../../../engine/view/boardViewModel.ts';
 import { SpriteLibrary } from '../../sprites/library.ts';
 import type {
   BoardPointerEvent,
+  BoardProjector,
   BoardRenderer,
   BoardRendererHandlers,
   FloatingText,
+  OverlayStyle,
 } from '../BoardRenderer.ts';
 import { TacticalCamera } from './camera.ts';
 import {
@@ -34,6 +36,7 @@ import { PostFX } from './post.ts';
 import { isOccluded } from './occlusion.ts';
 import { heightRegions, labelCellCosts, type HeightRegion } from './regions.ts';
 import { SkirtLayer } from './skirt.ts';
+import { StatusFxLayer } from './statusFx.ts';
 import { TileLayer } from './tiles.ts';
 import { UnitLayer } from './units.ts';
 import { WheelZoom } from './wheelZoom.ts';
@@ -74,6 +77,7 @@ export class ThreeRenderer implements BoardRenderer {
   readonly units = new UnitLayer();
   readonly lights = new LightLayer();
   readonly marks = new MarkLayer();
+  readonly statusFx = new StatusFxLayer();
   readonly overlay = new Overlay();
   readonly library: SpriteLibrary;
   readonly stats: RendererStats = { frames: 0, firstFrameAt: 0, lastFrameMs: 0, drawCalls: 0, triangles: 0 };
@@ -106,6 +110,40 @@ export class ThreeRenderer implements BoardRenderer {
   private lastY = 0;
   private unsubLibrary: (() => void) | null = null;
   private destroyed = false;
+  private overlayStyle: OverlayStyle = 'classic';
+  private drawHooks = new Set<(p: BoardProjector) => void>();
+  private panAnim: { dx: number; dy: number; doneX: number; doneY: number; start: number } | null = null;
+  private readonly projector: Omit<BoardProjector, 'width' | 'height'> = {
+    unit: (id) => {
+      const a = this.units.anchors(id);
+      if (!a) return null;
+      const p = (v: THREE.Vector3) => {
+        const s = this.cam.project(v);
+        return { x: s.x, y: s.y };
+      };
+      return { head: p(a.head), feet: p(a.feet), ground: p(a.ground) };
+    },
+    cell: (r, c, lift = 0) => {
+      // fractional positions (radius rings) take the height of the nearest tile on the board
+      const rows = this.vm?.rows ?? 1,
+        cols = this.vm?.cols ?? 1;
+      const tr = Math.max(0, Math.min(rows - 1, Math.round(r))),
+        tc = Math.max(0, Math.min(cols - 1, Math.round(c)));
+      const s = this.cam.project(new THREE.Vector3(c + 0.5, this.tiles.topY(tr, tc) + lift, r + 0.5));
+      return { x: s.x, y: s.y };
+    },
+    point: (r, c, y) => {
+      const s = this.cam.project(new THREE.Vector3(c + 0.5, y, r + 0.5));
+      return { x: s.x, y: s.y };
+    },
+    topY: (r, c) => {
+      const rows = this.vm?.rows ?? 1,
+        cols = this.vm?.cols ?? 1;
+      const tr = Math.max(0, Math.min(rows - 1, Math.round(r))),
+        tc = Math.max(0, Math.min(cols - 1, Math.round(c)));
+      return this.tiles.topY(tr, tc);
+    },
+  };
   private pausedAt: number | null = null;
   /** freeze idle animation (screenshot comparisons) */
   get animationPaused(): boolean {
@@ -139,10 +177,44 @@ export class ThreeRenderer implements BoardRenderer {
       this.units.group,
       this.lights.group,
       this.marks.group,
+      this.statusFx.group,
     );
   }
 
   // ---- BoardRenderer ----
+
+  setOverlayStyle(style: OverlayStyle): void {
+    this.overlayStyle = style;
+    this.invalidate();
+  }
+
+  onDraw(fn: (p: BoardProjector) => void): () => void {
+    this.drawHooks.add(fn);
+    this.invalidate();
+    return () => this.drawHooks.delete(fn);
+  }
+
+  frameUnits(
+    ids: readonly string[],
+    clear: { left: number; top: number; right: number; bottom: number },
+  ): void {
+    const pts = ids.flatMap((id) => {
+      const u = this.projector.unit(id);
+      return u ? [u.head, u.feet] : [];
+    });
+    if (pts.length === 0) return;
+    const pad = 48;
+    const minX = Math.min(...pts.map((p) => p.x)) - pad;
+    const maxX = Math.max(...pts.map((p) => p.x)) + pad;
+    const minY = Math.min(...pts.map((p) => p.y)) - pad;
+    const maxY = Math.max(...pts.map((p) => p.y)) + pad;
+    const inside = minX >= clear.left && maxX <= clear.right && minY >= clear.top && maxY <= clear.bottom;
+    if (inside) return;
+    const dx = (clear.left + clear.right) / 2 - (minX + maxX) / 2;
+    const dy = (clear.top + clear.bottom) / 2 - (minY + maxY) / 2;
+    this.panAnim = { dx, dy, doneX: 0, doneY: 0, start: performance.now() };
+    this.invalidate();
+  }
 
   mount(container: HTMLElement, handlers: BoardRendererHandlers): void {
     this.container = container;
@@ -195,6 +267,7 @@ export class ThreeRenderer implements BoardRenderer {
       now: this.animNow(),
       theme: vm.theme,
     });
+    this.statusFx.update(vm.units);
     this.lights.update(
       vm,
       (r, c) => this.tiles.topY(r, c),
@@ -327,6 +400,7 @@ export class ThreeRenderer implements BoardRenderer {
     this.graves.dispose();
     this.lights.dispose();
     this.marks.dispose();
+    this.statusFx.destroy();
     this.post?.dispose();
     this.gl.dispose();
     this.gl.domElement.remove();
@@ -400,6 +474,33 @@ export class ThreeRenderer implements BoardRenderer {
       if (!this.cam.turning && this.vm) this.render(this.vm);
       this.dirty = true;
     }
+    // camera reframe for a roll: ease the pan (260 ms) instead of jumping
+    if (this.panAnim) {
+      const a = this.panAnim;
+      const t = Math.min(1, (now - a.start) / 260);
+      const e = 1 - (1 - t) ** 3;
+      const stepX = a.dx * e - a.doneX;
+      const stepY = a.dy * e - a.doneY;
+      a.doneX += stepX;
+      a.doneY += stepY;
+      this.cam.pan(stepX, stepY);
+      this.applyView();
+      this.dirty = true;
+      if (t >= 1) {
+        this.panAnim = null;
+        if (this.vm) this.render(this.vm);
+      }
+    }
+    // status effects (flames, halos, bubbles…) animate at ~30 fps while any are on the board
+    if (
+      !this.animationPaused &&
+      this.statusFx.tick(now, (id) => {
+        const a = this.units.anchors(id);
+        if (!a) return null;
+        return { feet: a.feet, head: a.head, ground: a.ground, h: Math.max(0.6, a.head.y - a.feet.y) };
+      })
+    )
+      this.dirty = true;
     // light fades / group flicker / ambient easing (visual only; the engine switched at once)
     if (this.lights.tick(now)) this.dirty = true;
     // idle frames only swap UVs; walk-frame silhouettes differ by a texel or two, so the
@@ -431,6 +532,10 @@ export class ThreeRenderer implements BoardRenderer {
     if (this.post?.active) this.post.render();
     else this.gl.render(this.scene, this.cam.camera);
     this.drawOverlay(now);
+    if (this.drawHooks.size > 0) {
+      const p: BoardProjector = { ...this.projector, width: this.overlay.width, height: this.overlay.height };
+      for (const fn of this.drawHooks) fn(p);
+    }
     if (this.stats.frames === 0) this.stats.firstFrameAt = performance.now();
     this.stats.frames++;
     this.stats.lastFrameMs = performance.now() - t0;
@@ -511,7 +616,9 @@ export class ThreeRenderer implements BoardRenderer {
     const project = (p: THREE.Vector3) => this.cam.project(p);
     const fwd = this.cam.forward;
     // one height chip per contiguous raised/sunken region and per ramp run, at the back of a free cell
-    for (const reg of this.regions) {
+    const spotlight = this.overlayStyle === 'spotlight';
+    const showHeights = !spotlight || (vm.view === 'dm' && vm.field?.on === true);
+    for (const reg of showHeights ? this.regions : []) {
       // players never learn the shape of ground they cannot see
       if (vm.view === 'player' && reg.cells.every((cell) => vm.cells[cell.r]?.[cell.c]?.light === 'dark'))
         continue;
@@ -535,7 +642,7 @@ export class ThreeRenderer implements BoardRenderer {
           fg: reg.elevation > 0 ? '#111' : '#9fd0ff',
         });
     }
-    for (const u of vm.units) {
+    for (const u of spotlight ? [] : vm.units) {
       if (u.kind === 'terrain' || u.kind === 'pickup') continue;
       const a = this.units.anchors(u.id);
       if (!a) continue;

@@ -176,11 +176,7 @@ export class Store {
     if (s.selectedLightId && !battle.board.lights.some((l) => l.id === s.selectedLightId))
       s = { ...s, selectedLightId: null };
     // a new roll (or the next step of one) starts with empty fields
-    if (
-      battle.pending !== this.doc.battle.pending &&
-      (s.rollDraft.d20 || s.rollDraft.dice.length || s.rollDraft.areaD20s.length || s.rollDraft.d10)
-    )
-      s = { ...s, rollDraft: emptyDraft() };
+    if (battle.pending !== this.doc.battle.pending) s = { ...s, rollDraft: emptyDraft() };
     // placement finished → leave placeObject mode for party cards
     return s;
   }
