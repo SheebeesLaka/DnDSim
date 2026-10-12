@@ -1,7 +1,9 @@
 import { defineConfig } from '@playwright/test';
 
-// Browsers are pre-installed under /opt/pw-browsers in the dev container
-// (PLAYWRIGHT_BROWSERS_PATH); never run `playwright install` there.
+// On Windows the tests drive the installed Edge (no browser download). In the dev
+// container browsers are pre-installed under /opt/pw-browsers (PLAYWRIGHT_BROWSERS_PATH);
+// never run `playwright install` there. PW_CHANNEL overrides either.
+const channel = process.env.PW_CHANNEL ?? (process.platform === 'win32' ? 'msedge' : undefined);
 export default defineConfig({
   testDir: 'e2e',
   timeout: 30_000,
@@ -30,6 +32,7 @@ export default defineConfig({
       name: 'chromium',
       use: {
         browserName: 'chromium',
+        channel,
         // WebGL in headless Chromium needs ANGLE's software path (SwiftShader).
         launchOptions: {
           args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],

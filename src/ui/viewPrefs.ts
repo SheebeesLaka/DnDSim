@@ -5,6 +5,8 @@
  * angle (`board.yaw` / `board.pitch`, degrees) is the DM's, and the player
  * window mirrors it.
  */
+import type { PrefsStore } from '../app/prefs.ts';
+import type { BoardRenderer } from './renderer/BoardRenderer.ts';
 import {
   AZIMUTH_OFFSET,
   DEFAULT_VIEW_OPTIONS,
@@ -76,4 +78,16 @@ export function anglePrefs(a: { yaw: number; pitch: number }): Record<string, st
 
 export function viewPrefKey(who: 'dm' | 'player', k: 'camera' | 'blur' | 'bloom'): string {
   return VIEW_PREF_PREFIX[who] + k;
+}
+
+/** Home: back to the default tilt at the nearest home heading, and refit the board. */
+export function resetView(renderer: BoardRenderer, prefs: PrefsStore): void {
+  prefs.setMany(anglePrefs(homeAngles(viewOptionsFromPrefs(prefs.all, 'dm').yaw)));
+  renderer.resetCamera();
+}
+
+/** [ / ]: turn the (shared) camera 90° from wherever it is. */
+export function turnView(prefs: PrefsStore, dir: 1 | -1): void {
+  const cur = viewOptionsFromPrefs(prefs.all, 'dm');
+  prefs.setMany(anglePrefs({ yaw: turnYaw(cur.yaw, dir), pitch: cur.pitch }));
 }

@@ -25,18 +25,41 @@ export const battle = (page: Page) =>
         c: number;
         name?: string;
         health?: number;
+        acAdjustment: number;
         sheet?: { currentHP: number; name: string };
       }[];
-      turn: { started: boolean; round: number; order: string[] };
-      pending: unknown;
+      turn: { started: boolean; round: number; order: string[]; currentIndex: number };
+      pending: { kind: string } | null;
     }
   >;
 
-export async function beginTestBattle(page: Page): Promise<void> {
-  await page.goto('/?scenario=test&seed=1');
-  await page.waitForSelector('[data-testid=phase]');
-  await page.click('[data-testid=begin-btn]');
-  await page.waitForSelector('[data-testid=init-begin]');
-  await page.click('[data-testid=init-begin]');
-  await page.waitForFunction(() => document.querySelector('[data-testid=phase]')?.textContent === 'Round 1');
+/** Types a string of digits the way the DM does: straight onto the page, no field focused. */
+export async function typeDigits(page: Page, digits: string): Promise<void> {
+  for (const d of digits) await page.keyboard.press(d);
+}
+
+/**
+ * The test scenario: Begin, type a distinct d20 for each party member (the cards
+ * auto-advance once a value can't take another digit), Enter.
+ */
+export async function beginTestBattle(page: Page, url = '/?scenario=test&seed=1'): Promise<void> {
+  await page.goto(url);
+  await page.waitForSelector('[data-testid=begin]');
+  await page.click('[data-testid=begin]');
+  await page.waitForSelector('[data-testid=initiative-sheet]');
+  const party = await page.evaluate(
+    () =>
+      (window as unknown as { dndsim: { store: { battle: { pending: { party: string[] } } } } }).dndsim.store
+        .battle.pending.party.length,
+  );
+  for (let i = 0; i < party; i++) await typeDigits(page, String(20 - i));
+  await page.keyboard.press('Enter');
+  // initiative totals add DEX, so distinct d20s can still tie: leave those for later (Esc)
+  for (let i = 0; i < 4 && (await page.locator('[data-testid=tie-sheet]').count()) > 0; i++)
+    await page.keyboard.press('Escape');
+  await page.waitForFunction(
+    () =>
+      (window as unknown as { dndsim: { store: { battle: { turn: { started: boolean } } } } }).dndsim.store
+        .battle.turn.started,
+  );
 }

@@ -1,68 +1,107 @@
 import { expect, test } from '@playwright/test';
-import { battle, beginTestBattle, clickCell } from './helpers.ts';
+import { battle, beginTestBattle, clickCell, typeDigits } from './helpers.ts';
 
-test('Begin → initiative → move → typed attack → HP text', async ({ page }) => {
+const hpOf = async (page: Parameters<typeof battle>[0], id: string) =>
+  (await battle(page)).units.find((u) => u.id === id)?.health;
+
+test('Begin → initiative → move → typed attack → HP, then Space round to round 2', async ({ page }) => {
   await beginTestBattle(page);
-  await expect(page.locator('[data-testid=strip] .card')).toHaveCount(8);
+  expect((await battle(page)).turn.order).toHaveLength(8);
+  await expect(page.locator('[data-testid=rail-u1]').first()).toBeVisible();
   // select Henry (6,4), move one tile east
   await clickCell(page, 6, 4);
   await expect(page.locator('[data-testid=sel-name]')).toHaveText('Henry Keaton');
-  await expect(page.locator('[data-testid=mob]')).toHaveText('MOB: 2');
+  await expect(page.locator('[data-testid=sel-stats]')).toContainText('MOB 2');
   await page.click('[data-testid=act-move]');
   await clickCell(page, 6, 5);
-  const afterMove = await battle(page);
-  expect(afterMove.units.find((u) => u.id === 'u1')).toMatchObject({ r: 6, c: 5 });
+  expect((await battle(page)).units.find((u) => u.id === 'u1')).toMatchObject({ r: 6, c: 5 });
   // attack the Snake at (7,7): d20 15 → +6 vs AC 12 → tier 3, three d4
   await page.click('[data-testid=act-attack]');
   await clickCell(page, 7, 7);
-  await page.fill('[data-testid=d20-input]', '15');
-  await page.click('[data-testid=dice-submit]');
-  await expect(page.locator('[data-testid=damage-panel]')).toBeVisible();
-  const dice = page.locator('[data-testid=damage-panel] input');
-  await expect(dice).toHaveCount(3);
-  for (let i = 0; i < 3; i++) await dice.nth(i).fill('3');
-  await page.click('[data-testid=dice-submit]');
-  await expect(page.locator('[data-testid=card-u6]')).toContainText('1/14'); // 9 + 4 bonus = 13 of 14
-  // sidebar reflects selection after the attack
-  await expect(page.locator('[data-testid=sel-name]')).toHaveText('Henry Keaton');
-  // Next advances the round counter eventually
-  for (let i = 0; i < 8; i++) await page.click('[data-testid=next-btn]');
-  await expect(page.locator('[data-testid=phase]')).toHaveText('Round 2');
+  await expect(page.locator('[data-testid=roll-panel]')).toBeVisible();
+  await typeDigits(page, '15');
+  await expect(page.locator('[data-testid=roll-panel]')).toContainText('HIT');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await battle(page)).pending?.kind).toBe('damage');
+  await typeDigits(page, '333'); // each d4 is final after one digit
+  await page.keyboard.press('Enter');
+  await expect.poll(() => hpOf(page, 'u6')).toBe(1); // 9 + 4 bonus = 13 of 14
+  await expect(page.locator('[data-testid=roll-panel]')).toHaveCount(0);
+  // Space ends each turn; eight turns later it is round 2
+  for (let i = 0; i < 8; i++) await page.keyboard.press(' ');
+  await expect.poll(async () => (await battle(page)).turn.round).toBe(2);
 });
 
-test('cancel at the miss banner spends nothing; sidebar tweaks are battle-only', async ({ page }) => {
+test('cancel at the miss spends nothing; Adjust is battle-only; undo puts it back', async ({ page }) => {
   await beginTestBattle(page);
   await clickCell(page, 7, 3); // Dan with the shotgun and shells
-  await expect(page.locator('[data-testid=weapon]')).toContainText('Shortbarrel Shotgun (x6)');
+  await expect(page.locator('[data-testid=weapon]')).toContainText('Shortbarrel Shotgun');
+  await expect(page.locator('[data-testid=weapon]')).toContainText('6 ammo');
   await page.click('[data-testid=act-attack]');
   await clickCell(page, 7, 7);
-  await page.fill('[data-testid=d20-input]', '1');
-  await page.click('[data-testid=dice-submit]');
-  await expect(page.locator('[data-testid=confirm-panel]')).toContainText('MISS');
-  await page.click('[data-testid=dice-cancel]');
-  await expect(page.locator('[data-testid=weapon]')).toContainText('(x6)');
-  await page.click('[data-testid=stat-ac-inc]');
-  await expect(page.locator('[data-testid=stat-ac]')).toHaveText('14');
-  await page.click('[data-testid=dice-0-inc]');
-  await expect(page.locator('[data-testid=dice-0]')).toHaveText('d8');
+  await typeDigits(page, '1');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('[data-testid=roll-panel]')).toContainText('MISS');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-testid=roll-panel]')).toHaveCount(0);
+  await expect(page.locator('[data-testid=weapon]')).toContainText('6 ammo');
+  // right-click → Adjust: AC +1 and the tier-1 die up one step, on this battle only
+  const dan = await page.evaluate(() =>
+    (
+      window as unknown as {
+        dndsim: { renderer: { unitPoint: (id: string, f: number) => { x: number; y: number } } };
+      }
+    ).dndsim.renderer.unitPoint('u2', 0.4),
+  );
+  await page.mouse.click(dan.x, dan.y, { button: 'right' });
+  await page.click('text=Adjust AC, stats & dice');
+  const sheet = page.locator('[data-testid=adjust-sheet]');
+  const ac = Number(await sheet.locator('[data-testid=adj-ac]').textContent());
+  await sheet.locator('[data-testid=adj-ac-inc]').click();
+  await expect(sheet.locator('[data-testid=adj-ac]')).toHaveText(String(ac + 1));
+  await sheet.locator('[data-testid=adj-t1-inc]').click();
+  await expect(sheet.locator('[data-testid=adj-t1]')).toHaveClass(/up/);
+  expect((await battle(page)).units.find((u) => u.id === 'u2')?.acAdjustment).toBe(1);
+  // Ctrl+Z steps back one change at a time
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
+  expect((await battle(page)).units.find((u) => u.id === 'u2')?.acAdjustment).toBe(0);
 });
 
-test('spell picker, area aim and shared rolls', async ({ page }) => {
+test('cast picker, area aim, auto-roll and typed damage', async ({ page }) => {
   await beginTestBattle(page);
   await clickCell(page, 2, 10); // Grand Wizard Man
   await page.click('[data-testid=act-cast]');
   await page.click('[data-testid=spell-Fireball]');
   await page.click('[data-testid=cast-btn]');
   await clickCell(page, 7, 8); // burst 2 catches the Snake (7,7) and the Hornet (8,9)
-  await expect(page.locator('[data-testid=auto-roll]')).toBeVisible();
-  await page.click('[data-testid=auto-roll]');
-  const panel = page.locator('[data-testid=damage-panel], [data-testid=confirm-panel]');
-  await expect(panel).toBeVisible();
-  const inputs = page.locator('[data-testid=damage-panel] input');
-  const n = await inputs.count();
-  for (let i = 0; i < n; i++) await inputs.nth(i).fill('1');
-  await page.click('[data-testid=dice-submit]');
-  await expect(page.locator('[data-testid=damage-panel]')).toHaveCount(0);
-  const b = await battle(page);
-  expect(b.pending).toBeNull();
+  await expect.poll(async () => (await battle(page)).pending?.kind).toBe('areaD20s');
+  await page.keyboard.press('a'); // auto-roll the enemies' saves
+  // damage dice, then any confirm step: type 1s until the roll is done
+  for (let step = 0; step < 4; step++) {
+    const kind = (await battle(page)).pending?.kind;
+    if (!kind) break;
+    if (kind === 'damage') {
+      const n = await page.evaluate(
+        () =>
+          (window as unknown as { dndsim: { store: { battle: { pending: { dice: string[] } } } } }).dndsim
+            .store.battle.pending.dice.length,
+      );
+      // a 1 is final on a d4–d8 but could still become 10 on a d10+: Tab on only when it stayed put
+      const cursor = () =>
+        page.evaluate(
+          () =>
+            (window as unknown as { dndsim: { store: { session: { rollDraft: { cursor: number } } } } })
+              .dndsim.store.session.rollDraft.cursor,
+        );
+      for (let i = 0; i < n; i++) {
+        const at = await cursor();
+        await page.keyboard.press('1');
+        if ((await cursor()) === at && i < n - 1) await page.keyboard.press('Tab');
+      }
+    }
+    await page.keyboard.press('Enter');
+  }
+  await expect.poll(async () => (await battle(page)).pending).toBeNull();
 });

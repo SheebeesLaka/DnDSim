@@ -95,6 +95,13 @@ Each phase ends in a working app: tests green, plus a visual check against the m
 - Update e2e test IDs. Playwright can drive the installed Edge (`channel: 'msedge'`) instead of downloading Chromium, if
   you're OK with that config change.
 
+**Done (2026-10-12).** Spotlight is the only battle screen and `/player.html` is the Spotlight TV; `?ui=next` is gone.
+Deleted `battleScreen.ts`, `playerScreen.ts`, `panels/boardToolbar.ts` (camera helpers moved to `viewPrefs.ts`), the
+old spell-picker / use-item / tie dialogs and ~290 lines of battle CSS. Carried over what only the old screen had: the
+equipped weapon + ammo (action bar, click or Q to swap), camera angle / top-down / blur / glow for laptop and TV
+(Field ▸ TV ▸ Camera), and a Spotlight tie sheet replacing the old tie modal. The e2e suite is rewritten for the new
+test IDs and runs on the installed Edge on Windows (`PW_CHANNEL` overrides).
+
 ## Not designed yet (needed before or during Phase 3)
 Cast picker (today a modal over the board), item use, area-spell multi-target d20 entry, initiative entry at battle start,
 the tie order, the Status palette (S), the ±HP popover (H), the dying menu, and victory. Recommendation: a quick

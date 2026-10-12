@@ -5,7 +5,7 @@
  * Character Sheets screen is open over it, and sheet edits reach it at once.
  *
  * URL options: ?scenario=<name> (fixture: nothing is written), ?battle=<name>,
- * ?view=menu|setup|sheets|assets, ?readonly=1, ?seed=, ?bench=1, ?renderer=2d, ?ui=next (Spotlight UI).
+ * ?view=menu|setup|sheets|assets, ?readonly=1, ?seed=, ?bench=1, ?renderer=2d.
  */
 import '../ui/styles.css';
 import { SAVE_PATHS } from '../assets/filenames.ts';
@@ -19,7 +19,6 @@ import { AssetStore } from '../editors/assetStore.ts';
 import { mountAssetEditor } from '../ui/editors/assetEditor.ts';
 import { openSpellEditor } from '../ui/editors/spellEditor.ts';
 import { mountSheetsScreen } from '../ui/editors/sheetsScreen.ts';
-import { mountBattleScreen } from '../ui/battleScreen.ts';
 import { mountSpotlightScreen } from '../ui/battle/spotlightScreen.ts';
 import { mountMenuScreen } from '../ui/menuScreen.ts';
 import { alertDialog } from '../ui/panels/dialogs.ts';
@@ -193,9 +192,7 @@ async function boot(): Promise<void> {
     const renderer = pickRenderer(params, { view: viewOptionsFromPrefs(prefs.all, 'dm') });
     battle = { store, host: battleHost, flush: () => persister.flush() };
     showBattle();
-    // ?ui=next: the Spotlight battle UI (design/05-build-plan.md) while it is being built
-    const mountScreen = params.get('ui') === 'next' ? mountSpotlightScreen : mountBattleScreen;
-    const unmount = mountScreen(battleHost, {
+    const unmount = mountSpotlightScreen(battleHost, {
       store,
       getBundle: () => assets.bundle,
       prefs,
@@ -221,7 +218,6 @@ async function boot(): Promise<void> {
       },
       saveBattle: async (name) => {
         await putBattle(name, serializeBattle(store.battle));
-        alertDialog('Saved', `Battle saved as saves/battles/${name}.json`);
       },
       loadBattle: async (name) => {
         const saved = await getBattle(name);

@@ -38,7 +38,7 @@ const cell = (page, r, c) =>
   page.evaluate(([rr, cc]) => window.dndsim.renderer.cellCenter({ r: rr, c: cc }), [r, c]);
 
 // --- spells: Grand Wizard Man (u3) casts at Moongate Guard #1 (u5) ---
-let page = await open(`${BASE}/?scenario=arboretum&seed=7&ui=next`);
+let page = await open(`${BASE}/?scenario=arboretum&seed=7`);
 let p = await at(page, 'u3');
 await page.mouse.click(p.x, p.y);
 await page.keyboard.press('c');
@@ -84,13 +84,29 @@ await shot(page, '15-adjust-sheet');
 await page.close();
 
 // --- initiative entry at Begin (the test fixture has not started) ---
-page = await open(`${BASE}/?scenario=test&seed=3&ui=next`);
+page = await open(`${BASE}/?scenario=test&seed=3`);
 await shot(page, '16-setup');
 await page.keyboard.press(' ');
 await page.keyboard.press('1');
 await page.keyboard.press('7');
 await page.keyboard.press('9');
 await shot(page, '17-initiative');
+await page.close();
+
+// --- an initiative tie (totals add DEX), then Field ▸ TV with the camera controls ---
+page = await open(`${BASE}/?scenario=test&seed=1`);
+await page.keyboard.press(' ');
+for (const v of ['20', '19', '18', '17']) for (const d of v) await page.keyboard.press(d);
+await page.keyboard.press('Enter');
+await page.click('[data-testid="tie-u4"]').catch(() => undefined);
+await shot(page, '18-tie');
+await page.keyboard.press('Escape');
+p = await at(page, 'u2'); // Dan: the action bar shows his shotgun and shells
+await page.mouse.click(p.x, p.y);
+await shot(page, '19-weapon');
+await page.keyboard.press('g');
+await page.click('[data-testid=dock-tv]');
+await shot(page, '20-field-tv');
 await page.close();
 
 console.log(errors.length ? `ERRORS:\n${errors.join('\n')}` : 'no page errors');

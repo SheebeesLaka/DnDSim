@@ -1,4 +1,4 @@
-// The TV (player.html?ui=next at 1920×1080) mirroring a DM page that plays the arboretum scene.
+// The TV (player.html at 1920×1080) mirroring a DM page that plays the arboretum scene.
 // Both pages share one browser context so the BroadcastChannel connects them.
 // Needs the dev server on :5173. Run: node design/scene/shoot-tv.mjs
 import { chromium } from '@playwright/test';
@@ -21,9 +21,9 @@ const tv = await context.newPage();
 await tv.setViewportSize({ width: 1920, height: 1080 });
 for (const p of [dm, tv]) p.on('pageerror', (e) => errors.push(e.message));
 
-await dm.goto(`${BASE}/?scenario=arboretum&seed=7&ui=next`);
+await dm.goto(`${BASE}/?scenario=arboretum&seed=7`);
 await dm.waitForSelector('.sp-rail');
-await tv.goto(`${BASE}/player.html?ui=next`);
+await tv.goto(`${BASE}/player.html`);
 await tv.waitForSelector('.sp-rail', { timeout: 15000 });
 await tv.waitForTimeout(2500);
 await tv.screenshot({ path: `${OUT}/tv-01-turn.png` });

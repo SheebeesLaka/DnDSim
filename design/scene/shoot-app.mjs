@@ -1,4 +1,4 @@
-// Plays the arboretum scene through the real app (?ui=next) in headless Edge and screenshots each
+// Plays the arboretum scene through the real app () in headless Edge and screenshots each
 // step at the DM laptop's size (1536×960 CSS @1.25 = 1920×1200), for comparison with the mockups.
 // Needs the dev server on :5173. Run: node design/scene/shoot-app.mjs
 import { chromium } from '@playwright/test';
@@ -34,7 +34,7 @@ const clickUnit = async (id) => {
   await page.mouse.click(p.x, p.y);
 };
 
-await page.goto(`${BASE}/?scenario=arboretum&seed=7&ui=next`);
+await page.goto(`${BASE}/?scenario=arboretum&seed=7`);
 await page.waitForSelector('.sp-rail');
 await page.waitForTimeout(2200);
 await shot('01-turn-start');

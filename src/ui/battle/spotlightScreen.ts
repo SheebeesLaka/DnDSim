@@ -2,10 +2,11 @@
  * The Spotlight battle screen (design/05-build-plan.md, mockup c2.html glass):
  * the full-bleed HD-2D board with glass panels around it. Round pill, Active
  * effects, the Field dock, the roll panel, the action bar and the turn rail.
- * Same deps as the old battleScreen so main.ts can switch with ?ui=next.
  */
 import './spotlight.css';
-import type { SpellDef } from '../../assets/types.ts';
+import type { AssetBundle, SpellDef } from '../../assets/types.ts';
+import type { PrefsStore } from '../../app/prefs.ts';
+import type { Store } from '../../app/store.ts';
 import { spellSummary } from '../../assets/spellLabels.ts';
 import { MAX_SPELL_LEVEL, maxSpellSlots, spellSlotsRemaining } from '../../engine/rules/spellSlots.ts';
 import { actionAvailability } from '../../engine/selectors/actions.ts';
@@ -14,8 +15,10 @@ import {
   armorClass,
   baseDamageDice,
   damageDice,
+  equippedWeapon,
   movement,
 } from '../../engine/selectors/stats.ts';
+import { ammoCompatible, isRanged } from '../../engine/rules/combat.ts';
 import { DICE_PROGRESSION, dieMax } from '../../engine/dice.ts';
 import { combatantById, objectAt, partyOnField, unitById, unitName } from '../../engine/selectors/board.ts';
 import { computeLighting } from '../../engine/selectors/lighting.ts';
@@ -32,12 +35,11 @@ import type {
 } from '../../engine/types.ts';
 import { ATTRIBUTE_SHORT, StatusEffect, type StatusDef } from '../../assets/types.ts';
 import { BOARD_THEMES } from '../boardThemes.ts';
-import type { BattleScreenDeps } from '../battleScreen.ts';
 import { h, replaceChildren } from '../dom.ts';
 import { confirmDialog, victoryOverlay } from '../panels/dialogs.ts';
 import { mountDebugPanel } from '../panels/debugPanel.ts';
-import { resetView, turnView } from '../panels/boardToolbar.ts';
-import { anglePrefs } from '../viewPrefs.ts';
+import type { BoardRenderer } from '../renderer/BoardRenderer.ts';
+import { anglePrefs, resetView, turnView, viewOptionsFromPrefs, viewPrefKey } from '../viewPrefs.ts';
 import { emblem, icon, portrait, type ICON } from './art.ts';
 import { BoardDecor } from './boardDecor.ts';
 import { renderEffectsPanel } from './effectsPanel.ts';
@@ -119,6 +121,24 @@ const isTyping = (t: EventTarget | null) => {
   );
 };
 
+export interface BattleScreenDeps {
+  store: Store;
+  /** current assets (the editors can change them while a battle runs) */
+  getBundle: () => AssetBundle;
+  /** menu → Character sheets (R1.3); Back returns to this battle */
+  onOpenSheets: () => void;
+  /** opens the shared Spell Editor; `onSaved` runs after a save */
+  editSpell?: (name: string, onSaved: () => void) => void;
+  prefs: PrefsStore;
+  renderer: BoardRenderer;
+  onVictoryShown?: (party: { name: string; hp: number; maxHp: number; statuses: string[] }[] | null) => void;
+  onLeave: () => void;
+  saveBattle: (name: string) => Promise<void>;
+  loadBattle: (name: string) => Promise<void>;
+  listBattles: () => Promise<string[]>;
+  persisterReadOnly: { get: () => boolean; set: (v: boolean) => void };
+}
+
 export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps): () => void {
   const { store, prefs, renderer } = deps;
   const library = renderer.library;
@@ -146,6 +166,8 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
     onLamp: (id) => store.dispatchSession({ type: 'selectLight', id }),
   });
   const unsubDraw = renderer.onDraw?.((p) => decor.draw(p)) ?? (() => undefined);
+  // camera angle, top-down and post effects follow the prefs (Field ▸ TV, [ ], right-drag)
+  const unsubPrefs = prefs.subscribe(() => renderer.setViewOptions?.(viewOptionsFromPrefs(prefs.all, 'dm')));
   const debug = mountDebugPanel(store, deps.getBundle, prefs, deps.persisterReadOnly);
 
   // ---- local UI state (not worth a session field) ----
@@ -165,7 +187,9 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
   let initCursor = 0;
   let tvWin: Window | null = null;
   let victoryEl: HTMLElement | null = null;
-  let tieOpen = false;
+  /** tie order picked so far (first pick goes first), for the group at the head of the queue */
+  let tiePick: string[] = [];
+  let tieKey = '';
   let vm: BoardVM = buildBoardViewModel(battle(), session(), store.ctx.assets);
 
   // ---- toasts ----
@@ -485,7 +509,7 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
   }
   function openTv(): void {
     if (tvWin && !tvWin.closed) tvWin.focus();
-    else tvWin = window.open('/player.html?ui=next', 'dndsim-player');
+    else tvWin = window.open('/player.html', 'dndsim-player');
     renderUI();
   }
 
@@ -672,7 +696,17 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
       }
       return renderUI();
     }
-    if (b.pending && b.pending.kind !== 'tieOrder') {
+    // initiative tie: 1–9 picks who goes next, Backspace un-picks, Enter confirms, Esc keeps the rolled order
+    if (b.pending?.kind === 'tieOrder') {
+      const group = b.pending.groups[0] ?? [];
+      e.preventDefault();
+      if (e.key === 'Escape') return dispatch({ type: 'DISMISS_TIES' });
+      if (e.key === 'Enter') return confirmTie();
+      if (e.key === 'Backspace') tiePick = tiePick.slice(0, -1);
+      else if (/^[1-9]$/.test(e.key)) pickTie(group, group[Number(e.key) - 1]);
+      return renderUI();
+    }
+    if (b.pending) {
       if (rollKey(e, b.pending)) e.preventDefault();
       return;
     }
@@ -747,6 +781,21 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
   document.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', onBlur);
 
+  function pickTie(group: readonly string[], id: string | undefined): void {
+    if (!id || tiePick.includes(id)) return;
+    tiePick = [...tiePick, id];
+    // the last one left goes last: no need to click it
+    if (tiePick.length === group.length - 1)
+      tiePick = [...tiePick, ...group.filter((g) => !tiePick.includes(g))];
+  }
+  function confirmTie(): void {
+    const p = battle().pending;
+    const group = p?.kind === 'tieOrder' ? p.groups[0] : undefined;
+    if (!group || tiePick.length !== group.length) return;
+    const order = tiePick;
+    tiePick = [];
+    dispatch({ type: 'RESOLVE_TIE', group, order });
+  }
   function submitInitiative(): void {
     const p = battle().pending;
     if (p?.kind !== 'initiativeEntry') return;
@@ -1021,7 +1070,7 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
     const b = battle();
     const s = session();
     if (s.fieldMode) return null;
-    if (b.pending && b.pending.kind !== 'tieOrder') return null;
+    if (b.pending) return null;
     const u = selected();
     const bar = h('div', { class: 'sp-panel sp-abar', dataset: { testid: 'action-bar' } });
     if (!u) {
@@ -1059,10 +1108,10 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
         h(
           'div',
           { style: 'min-width:0' },
-          h('b', {}, unitName(u)),
+          h('b', { dataset: { testid: 'sel-name' } }, unitName(u)),
           h(
             'span',
-            {},
+            { dataset: { testid: 'sel-stats' } },
             `${hp}/${max} · AC ${vm.units.find((x) => x.id === u.id)?.ac ?? '?'} · MOB ${vm.units.find((x) => x.id === u.id)?.mob ?? '?'}`,
           ),
         ),
@@ -1133,6 +1182,25 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
         label,
       );
     const held = (b.turn.held ?? []).includes(u.id);
+    const wpn = weaponLine(u);
+    if (wpn)
+      bar.append(
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'sp-wpn',
+            disabled: !avail.swap,
+            onclick: () => dispatch({ type: 'SWAP_WEAPON', unitId: u.id }),
+            title: avail.swap ? 'Swap to the secondary weapon (Q)' : 'No secondary weapon to swap to',
+            dataset: { testid: 'weapon' },
+          },
+          avail.swap ? h('span', { class: 'sp-k' }, 'Q') : null,
+          h('small', {}, avail.swap ? 'Weapon ⇄' : 'Weapon'),
+          h('b', {}, wpn.name),
+          wpn.ammo !== null ? h('span', { class: wpn.ammo === 0 ? 'out' : '' }, `${wpn.ammo} ammo`) : null,
+        ),
+      );
     bar.append(
       ab('Move', 'move', 'F', () => toggleMode('move'), avail.move, on('move'), 'move'),
       ab('Attack', 'attack', 'E', () => toggleMode('attack'), avail.attack, on('attack')),
@@ -1143,6 +1211,23 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
       ab(held ? 'Act now' : 'Delay', 'clock', 'D', delaySelected, b.turn.started),
     );
     return bar;
+  }
+
+  /** The equipped weapon and, for a ranged one, how much matching ammo is carried. */
+  function weaponLine(u: ReturnType<typeof selected>): { name: string; ammo: number | null } | null {
+    if (u?.kind !== 'entity') return null;
+    const w = equippedWeapon(u);
+    if (!w) return { name: 'Unarmed', ammo: null };
+    if (!isRanged(w.ammoType)) return { name: w.name, ammo: null };
+    const compat = battle().rules.compat.ammoCompatIgnoresLegacyField;
+    const ammo = u.sheet.inventory
+      .filter(
+        (i) =>
+          i.kind === 'ammunition' &&
+          ammoCompatible(i.ammoType, i.legacyCompatibleWeaponType, w.ammoType, compat),
+      )
+      .reduce((n, i) => n + Math.max(0, i.quantity), 0);
+    return { name: w.name, ammo };
   }
 
   function popover(): HTMLElement | null {
@@ -1414,6 +1499,8 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
         ),
       );
     }
+    // a sheet the DM opened (save, load, …) goes over the tie; the tie is back once it closes
+    if (b.pending?.kind === 'tieOrder' && !sheet) return tieSheet(b.pending.groups[0] ?? []);
     if (!sheet) return null;
     if (sheet.kind === 'cast') {
       const u = combatantById(b, sheet.unitId);
@@ -1494,6 +1581,7 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
               class: 'sp-btn go',
               disabled: !cur || slots.length === 0,
               onclick: confirmSheet,
+              dataset: { testid: 'cast-btn' },
             },
             'Cast ⏎',
           ),
@@ -1605,11 +1693,16 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
         style: 'width:100%',
         placeholder: 'battle name',
         value: saveName,
+        dataset: { testid: 'save-name' },
         oninput: (ev: Event) => (saveName = (ev.target as HTMLInputElement).value),
       });
       const go = () => {
         if (!saveName.trim()) return;
-        void deps.saveBattle(saveName.trim());
+        const name = saveName.trim();
+        deps.saveBattle(name).then(
+          () => toast({ text: 'Battle saved', sub: name }),
+          (err: unknown) => toast({ text: 'Save failed', sub: String(err) }),
+        );
         closeSheet();
       };
       input.onkeydown = (ev) => ev.key === 'Enter' && go();
@@ -1623,7 +1716,11 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
           'div',
           { class: 'foot' },
           'campaign/battles/',
-          h('button', { type: 'button', class: 'sp-btn go', onclick: go }, 'Save ⏎'),
+          h(
+            'button',
+            { type: 'button', class: 'sp-btn go', onclick: go, dataset: { testid: 'save-ok' } },
+            'Save ⏎',
+          ),
         ),
       );
     }
@@ -1641,7 +1738,12 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
           ...sheet.names.map((n) =>
             h(
               'button',
-              { type: 'button', class: 'sp-opt', onclick: () => (closeSheet(), void deps.loadBattle(n)) },
+              {
+                type: 'button',
+                class: 'sp-opt',
+                onclick: () => (closeSheet(), void deps.loadBattle(n)),
+                dataset: { testid: `load-${n}` },
+              },
               icon('save'),
               h('div', { class: 'nm' }, n),
               h('span'),
@@ -1653,23 +1755,113 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
     return null;
   }
 
+  /** Party members who tied on initiative: click (or 1–9) in the order they act. */
+  function tieSheet(group: readonly string[]): HTMLElement {
+    const b = battle();
+    const key = group.join(',');
+    if (key !== tieKey) {
+      tieKey = key;
+      tiePick = [];
+    }
+    const total = b.turn.initiative[group[0] ?? '']?.total ?? null;
+    const shown = total === null ? null : total > 100 ? total - 100 : total;
+    const ord = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
+    return h(
+      'div',
+      { class: 'sp-panel sp-sheet', dataset: { testid: 'tie-sheet' } },
+      h(
+        'h3',
+        {},
+        'Initiative tie',
+        h('span', { class: 'sub' }, `${shown === null ? 'tied' : `all on ${shown}`} · click who goes first`),
+        h('span', { class: 'sp-k' }, 'Enter'),
+      ),
+      h(
+        'div',
+        { class: 'sp-init' },
+        ...group.map((id, i) => {
+          const u = combatantById(b, id);
+          const at = tiePick.indexOf(id);
+          return h(
+            'button',
+            {
+              type: 'button',
+              class: `card${at < 0 && tiePick.length < group.length ? ' active' : ''}`,
+              onclick: () => (pickTie(group, id), renderUI()),
+              dataset: { testid: `tie-${id}` },
+            },
+            h('span', { class: 'sp-k', style: 'position:absolute;top:6px;left:6px' }, String(i + 1)),
+            portrait(
+              library,
+              {
+                spritePath: u?.kind === 'entity' ? u.sheet.spritePath : null,
+                color: u?.kind === 'entity' ? u.sheet.color : '#666',
+                name: u ? unitName(u) : id,
+              },
+              40,
+            ),
+            h('div', { class: `v${at < 0 ? ' empty' : ''}` }, at < 0 ? '—' : (ord[at] ?? String(at + 1))),
+            h('div', { class: 'nm' }, u ? unitName(u) : id),
+          );
+        }),
+      ),
+      h(
+        'div',
+        { class: 'foot' },
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'sp-btn',
+            onclick: () => dispatch({ type: 'DISMISS_TIES' }),
+            title: 'Keep the rolled order for now; the tie comes back next round (Esc)',
+          },
+          'Later',
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'sp-btn',
+            disabled: tiePick.length === 0,
+            onclick: () => ((tiePick = []), renderUI()),
+          },
+          'Reset',
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'sp-btn go',
+            disabled: tiePick.length !== group.length,
+            onclick: confirmTie,
+            dataset: { testid: 'tie-ok' },
+          },
+          'Confirm ⏎',
+        ),
+      ),
+    );
+  }
+
   /** Battle-only tweaks (never saved to the sheet): AC, each attribute, each damage tier's die. */
   function adjustSheet(unitId: UnitId): HTMLElement | null {
     const u = combatantById(battle(), unitId);
     if (!u) return null;
-    const row = (label: string, value: string, delta: number, dec: () => void, inc: () => void, color = '') =>
-      h(
+    const row = (label: string, value: string, delta: number, dec: () => void, inc: () => void) => {
+      const id = `adj-${label.split(' ')[0]?.toLowerCase()}`;
+      return h(
         'div',
         { class: 'sp-st-row', style: 'margin:0;justify-content:space-between' },
-        h('span', { style: `font-weight:700;${color}` }, label),
+        h('span', { style: 'font-weight:700' }, label),
         h(
           'div',
           { class: 'sp-step' },
-          h('button', { type: 'button', onclick: dec }, '−'),
-          h('b', { class: delta > 0 ? 'up' : delta < 0 ? 'down' : '' }, value),
-          h('button', { type: 'button', onclick: inc }, '+'),
+          h('button', { type: 'button', onclick: dec, dataset: { testid: `${id}-dec` } }, '−'),
+          h('b', { class: delta > 0 ? 'up' : delta < 0 ? 'down' : '', dataset: { testid: id } }, value),
+          h('button', { type: 'button', onclick: inc, dataset: { testid: `${id}-inc` } }, '+'),
         ),
       );
+    };
     const rows: HTMLElement[] = [
       row(
         'AC',
@@ -1874,6 +2066,76 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
   }
 
   // ---- Field mode ----
+  /** Field ▸ TV: camera angle and post effects for this screen and the TV. */
+  function cameraSection(): HTMLElement {
+    const look = (who: 'dm' | 'player') => {
+      const v = viewOptionsFromPrefs(prefs.all, who);
+      const set = (k: 'camera' | 'blur' | 'bloom', val: string) => (
+        prefs.set(viewPrefKey(who, k), val),
+        renderUI()
+      );
+      return h(
+        'div',
+        { style: 'display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12.5px' },
+        h('span', { style: 'width:52px;color:var(--ink-2)' }, who === 'dm' ? 'Laptop' : 'TV'),
+        h(
+          'div',
+          { class: 'sp-seg' },
+          ...(['tactical', 'top'] as const).map((m) =>
+            h(
+              'button',
+              {
+                type: 'button',
+                class: v.camera === m ? 'on' : '',
+                onclick: () => set('camera', m),
+                dataset: { testid: `view-${who}-camera-${m}` },
+              },
+              m === 'top' ? 'Top-down' : 'Tactical',
+            ),
+          ),
+        ),
+        ...(['blur', 'bloom'] as const).map((k) =>
+          h(
+            'button',
+            {
+              type: 'button',
+              class: `sp-btn tog${v[k] ? ' on' : ''}`,
+              onclick: () => set(k, String(!v[k])),
+              title: k === 'blur' ? 'Depth-of-field blur at the board edges' : 'Glow around lights',
+              dataset: { testid: `view-${who}-${k}` },
+            },
+            k === 'blur' ? 'Blur' : 'Glow',
+          ),
+        ),
+      );
+    };
+    const btn = (label: string, title: string, run: () => void) =>
+      h('button', { type: 'button', class: 'sp-btn', onclick: run, title }, label);
+    return h(
+      'div',
+      { class: 'sp-fsec' },
+      h(
+        'h4',
+        {},
+        'Camera',
+        h(
+          'span',
+          { style: 'display:flex;gap:6px' },
+          btn('⟲', 'Turn 90° ([)', () => turnView(prefs, -1)),
+          btn('⟳', 'Turn 90° (])', () => turnView(prefs, 1)),
+          btn('Reset', 'Reset angle and framing (Home)', () => resetView(renderer, prefs)),
+        ),
+      ),
+      look('dm'),
+      look('player'),
+      h(
+        'div',
+        { style: 'margin-top:6px;font-size:11.5px;color:var(--ink-3)' },
+        "The TV follows the laptop's angle. Right-drag to turn and tilt freely.",
+      ),
+    );
+  }
+
   function fieldPanel(): HTMLElement {
     const s = session();
     const b = battle();
@@ -2500,6 +2762,7 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
             tog('Area spell templates while aiming', 'spellTemplates'),
           ),
         ),
+        cameraSection(),
       );
     } else if (tab === 'history') {
       const past = store.history.past;
@@ -2758,29 +3021,6 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
     }
   }
 
-  function tieCheck(): void {
-    const b = battle();
-    if (b.pending?.kind !== 'tieOrder' || tieOpen) return;
-    const group = b.pending.groups[0];
-    if (!group) return;
-    tieOpen = true;
-    void import('../panels/dialogs.ts').then(({ tieDialog }) => {
-      const roll = b.turn.initiative[group[0] ?? '']?.total ?? null;
-      tieDialog(
-        group.map((id) => ({
-          id,
-          name: (() => {
-            const u = unitById(b, id);
-            return u ? unitName(u) : id;
-          })(),
-        })),
-        roll === null ? null : roll > 100 ? roll - 100 : roll,
-        (order) => ((tieOpen = false), dispatch({ type: 'RESOLVE_TIE', group, order })),
-        () => ((tieOpen = false), dispatch({ type: 'DISMISS_TIES' })),
-      );
-    });
-  }
-
   let lastSession = store.session;
   let lastBattle = store.battle;
   const unsub = store.subscribe((doc, events, source) => {
@@ -2807,7 +3047,6 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
     renderBoard();
     handleEvents(events, prevBattle);
     renderUI();
-    tieCheck();
     const m = doc.session.mode;
     if (m.kind === 'cast' && m.lockedCells && !doc.battle.pending)
       store.dispatchSession({ type: 'cancelMode' });
@@ -2833,6 +3072,7 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
     unsubHistory();
     unsubLib();
     unsubDraw();
+    unsubPrefs();
     document.removeEventListener('keydown', onKeyDown);
     document.removeEventListener('keyup', onKeyUp);
     window.removeEventListener('blur', onBlur);

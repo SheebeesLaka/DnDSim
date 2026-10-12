@@ -8,18 +8,19 @@ test('the player window mirrors the DM board and honours display options', async
   await beginTestBattle(dm);
   const player = await context.newPage();
   await player.goto('/player.html');
-  await expect(player.locator('[data-testid=player-strip] .card')).toHaveCount(8);
+  await expect(player.locator('[data-testid=turn-rail]')).toBeVisible({ timeout: 30_000 });
   // background pages skip animation frames, which Playwright's actionability checks wait on
   await dm.bringToFront();
-  // Enemy HP exact by default (scenario prefs come from the repo's ui_prefs: EXACT)
-  await expect(player.locator('[data-testid=php-u6]')).toHaveText('14/14');
-  // flip to HIDDEN via the debug panel and the player strip loses the numbers
+  // enemy health bars by default (scenario prefs come from the repo's ui_prefs: EXACT)
+  const enemyBar = player.locator('[data-testid=rail-u6] .hb');
+  await expect(enemyBar.first()).toBeVisible();
+  // flip to HIDDEN via the debug panel and the TV loses the enemy's bar, not the party's
   await dm.keyboard.press('`');
   await dm.selectOption('[data-testid=pref-enemyHp]', 'HIDDEN');
-  await expect(player.locator('[data-testid=php-u6]')).toHaveCount(0);
-  await expect(player.locator('[data-testid=php-u1]')).toHaveText('20/36');
+  await expect(enemyBar).toHaveCount(0);
+  await expect(player.locator('[data-testid=rail-u1] .hb').first()).toBeVisible();
   await dm.selectOption('[data-testid=pref-enemyHp]', 'EXACT');
-  await expect(player.locator('[data-testid=php-u6]')).toHaveText('14/14');
+  await expect(enemyBar.first()).toBeVisible();
   // a DM-side move shows up on the player side
   await dm.keyboard.press('`');
   await clickCell(dm, 6, 4);

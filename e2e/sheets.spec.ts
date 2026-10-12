@@ -301,18 +301,18 @@ test.describe('Character Sheets', () => {
   });
 });
 
-test('mid-battle: Manage → Character Sheets → edit HP → back; the unit has the new HP', async ({ page }) => {
+test('mid-battle: menu → Character sheets → edit HP → back; the unit has the new HP', async ({ page }) => {
   await page.goto('/?scenario=test&seed=1');
-  await page.waitForSelector('[data-testid=phase]');
-  await page.click('[data-testid=tab-manage]');
-  await page.click('[data-testid=open-sheets]');
+  await page.waitForSelector('[data-testid=round-pill]');
+  await page.click('[data-testid=menu]');
+  await page.click('text=Character sheets');
   await expect(page.locator('[data-testid=sheets-screen]')).toBeVisible();
   await page.click('[data-testid=group-ALL]');
   await page.click('[data-testid="sheet-row-Dan Dixon"]');
   await page.locator('[data-testid=sheet-hp]').fill('7');
   await page.locator('[data-testid=sheet-hp]').press('Tab');
   await page.click('[data-testid=editor-back]');
-  await expect(page.locator('[data-testid=phase]')).toBeVisible();
+  await expect(page.locator('[data-testid=round-pill]')).toBeVisible();
   const dan = (await battle(page)).units.find((u) => u.kind === 'entity' && u.sheet?.name === 'Dan Dixon');
   expect(dan?.sheet?.currentHP).toBe(7);
   expect(await lastPut(page, 'entities/party/Dan_Dixon.json')).toMatchObject({ currentHP: 7 });

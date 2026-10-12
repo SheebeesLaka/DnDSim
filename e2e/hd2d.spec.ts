@@ -91,7 +91,7 @@ test.describe('HD-2D board', () => {
     );
     if (!gw) throw new Error('no wizard');
     await page.mouse.click(gw.x, gw.y);
-    await expect(page.locator('[data-testid=sidebar]')).toContainText('Grand Wizard Man');
+    await expect(page.locator('[data-testid=sel-name]')).toHaveText('Grand Wizard Man');
 
     // Dan's head is drawn over the tile north of him; clicking it selects Dan, not that tile
     const head = await page.evaluate(() => {
@@ -104,7 +104,7 @@ test.describe('HD-2D board', () => {
     expect(head.y).toBeLessThan(head.northEdgeY); // the point really is over the tile behind him
     expect(head.pick).toEqual({ cell: { r: 7, c: 3 }, unitId: 'u2' });
     await page.mouse.click(head.x, head.y);
-    await expect(page.locator('[data-testid=sidebar]')).toContainText('Dan Dixon');
+    await expect(page.locator('[data-testid=sel-name]')).toHaveText('Dan Dixon');
   });
 
   test('panning moves the picture by whole pixels: no shimmer', async ({ page }) => {
@@ -118,6 +118,8 @@ test.describe('HD-2D board', () => {
       ).dndsim.renderer;
       r.animationPaused = true;
       r.setViewOptions({ bloom: false, blur: false });
+      // the glass panels sit over the canvas and stay put while the board pans
+      document.querySelector<HTMLElement>('.sp-ui')?.style.setProperty('visibility', 'hidden');
     });
     await page.mouse.move(5, 5); // no hover frame
     const box = await page.locator('canvas[data-testid=board]').boundingBox();
@@ -136,7 +138,7 @@ test.describe('HD-2D board', () => {
     const before = await settled();
     // drag by an odd number of pixels through fractional intermediate steps
     const sx = box.x + box.width * 0.5,
-      sy = box.y + box.height * 0.85;
+      sy = box.y + box.height * 0.6;
     const dx = 37,
       dy = -23;
     await page.mouse.move(sx, sy);

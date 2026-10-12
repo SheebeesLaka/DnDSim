@@ -1345,6 +1345,7 @@
 .sp-btn {
   height: 32px;
   padding: 0 14px;
+  white-space: nowrap;
   border-radius: 16px;
   font-weight: 700;
   font-size: 12.5px;
@@ -1366,6 +1367,15 @@
 }
 .sp-btn.go:not(:disabled):hover {
   background: #ffe08f;
+}
+/* a toggle button that is switched on: lit edge, not the gold of a primary action */
+.sp-btn.on {
+  color: var(--now);
+  background: rgba(255, 211, 107, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 211, 107, 0.55);
+}
+.sp-btn.tog:not(.on) {
+  color: var(--ink-3);
 }
 .sp-btn.danger {
   color: #ffd4cd;
@@ -1463,6 +1473,52 @@
   font-size: 11.5px;
   color: var(--ink-2);
   white-space: nowrap;
+}
+.sp-wpn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 52px;
+  max-width: 150px;
+  padding: 0 12px;
+  margin-right: 4px;
+  border-radius: 11px;
+  text-align: left;
+  border-right: 1px solid var(--edge);
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.sp-wpn:not(:disabled):hover {
+  background: var(--chip);
+}
+.sp-wpn:disabled {
+  cursor: default;
+}
+.sp-wpn small {
+  font: 600 9.5px var(--fb);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.sp-wpn b {
+  font: 600 12.5px var(--fb);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sp-wpn span:not(.sp-k) {
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.sp-wpn span.out {
+  color: var(--down);
+}
+.sp-wpn .sp-k {
+  position: absolute;
+  top: 3px;
+  right: 5px;
 }
 .sp-ab {
   position: relative;
