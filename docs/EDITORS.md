@@ -2,7 +2,7 @@
 
 Ports of `UI/CharacterSheetView.java` + `CharacterSheetPane.java`, `UI/AssetEditorView.java` and
 `UI/SpellEditorDialog.java` (FEATURES.md §14, §4.7). They read and write the same `saves/` files as
-the Java app, in the same JSON shapes and key order, so either app can open what the other wrote.
+the Java app (kept outside this repo; last here at commit `4df7b30`), in the same JSON shapes and key order, so either app can open what the other wrote.
 
 ## Getting there
 
@@ -88,9 +88,9 @@ instead of stopping the load.
 ## Limits
 
 - **Sprite uploads** go to `resources/sprites/<party|enemies|terrain>/` at the repo root (never
-  overwriting: a clash becomes `name_2.png`, max 5 MB, PNG/GIF/JPEG/WebP). The web app also reads
-  `legacy-java/resources/sprites/`, but the Java app run from `legacy-java/` won't see new uploads
-  unless you copy them there.
+  overwriting: a clash becomes `name_2.png`, max 5 MB, PNG/GIF/JPEG/WebP). That is the only sprite folder;
+  the Java app (kept outside this repo) won't see new uploads unless you copy them to its own
+  `resources/sprites/`.
 - No undo. Deletes ask first; there is no recycle bin (Java had none either).
 - Two windows editing the same file: the last write wins (as in Java).
 - The editors are DM-window only; the player window doesn't show them.

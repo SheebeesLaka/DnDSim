@@ -1,5 +1,5 @@
 /**
- * Sprite-sheet slicer, ported from legacy-java/UI/SpriteUtils.java (sliceSheet /
+ * Sprite-sheet slicer, ported from the Java app's UI/SpriteUtils.java (sliceSheet /
  * extractFrame / contentRuns). Pure: works on an RGBA pixel buffer so it can be
  * unit-tested in Node and used in the browser alike.
  *

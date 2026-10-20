@@ -16,7 +16,7 @@ const loadPng = (path: string): RgbaImage => {
   return { width: png.width, height: png.height, data: new Uint8ClampedArray(png.data) };
 };
 
-const SHEET = 'legacy-java/resources/sprites/party/testsprites.png';
+const SHEET = 'resources/sprites/party/testsprites.png';
 
 describe('sprite ref parsing', () => {
   it('splits sheet refs and keeps single images', () => {

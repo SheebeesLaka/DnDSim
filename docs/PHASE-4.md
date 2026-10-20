@@ -24,14 +24,14 @@ Screenshots of the shared test scene: `docs/progress/phase4-test-dm.png`, `-dm-s
 | `…/overlay.ts`, `regions.ts` | 2D text overlay (chips, HP, floating numbers) and height-region chips |
 | `…/occlusion.ts`, `post.ts` | hidden-unit test; bloom + band tilt-shift |
 | `src/ui/panels/boardToolbar.ts`, `src/ui/viewPrefs.ts` | camera / blur / glow toggles for both windows (`board.*`, `board.player.*` in ui_prefs) |
-| `server/src/app.ts` | read-only `GET /api/sprites/*` over `resources/sprites/` then `legacy-java/resources/sprites/` |
+| `server/src/app.ts` | read-only `GET /api/sprites/*` over `resources/sprites/` |
 
 ## The brief, item by item
 
 | # | Brief | Done as | Verified by |
 | --- | --- | --- | --- |
 | 1 | Port the sheet slicer | `slicer.ts`: corner key, separator runs (irregular spacing), shared frame width ≥ 32, bottom-centred per-row canvas, `#row` refs, first two frames every 300 ms | `tests/ui/slicer.spec.ts` on the real `testsprites.png` (12 rows × 10 frames, bounds, feet on the bottom row) and synthetic sheets |
-| 1 | Serve sprites | read-only `/api/sprites/*`, images only, no traversal, `_source/` hidden; sheets stay in `legacy-java/resources/sprites/` | `tests/server/api.spec.ts` |
+| 1 | Serve sprites | read-only `/api/sprites/*`, images only, no traversal, `_source/` hidden; the sheets live in `resources/sprites/` | `tests/server/api.spec.ts` |
 | 1 | One atlas, crisp textures | one atlas canvas per sheet; every texture `NearestFilter`, no mipmaps, sRGB (the initials token alone is smooth) | — |
 | 2 | Billboards | upright plane, origin at the feet, never tilted; azimuth is fixed so no rotation is needed; height × `1/cos(pitch)` | `renderer.spec.ts`: a stretched texel is exactly `zoom` px tall |
 | 2 | Lit cut-out material | Lambert, `alphaTest 0.5`, opaque. A flat sprite lit by its own normal turns black when a torch is behind it, so it is lit like the ground it stands on (probe just above the feet, up normal) | screenshots |

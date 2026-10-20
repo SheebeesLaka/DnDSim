@@ -1,7 +1,7 @@
 # Cassandralis Combat Simulator (web rebuild)
 
-TypeScript + Vite rebuild of the JavaFX combat simulator in `legacy-java/` (kept untouched as the
-reference implementation; `FEATURES.md` is the rule inventory both share). The combat rules are
+TypeScript + Vite rebuild of the JavaFX combat simulator (the Java app is kept outside this repo;
+`FEATURES.md` is the rule inventory both share, and cites its `.java` lines). The combat rules are
 unchanged; the port is checked rule by rule against FEATURES.md in `tests/rules/`.
 
 ## Run
@@ -66,7 +66,7 @@ tethered line. Details, the brief-to-implementation map and known limits: `docs/
   blur and light glow, each saved in `campaign/ui_prefs.json` (`board.*`, `board.player.*`).
   ⟲ / ⟳ (or `[` / `]` on the DM board) turn the camera in 90° steps.
 - **Sprites:** a sheet/character `spritePath` like `party/testsprites.png#3` (sheet row 3) is served
-  from `resources/sprites/` or `legacy-java/resources/sprites/`; units without art get an initials
+  from `resources/sprites/`; units without art get an initials
   token.
 - `?bench=1` redraws every frame and shows fps / frame time / draw calls on the board (check the
   60 fps target on your GPU with `?scenario=perf&bench=1`). `?renderer=2d` (or a browser without

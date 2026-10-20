@@ -1,8 +1,0 @@
-{
-    "java.project.referencedLibraries": [
-        "lib/gson-2.10.1.jar",
-        "lib/ikonli-core-12.4.0.jar",
-        "lib/ikonli-javafx-12.4.0.jar",
-        "lib/ikonli-materialdesign2-pack-12.4.0.jar"
-    ]
-}

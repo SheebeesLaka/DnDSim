@@ -6,7 +6,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
-const sheet = PNG.sync.read(readFileSync(here('../../legacy-java/resources/sprites/party/testsprites.png')));
+const sheet = PNG.sync.read(readFileSync(here('../../resources/sprites/party/testsprites.png')));
 const { width: W, height: H, data } = sheet;
 const px = (x, y) => (y * W + x) * 4;
 const bg = [data[0], data[1], data[2]];

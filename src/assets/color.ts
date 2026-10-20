@@ -1,5 +1,5 @@
 /**
- * Colour helpers mirroring legacy-java/EntityRes/ColorUtils.java.
+ * Colour helpers mirroring the Java app's EntityRes/ColorUtils.java.
  * Item/character colours on disk may be "#RRGGBB", "#RGB", a bare hex, an
  * integer index into the 16-colour legacy palette, or that index as a string.
  */

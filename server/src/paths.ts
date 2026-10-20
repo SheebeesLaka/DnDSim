@@ -50,14 +50,8 @@ export function seedCampaign(dir = CAMPAIGN_DIR, seed = CAMPAIGN_SEED_DIR): stri
   return copied;
 }
 export const DIST_DIR = resolve(ROOT, 'dist');
-/**
- * Sprite folders, searched in order: new art goes in resources/sprites/ at the
- * repo root; the legacy sheets stay with the Java app and are still served.
- */
-export const SPRITES_DIRS = [
-  resolve(ROOT, 'resources', 'sprites'),
-  resolve(ROOT, 'legacy-java', 'resources', 'sprites'),
-];
+/** Sprite folders, searched in order: all art lives in resources/sprites/ at the repo root. */
+export const SPRITES_DIRS = [resolve(ROOT, 'resources', 'sprites')];
 export const SPRITE_EXTENSIONS = ['.png', '.gif', '.webp', '.jpg', '.jpeg'] as const;
 
 /**

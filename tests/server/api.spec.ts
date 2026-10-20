@@ -34,7 +34,7 @@ describe('server api', () => {
     expect((await app.request('/api/sprites/party/testsprites.txt')).status).toBe(400);
     expect(() => resolveSpritePaths('../package.json')).toThrow();
     expect(() => resolveSpritePaths('party/../../x.png')).toThrow(/escapes/);
-    expect(resolveSpritePaths('party/testsprites.png')).toHaveLength(2);
+    expect(resolveSpritePaths('party/testsprites.png')).toHaveLength(1);
     // an empty upload is refused; a real one never replaces existing art (see the upload test)
     expect((await app.request('/api/sprites/party/testsprites.png', { method: 'PUT' })).status).toBe(400);
   });

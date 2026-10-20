@@ -1,6 +1,6 @@
 # DnDSim (Cassandralis Combat Simulator) — Feature Inventory
 
-Phase 1 deliverable. This is a complete inventory of what the JavaFX app **does today**, read from the code, not from intent. Every item cites `file:line` in the current repo (paths relative to the repo root; after the Phase 2 move they will live under `legacy-java/`). Rules are numbered `R<area>.<n>` so the TypeScript tests can reference them one-to-one.
+Phase 1 deliverable. This is a complete inventory of what the JavaFX app **does today**, read from the code, not from intent. Every item cites `file:line` in the Java source (paths relative to the Java project root). The Java app is no longer in this repo; the last commit that has it, under `legacy-java/`, is `4df7b30`. Rules are numbered `R<area>.<n>` so the TypeScript tests can reference them one-to-one.
 
 Where something looks buggy, unclear, dead, or inconsistent it is **flagged in §17** with what the code actually does. Nothing in §17 is guessed at; each row has a blank *Decision* column for you to fill in (preserve / fix) at this checkpoint.
 
@@ -687,5 +687,5 @@ Each row states what the code **does**. Intent is not guessed. Fill in *Decision
 Each rule area above has a test file in `tests/rules/` that quotes the formulas and cites the Java
 lines; the engine lives in `src/engine/` and the §17 decisions are `rules.compat` flags
 (`src/engine/compat.ts`). See `docs/CHECKPOINT-2.md` for the area → test map, the compat decision
-table and the list of items fixed without a flag. Paths cited in this document now live under
-`legacy-java/`.
+table and the list of items fixed without a flag. The Java paths cited in this document are in
+`legacy-java/` as of commit `4df7b30`, the last one before the Java app left this repo.

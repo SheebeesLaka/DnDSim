@@ -1,8 +1,3 @@
-# Java build output (legacy project)
-*.class
-/bin/
-legacy-java/bin/
-
 # Node / web app
 node_modules/
 dist/
