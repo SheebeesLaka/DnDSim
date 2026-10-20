@@ -84,6 +84,6 @@ src/ui         panels (plain DOM) + the board behind the BoardRenderer interface
                  renderer/three/ HD-2D board, sprites/ sheet slicer,
                  editors/ Character Sheets, Asset Editor, Spell Editor
 docs/visual-directions   Phase 3 proposals and mockups · docs/PHASE-4.md the HD-2D board ·
-docs/EDITORS.md the editors
+docs/EDITORS.md the editors · docs/UNFINISHED.md partly built features, known gaps and bugs
 tests/, e2e/   Vitest rule/golden/app tests and Playwright suites
 ```
