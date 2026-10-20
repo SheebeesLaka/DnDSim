@@ -5,7 +5,7 @@
  * Character Sheets screen is open over it, and sheet edits reach it at once.
  *
  * URL options: ?scenario=<name> (fixture: nothing is written), ?battle=<name>,
- * ?view=menu|setup|sheets|assets, ?readonly=1, ?seed=, ?bench=1, ?renderer=2d.
+ * ?view=menu|setup|sheets|assets, ?readonly=1, ?seed=, ?bench=1.
  */
 import '../ui/styles.css';
 import { SAVE_PATHS } from '../assets/filenames.ts';
@@ -22,7 +22,7 @@ import { mountSheetsScreen } from '../ui/editors/sheetsScreen.ts';
 import { mountSpotlightScreen } from '../ui/battle/spotlightScreen.ts';
 import { mountMenuScreen } from '../ui/menuScreen.ts';
 import { alertDialog } from '../ui/panels/dialogs.ts';
-import { pickRenderer } from '../ui/renderer/pickRenderer.ts';
+import { createBoardRenderer, NO_WEBGL_MESSAGE, webglAvailable } from '../ui/renderer/createBoardRenderer.ts';
 import { viewOptionsFromPrefs } from '../ui/viewPrefs.ts';
 import { mountSetupScreen } from '../ui/setupScreen.ts';
 import {
@@ -168,6 +168,10 @@ async function boot(): Promise<void> {
   };
 
   const startBattle = (state: BattleState) => {
+    if (!webglAvailable()) {
+      alertDialog('WebGL Needed', NO_WEBGL_MESSAGE);
+      return;
+    }
     const store = new Store(state, { rng, assets: engineAssetsOf(assets.bundle) });
     const persister = createSheetPersister({
       rawParty: loaded.raw.party ?? {},
@@ -189,7 +193,7 @@ async function boot(): Promise<void> {
     });
     window.addEventListener('beforeunload', () => void persister.flush());
     pub.publish([]);
-    const renderer = pickRenderer(params, { view: viewOptionsFromPrefs(prefs.all, 'dm') });
+    const renderer = createBoardRenderer(params, { view: viewOptionsFromPrefs(prefs.all, 'dm') });
     // the TV shows what the DM's camera shows, moving with it
     const unsubCamera = renderer.onCameraMove?.((pose) => pub.publishCamera(pose)) ?? (() => undefined);
     battle = { store, host: battleHost, flush: () => persister.flush() };

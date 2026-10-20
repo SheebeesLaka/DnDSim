@@ -69,8 +69,8 @@ tethered line. Details, the brief-to-implementation map and known limits: `docs/
   from `resources/sprites/`; units without art get an initials
   token.
 - `?bench=1` redraws every frame and shows fps / frame time / draw calls on the board (check the
-  60 fps target on your GPU with `?scenario=perf&bench=1`). `?renderer=2d` (or a browser without
-  WebGL) uses the plain Phase 2 board.
+  60 fps target on your GPU with `?scenario=perf&bench=1`). The board needs WebGL; without it the
+  battle won't start and the TV window shows a message instead.
 
 ## Layout
 
@@ -81,7 +81,7 @@ src/assets     loaders/normalisers/writers for every saves/ JSON format
 src/editors    the editable asset store (save/rename/delete) and pure sheet/form/browser logic
 src/app        store, session, transports, player replica, persistence, prefs, entry points
 src/ui         panels (plain DOM) + the board behind the BoardRenderer interface:
-                 renderer/three/ HD-2D board, renderer/canvas2d.ts fallback, sprites/ sheet slicer,
+                 renderer/three/ HD-2D board, sprites/ sheet slicer,
                  editors/ Character Sheets, Asset Editor, Spell Editor
 docs/visual-directions   Phase 3 proposals and mockups · docs/PHASE-4.md the HD-2D board ·
 docs/EDITORS.md the editors

@@ -1,7 +1,7 @@
 /**
- * The renderer contract. Phase 2 ships a throwaway Canvas2D implementation;
- * Phase 4 replaces it with the chosen direction (PixiJS/three.js) without
- * touching the engine or the panels.
+ * The renderer contract between the screens and the board. The HD-2D three.js
+ * board (three/ThreeRenderer.ts) implements it; the engine and the panels only
+ * see this interface.
  */
 import type { Cell } from '../../engine/types.ts';
 import type { BoardVM } from '../../engine/view/boardViewModel.ts';

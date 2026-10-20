@@ -2,8 +2,7 @@
  * HD-2D board renderer (direction C): three.js orthographic tactical camera,
  * extruded tiles with real point lights and shadow maps, pixel-art sprite
  * billboards, flat decals for rings, and a 2D overlay for text. Implements the
- * same BoardRenderer contract as the Phase 2 Canvas2D board, so the engine and
- * the panels are untouched.
+ * BoardRenderer contract, so the engine and the panels never see three.js.
  */
 import * as THREE from 'three';
 import type { Cell } from '../../../engine/types.ts';

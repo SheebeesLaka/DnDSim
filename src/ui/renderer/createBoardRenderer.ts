@@ -1,10 +1,10 @@
-/**
- * Choose the board renderer: the HD-2D three.js board, or the plain Canvas2D
- * board from Phase 2 when WebGL is unavailable or `?renderer=2d` is set.
- */
+/** Create the board renderer: the HD-2D three.js board, which needs WebGL. */
 import type { BoardRenderer } from './BoardRenderer.ts';
-import { Canvas2DRenderer } from './canvas2d.ts';
 import { ThreeRenderer, type ThreeRendererOptions } from './three/ThreeRenderer.ts';
+
+export const NO_WEBGL_MESSAGE =
+  'The battle board needs WebGL, which this browser has turned off or does not support. ' +
+  'Turn on hardware acceleration in the browser settings, or use a current Chrome, Edge or Firefox.';
 
 export function webglAvailable(): boolean {
   try {
@@ -15,7 +15,6 @@ export function webglAvailable(): boolean {
   }
 }
 
-export function pickRenderer(params: URLSearchParams, opts: ThreeRendererOptions): BoardRenderer {
-  if (params.get('renderer') === '2d' || !webglAvailable()) return new Canvas2DRenderer();
+export function createBoardRenderer(params: URLSearchParams, opts: ThreeRendererOptions): BoardRenderer {
   return new ThreeRenderer({ ...opts, benchmark: params.get('bench') === '1' });
 }

@@ -3,7 +3,7 @@
 The board is now a three.js scene in the style of Triangle Strategy / FF Resonance: 2D pixel-art
 sprites standing in real 3D terrain under real lights. It is renderer-only. The engine, the rules
 and the panels are untouched, and the new board implements the same `BoardRenderer` contract as the
-Phase 2 Canvas2D board (which stays as a fallback: `?renderer=2d`, or automatically without WebGL).
+Phase 2 Canvas2D board. That 2D fallback was removed after the Spotlight redesign; the board needs WebGL.
 
 Screenshots of the shared test scene: `docs/progress/phase4-test-dm.png`, `-dm-selected.png`,
 `-dm-top.png`, `-player.png`, and the stress scene `phase4-perf-dm.png`
