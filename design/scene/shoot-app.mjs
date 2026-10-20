@@ -1,4 +1,4 @@
-// Plays the arboretum scene through the real app () in headless Edge and screenshots each
+// Plays the arboretum scene through the real app in headless Edge and screenshots each
 // step at the DM laptop's size (1536×960 CSS @1.25 = 1920×1200), for comparison with the mockups.
 // Needs the dev server on :5173. Run: node design/scene/shoot-app.mjs
 import { chromium } from '@playwright/test';

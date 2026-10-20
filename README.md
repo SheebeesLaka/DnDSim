@@ -37,7 +37,7 @@ browser.
 npm run dev            # Vite on :5173 (+ API on :8787 behind /api)
 npm test               # unit/rule tests (watch)
 npm run check          # lint + typecheck + unit tests with coverage + build + Playwright e2e
-node scripts/smoke-ui.mjs   # drive the real UI headlessly, screenshots in docs/progress/
+node design/scene/shoot-app.mjs   # with `npm run dev` up: screenshot the Spotlight UI into design/shots/app/
 ```
 
 Dev URLs: `/?scenario=test&seed=1` loads `scenarios/test.json` (self-contained fixture: party sheets
@@ -50,7 +50,7 @@ the debug panel.
 
 Character Sheets (characters, groups, party order, enemies), the Asset Editor (items, terrain,
 spells) and the Spell Editor write the same JSON files as the Java app, as you edit (no Save
-button). A sheet edited during a battle (**Manage → Character Sheets**) updates the battle too.
+button). A sheet edited during a battle (battle menu → **Character sheets**) updates the battle too.
 What's there, the Java editor bugs fixed along the way (F-44..F-59) and the limits:
 `docs/EDITORS.md`.
 
@@ -60,11 +60,11 @@ Pixel-art sprites stand in a real 3D board (three.js): tiles are extruded per 5 
 wedges, engine lights are real point lights with shadows, and fliers hover over a ground shadow on a
 tethered line. Details, the brief-to-implementation map and known limits: `docs/PHASE-4.md`.
 
-- **Mouse:** click selects/acts as before; drag pans; wheel zooms in whole pixel steps; `Home` or ⌂
-  resets the camera.
-- **Toolbar (bottom-left of the board):** DM and player camera angle (tactical / top-down), backdrop
-  blur and light glow, each saved in `campaign/ui_prefs.json` (`board.*`, `board.player.*`).
-  ⟲ / ⟳ (or `[` / `]` on the DM board) turn the camera in 90° steps.
+- **Mouse:** click selects/acts as before; drag pans; right-drag orbits; wheel zooms in whole pixel
+  steps; `Home` (or battle menu → Reset camera) resets the camera.
+- **Field → TV → Camera:** DM and player camera angle (tactical / top-down), backdrop blur and light
+  glow, each saved in `campaign/ui_prefs.json` (`board.*`, `board.player.*`). ⟲ / ⟳ (or `[` / `]`)
+  turn the camera in 90° steps; the TV follows the DM's camera.
 - **Sprites:** a sheet/character `spritePath` like `party/testsprites.png#3` (sheet row 3) is served
   from `resources/sprites/`; units without art get an initials
   token.

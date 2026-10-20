@@ -33,7 +33,7 @@ export function mountMenuScreen(root: HTMLElement, deps: MenuDeps): () => void {
         'div',
         { class: 'row', style: 'justify-content:center;margin-top:18px' },
         button('Open player window', () => window.open('/player.html', 'dndsim-player'), {
-          title: 'The second screen: mirrors the battle with the display options from the debug panel',
+          title: 'The second screen: mirrors the battle, with the display options in Field → TV',
         }),
       ),
       deps.readOnly &&

@@ -8,8 +8,9 @@ the Java app (kept outside this repo; last here at commit `4df7b30`), in the sam
 
 The app now opens on a menu: **Battle** (the grid setup, as before), **Character Sheets** and
 **Asset Editor**. `?view=menu|setup|sheets|assets` jumps straight to one. During a battle,
-**Manage → Character Sheets** opens the sheets over the battle (the battle keeps running underneath;
-**← Back to battle** returns), and the spell picker has **✎ Edit Spell**.
+The battle menu's **Character sheets** opens the sheets over the battle (the battle keeps running
+underneath; **← Back to battle** returns). The Spotlight cast sheet has no Edit Spell button yet
+(`docs/UNFINISHED.md`).
 
 Like Java there is no Save button. Every change is written as you make it: sheet fields after a
 quarter-second pause, renames and dialogs at once. On a fixture scenario (`?scenario=test`) or with

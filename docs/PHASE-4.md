@@ -7,7 +7,8 @@ Phase 2 Canvas2D board. That 2D fallback was removed after the Spotlight redesig
 
 Screenshots of the shared test scene: `docs/progress/phase4-test-dm.png`, `-dm-selected.png`,
 `-dm-top.png`, `-player.png`, and the stress scene `phase4-perf-dm.png`
-(regenerate with `node scripts/hd2d-shots.mjs [test|perf]`).
+(the script that made them targeted the pre-Spotlight UI and was removed; `design/scene/shoot-*.mjs`
+shoot the current one).
 
 ## Where things live
 
@@ -23,7 +24,7 @@ Screenshots of the shared test scene: `docs/progress/phase4-test-dm.png`, `-dm-s
 | `…/marks.ts` | highlight decals, hover frame, per-unit rings |
 | `…/overlay.ts`, `regions.ts` | 2D text overlay (chips, HP, floating numbers) and height-region chips |
 | `…/occlusion.ts`, `post.ts` | hidden-unit test; bloom + band tilt-shift |
-| `src/ui/panels/boardToolbar.ts`, `src/ui/viewPrefs.ts` | camera / blur / glow toggles for both windows (`board.*`, `board.player.*` in ui_prefs) |
+| `src/ui/viewPrefs.ts` (the toolbar moved to Field → TV → Camera in the Spotlight UI) | camera / blur / glow toggles for both windows (`board.*`, `board.player.*` in ui_prefs) |
 | `server/src/app.ts` | read-only `GET /api/sprites/*` over `resources/sprites/` |
 
 ## The brief, item by item
@@ -124,7 +125,7 @@ the board read as a flat 2D grid. Plan: `~/.claude/plans/pasted-content-id-ac1f-
 
 | Change | Where |
 | --- | --- |
-| Four headings at 30° + k·90° (two side faces of every step show); ⟲/⟳ in the toolbar per window, `[` / `]` on the DM board; 240 ms tweened turns; top-down keeps only the 90° turns so the map stays square | `camera.ts`, `constants.ts` (`AZIMUTHS`), `viewPrefs.ts` (`board.azimuth`, `board.player.azimuth`) |
+| Four headings at 30° + k·90° (two side faces of every step show); ⟲/⟳ in Field → TV → Camera, `[` / `]` on the DM board; 240 ms tweened turns; top-down keeps only the 90° turns so the map stays square | `camera.ts`, `constants.ts` (`AZIMUTHS`), `viewPrefs.ts` (`board.azimuth`, `board.player.azimuth`) |
 | Shimmer-free at any heading: the view target is snapped along the screen's right/up axes; billboards yaw to the heading and snap their bottom-left corner (`pixelSnap`) | `camera.ts`, `ThreeRenderer.snapBillboards`, `units.ts` |
 | A 5 ft step is 0.75 cell (12 texels); side faces shaded by heading (camera-left lighter); sun from camera-left | `constants.ts`, `tiles.ts` (`faceShade`), `lights.ts` |
 | Ledge cues: bright lip, dark outline and end edges on every drop, contact shadow at the foot of walls | `ledges.ts` |

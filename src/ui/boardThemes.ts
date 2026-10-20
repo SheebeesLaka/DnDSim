@@ -1,4 +1,4 @@
-/** Board themes offered by the setup screen and the Manage tab, moonbase first. */
+/** Board themes offered by the setup screen and Field → Board, moonbase first. */
 export const BOARD_THEMES = [
   { id: 'facility', label: 'Facility (metal plating)' },
   { id: 'arboretum', label: 'Arboretum (overgrown dome)' },

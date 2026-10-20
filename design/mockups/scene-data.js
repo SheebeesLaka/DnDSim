@@ -1,6 +1,7 @@
 // Shared mid-combat moment for all three mockups (same numbers everywhere).
 // Arboretum Dome C, round 3, Henry Keaton's turn, resolving a Sledgehammer swing at Moongate Guard #1.
-// Board plates and token positions come from design/scene/capture-board.mjs (real HD-2D renderer).
+// Board plates and token positions came from design/scene/capture-board.mjs (real HD-2D renderer;
+// removed after the Spotlight build, since it targeted the old board toolbar).
 window.SCENE = (() => {
   const P = (n) => `../scene/portraits/row-${n}.png`;
   const units = [

@@ -1,6 +1,6 @@
 /**
- * UI/SpellEditorDialog.java: add/edit a spell. Shared by the Asset Editor, the
- * character sheet's spell list and (later) the battle's spell picker. Saving
+ * UI/SpellEditorDialog.java: add/edit a spell. Shared by the Asset Editor and the
+ * character sheet's spell list. Saving
  * goes through the AssetStore, so a rename also updates every sheet that knows
  * the spell.
  */

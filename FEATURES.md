@@ -488,7 +488,7 @@ Title "Two Display Mode Settings"; heading "What the players can see"; note "Cha
 
 ---
 
-## 14. Editor screens (inventoried; porting deferred to after Phase 4)
+## 14. Editor screens (ported after Phase 4: see `docs/EDITORS.md`)
 
 ### 14.1 Character Sheets — `UI/CharacterSheetView.java`, `UI/CharacterSheetPane.java`
 - Top bar: **Back** (100×35), **+ Character**, **+ Enemy** (`button-primary`), **Party** (opens the Manage Party popup over a 50% scrim) (`CharacterSheetView.java:239-271`). Mode toggles **Characters / Enemies** (`:104-131`; can end up with nothing selected, §17 F-57).
