@@ -103,7 +103,6 @@ export function mountTvScreen(root: HTMLElement, replica: ReplicaStore, renderer
     if (!mounted) {
       idle.remove();
       renderer.mount(board, {});
-      renderer.setOverlayStyle?.('spotlight');
       const layer = h('div', { class: 'sp-decor' });
       board.append(layer);
       decor = new BoardDecor(layer);

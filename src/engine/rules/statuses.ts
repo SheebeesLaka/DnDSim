@@ -5,7 +5,7 @@
  */
 import { AbilityEffect, StatusEffect, type CharSheetDef, type StatusDef } from '../../assets/types.ts';
 import type { CompatFlags } from '../compat.ts';
-import type { Combatant, EnemyUnit, EntityUnit } from '../types.ts';
+import type { Combatant, EnemyUnit } from '../types.ts';
 import { tempAttributes, totalAttributes } from '../selectors/stats.ts';
 
 /** Status.tick: duration > 0 counts down and expires at 0; 0 never expires (F-8) unless the flag is off. */
@@ -205,6 +205,3 @@ export function stampStatus(s: StatusDef, meta: StatusMeta): StatusDef {
 
 /** Spell.createRiderStatus: a fresh copy so each target gets its own duration. */
 export const cloneStatus = (s: StatusDef): StatusDef => ({ ...s, extra: { ...s.extra } });
-
-export const entityHasStatus = (e: EntityUnit, name: string): boolean =>
-  e.sheet.status.some((s) => s.name === name);

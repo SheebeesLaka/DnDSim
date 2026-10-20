@@ -171,7 +171,6 @@ export class Store {
     let s = session;
     if (!has(s.selectedId)) s = { ...s, selectedId: null, mode: { kind: 'none' } };
     if ('unitId' in s.mode && !has(s.mode.unitId)) s = { ...s, mode: { kind: 'none' } };
-    if (!has(s.pinnedId)) s = { ...s, pinnedId: null };
     if (s.popover && !has(s.popover.unitId)) s = { ...s, popover: null };
     if (s.selectedLightId && !battle.board.lights.some((l) => l.id === s.selectedLightId))
       s = { ...s, selectedLightId: null };

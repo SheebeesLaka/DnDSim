@@ -24,25 +24,6 @@ export const LEGACY_PALETTE: readonly string[] = [
   '#8B4513', // 15 Brown
 ];
 
-export const LEGACY_COLOR_NAMES: readonly string[] = [
-  'Black',
-  'Gray',
-  'White',
-  'Maroon',
-  'Red',
-  'Orange',
-  'Yellow',
-  'Lime',
-  'Green',
-  'Blue',
-  'Indigo',
-  'Lilac',
-  'Purple',
-  'Pink',
-  'Beige',
-  'Brown',
-];
-
 /** ColorUtils.fromLegacyIndex: out-of-range indices give the default grey. */
 export function fromLegacyIndex(index: number): string {
   if (!Number.isInteger(index) || index < 0 || index >= LEGACY_PALETTE.length) return DEFAULT_COLOR;

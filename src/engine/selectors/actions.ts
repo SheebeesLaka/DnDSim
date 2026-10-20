@@ -4,7 +4,7 @@ import { isAreaSpell } from '../rules/combat.ts';
 import { isInRange, isValidSpellTarget } from '../rules/targeting.ts';
 import type { SpellDef } from '../../assets/types.ts';
 import type { BattleState, Cell, Combatant, EngineAssets, Unit, UnitId } from '../types.ts';
-import { canUnitStand, combatantById, unitById } from './board.ts';
+import { canUnitStand, combatantById } from './board.ts';
 import { movement } from './stats.ts';
 import { castableSpells } from '../commands/spells.ts';
 
@@ -75,5 +75,3 @@ export function spellTargets(
 }
 
 export { castableSpells };
-export const unitOrNull = (state: BattleState, id: UnitId | null): Unit | null =>
-  id ? (unitById(state, id) ?? null) : null;

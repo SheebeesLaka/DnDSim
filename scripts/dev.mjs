@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const bin = (rel) => fileURLToPath(new URL(`../node_modules/${rel}`, import.meta.url));
-// The API port is fixed: vite.config.ts proxies /api and /ws to :8787. An inherited PORT (tools
+// The API port is fixed: vite.config.ts proxies /api to :8787. An inherited PORT (tools
 // that launch dev servers set it to the Vite port) would put the API on Vite's port instead.
 const opts = { stdio: 'inherit', env: { ...process.env, PORT: '8787' } };
 

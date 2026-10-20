@@ -1,15 +1,5 @@
 /** BattleGrid.java lookups over the flat units array (R9.2, R9.3). */
-import type {
-  BattleState,
-  Cell,
-  Combatant,
-  EntityUnit,
-  EnemyUnit,
-  PickupUnit,
-  TerrainUnit,
-  Unit,
-  UnitId,
-} from '../types.ts';
+import type { BattleState, Combatant, EntityUnit, EnemyUnit, PickupUnit, Unit, UnitId } from '../types.ts';
 
 const RANK: Record<Unit['kind'], number> = { entity: 0, enemy: 1, terrain: 2, pickup: 3 };
 
@@ -36,11 +26,6 @@ export function objectAt(state: BattleState, r: number, c: number): Unit | null 
     if (best === null || RANK[u.kind] < RANK[best.kind]) best = u;
   }
   return best;
-}
-
-export function terrainAt(state: BattleState, r: number, c: number): TerrainUnit | null {
-  for (const u of state.units) if (u.kind === 'terrain' && u.r === r && u.c === c && u.health > 0) return u;
-  return null;
 }
 
 export function pickupAt(state: BattleState, r: number, c: number): PickupUnit | null {
@@ -82,10 +67,6 @@ export const entities = (state: BattleState): EntityUnit[] =>
   state.units.filter((u): u is EntityUnit => u.kind === 'entity');
 export const enemies = (state: BattleState): EnemyUnit[] =>
   state.units.filter((u): u is EnemyUnit => u.kind === 'enemy');
-export const terrainUnits = (state: BattleState): TerrainUnit[] =>
-  state.units.filter((u): u is TerrainUnit => u.kind === 'terrain');
-export const pickups = (state: BattleState): PickupUnit[] =>
-  state.units.filter((u): u is PickupUnit => u.kind === 'pickup');
 export const combatants = (state: BattleState): Combatant[] =>
   state.units.filter((u): u is Combatant => u.kind === 'entity' || u.kind === 'enemy');
 
@@ -96,8 +77,6 @@ export const partyOnField = (state: BattleState): EntityUnit[] =>
 export function isParty(u: Unit): u is EntityUnit {
   return u.kind === 'entity' && u.sheet.isParty;
 }
-
-export const cellOf = (u: Unit): Cell => ({ r: u.r, c: u.c });
 
 /** Display name: enemies and non-party instances are `Base #N`. */
 export function unitName(u: Unit): string {

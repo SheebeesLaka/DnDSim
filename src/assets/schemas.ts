@@ -197,4 +197,3 @@ export const rawAssetBundleSchema = z.object({
   uiPrefs: z.unknown(),
   enemyTags: z.unknown().default([]),
 });
-export type RawAssetBundle = z.infer<typeof rawAssetBundleSchema>;

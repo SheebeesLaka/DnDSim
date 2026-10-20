@@ -14,15 +14,15 @@ test('the player window mirrors the DM board and honours display options', async
   // enemy health bars by default (scenario prefs come from the repo's ui_prefs: EXACT)
   const enemyBar = player.locator('[data-testid=rail-u6] .hb');
   await expect(enemyBar.first()).toBeVisible();
-  // flip to HIDDEN via the debug panel and the TV loses the enemy's bar, not the party's
-  await dm.keyboard.press('`');
-  await dm.selectOption('[data-testid=pref-enemyHp]', 'HIDDEN');
+  // flip to HIDDEN in Field ▸ TV and the TV loses the enemy's bar, not the party's
+  await dm.click('[data-testid=dock-tv]');
+  await dm.click('[data-testid=tv-enemyHp-HIDDEN]');
   await expect(enemyBar).toHaveCount(0);
   await expect(player.locator('[data-testid=rail-u1] .hb').first()).toBeVisible();
-  await dm.selectOption('[data-testid=pref-enemyHp]', 'EXACT');
+  await dm.click('[data-testid=tv-enemyHp-EXACT]');
   await expect(enemyBar.first()).toBeVisible();
   // a DM-side move shows up on the player side
-  await dm.keyboard.press('`');
+  await dm.click('[data-testid=field-toggle]');
   await clickCell(dm, 6, 4);
   await dm.click('[data-testid=act-move]');
   await clickCell(dm, 6, 5);

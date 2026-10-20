@@ -164,14 +164,6 @@ export function makePickupTexture(color: string): THREE.CanvasTexture {
   return pixelTexture(c);
 }
 
-/** 1x1 white: used where a plain colour is wanted on a textured material slot. */
-export function whiteTexture(): THREE.CanvasTexture {
-  const [c, ctx] = canvas(1, 1);
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, 1, 1);
-  return pixelTexture(c);
-}
-
 /** Riveted metal plate (crates, consoles, bulkheads, pipes), tinted by the material colour. */
 export function makeMetalTexture(seed = 13): THREE.CanvasTexture {
   const [c, ctx] = canvas(TEXELS, TEXELS);

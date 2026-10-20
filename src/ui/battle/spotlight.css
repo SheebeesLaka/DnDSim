@@ -72,9 +72,6 @@
   font: inherit;
   color: var(--ink);
 }
-.sp .hd {
-  font-family: var(--fh);
-}
 
 /* ---------- layers: panels take clicks, the gaps fall through to the board ---------- */
 .sp-ui {
@@ -84,9 +81,6 @@
 }
 .sp-ui > * {
   pointer-events: auto;
-}
-.sp-ui > .sp-panel.hidden {
-  pointer-events: none;
 }
 
 /* ---------- board ---------- */
@@ -128,11 +122,6 @@
   transition:
     opacity var(--t-mid) var(--ease),
     transform var(--t-mid) var(--ease);
-}
-.sp-panel.hidden {
-  opacity: 0;
-  transform: translateY(8px);
-  pointer-events: none;
 }
 .sp-k {
   display: inline-grid;
@@ -1102,15 +1091,6 @@
 .sp-meter .lg .on.t3 {
   color: var(--now);
 }
-.sp-banner {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 1px 9px;
-  border-radius: 10px;
-  font: 700 11px var(--fb);
-  letter-spacing: 0.12em;
-  vertical-align: 2px;
-}
 .sp-tray {
   display: flex;
   align-items: center;
@@ -1425,12 +1405,6 @@
 .sp-init .card .v.empty {
   color: var(--ink-3);
 }
-.sp-tie {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 0 8px;
-}
 
 /* ---------- action bar ---------- */
 .sp-abar {
@@ -1442,9 +1416,6 @@
   gap: 4px;
   padding: 6px;
   z-index: 4;
-}
-.sp-abar.hidden {
-  transform: translate(-50%, 8px);
 }
 .sp-who {
   display: flex;

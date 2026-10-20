@@ -39,15 +39,6 @@ export type AssetItemKind = 'weapon' | 'accessory' | 'consumable' | 'ammunition'
 export type AssetItemDef =
   WeaponDef | AccessoryDef | ConsumableDef | AmmunitionDef | CraftingItemDef | KeyItemDef;
 
-export const ITEM_KIND_LABEL: Record<AssetItemKind, string> = {
-  weapon: 'Weapon',
-  accessory: 'Accessory',
-  consumable: 'Consumable',
-  ammunition: 'Ammo',
-  crafting: 'Crafting',
-  keyitem: 'Key Item',
-};
-
 /**
  * The `type` string written for each kind. Crafting items are written as
  * "Crafting Item": the Java editor wrote "Crafting", which its own inventory

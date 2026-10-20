@@ -10,7 +10,6 @@ import { attackTargets, moveTargets, spellTargets } from '../selectors/actions.t
 import {
   canUnitStand,
   combatantById,
-  combatants,
   isEnabled,
   partyOnField,
   unitById,
@@ -82,7 +81,6 @@ export interface UnitVM {
   showHpNumbers: boolean;
   ac: number | null;
   mob: number | null;
-  statuses: string[];
   selected: boolean;
   active: boolean;
   /** standing on a dark cell: dashed for the DM, absent for players */
@@ -160,8 +158,6 @@ export interface BoardVM {
   turnOrder: UnitId[];
   started: boolean;
   round: number;
-  /** pending DM input, for the player strip's inline initiative state */
-  pendingKind: string | null;
   /** 0 (pitch black) … 100 (daylight) */
   ambientLevel?: number;
   /** the roll being entered, live (null when nothing is being rolled) */
@@ -308,12 +304,6 @@ export function buildBoardViewModel(
       showHpNumbers: combatant !== null,
       ac: combatant ? armorClass(combatant) : u.kind === 'terrain' ? 10 : null,
       mob: combatant ? movement(combatant) : null,
-      statuses:
-        u.kind === 'entity'
-          ? u.sheet.status.map((s) => s.name)
-          : u.kind === 'enemy'
-            ? u.statuses.map((s) => s.name)
-            : [],
       selected: session.selectedId === u.id,
       active: current === u.id,
       inDarkness: lightLevelAt(lighting, u.r, u.c) === 'dark',
@@ -414,7 +404,6 @@ export function buildBoardViewModel(
     turnOrder: [...state.turn.order],
     started: state.turn.started,
     round: state.turn.round,
-    pendingKind: state.pending?.kind ?? null,
     ambientLevel: ambientLevelOf(state.board),
     roll: buildRollVM(state, session.rollDraft),
     effects: buildEffectRows(state, assets),
@@ -437,5 +426,3 @@ export function buildBoardViewModel(
     field: { on: session.fieldMode ?? false, selectedLightId: session.selectedLightId ?? null },
   };
 }
-
-export const combatantCount = (state: BattleState): number => combatants(state).length;

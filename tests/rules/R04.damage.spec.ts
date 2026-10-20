@@ -73,9 +73,9 @@ describe('death and removal (R6.12)', () => {
     let s = run(state, c, { type: 'SET_HP', unitId: 'u4', hp: -5 });
     expect(enemy(s, 'u4').health).toBe(0);
     expect(s.units.some((u) => u.id === 'u4')).toBe(true);
-    s = run(s, c, { type: 'ADJUST_HP', unitId: 'u1', delta: 99 });
+    s = run(s, c, { type: 'SET_HP', unitId: 'u1', hp: 99 });
     expect(entity(s, 'u1').sheet.currentHP).toBe(36);
-    s = run(s, c, { type: 'ADJUST_HP', unitId: 'u1', delta: -1 });
+    s = run(s, c, { type: 'SET_HP', unitId: 'u1', hp: 35 });
     expect(entity(s, 'u1').sheet.currentHP).toBe(35);
   });
 

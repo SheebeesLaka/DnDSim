@@ -89,14 +89,6 @@ export function createApp(opts: { presence?: Presence } = {}): Hono {
     return c.json(bundle);
   });
 
-  app.get('/api/files/*', async (c) => {
-    const rel = c.req.path.slice('/api/files/'.length);
-    const abs = resolveSavesPath(decodeURIComponent(rel));
-    const text = await readText(abs);
-    if (text === null) return c.json({ error: 'not found' }, 404);
-    return c.body(text, 200, { 'content-type': 'application/json; charset=utf-8' });
-  });
-
   app.put('/api/files/*', async (c) => {
     const rel = c.req.path.slice('/api/files/'.length);
     const abs = resolveSavesPath(decodeURIComponent(rel));
@@ -132,7 +124,6 @@ export function createApp(opts: { presence?: Presence } = {}): Hono {
     return c.json({ ok: true, name });
   });
 
-  app.get('/api/scenarios', async (c) => c.json({ names: await listJsonStems(SCENARIOS_DIR) }));
   app.get('/api/scenarios/:name', async (c) => {
     const text = await readText(join(SCENARIOS_DIR, safeName(c.req.param('name')) + '.json'));
     if (text === null) return c.json({ error: 'not found' }, 404);
@@ -201,9 +192,6 @@ export function createApp(opts: { presence?: Presence } = {}): Hono {
     }
     return c.json({ error: 'not found' }, 404);
   });
-
-  // Reserved for the player-window relay (Phase 2 uses BroadcastChannel in-browser).
-  app.get('/ws', (c) => c.json({ error: 'websocket relay not enabled yet' }, 501));
 
   return app;
 }

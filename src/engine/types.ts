@@ -368,7 +368,6 @@ export type Command =
   | { type: 'SET_HP'; unitId: UnitId; hp: number }
   /** The DM decides a dying party member's fate (F-14 fixed). */
   | { type: 'RESOLVE_DYING'; unitId: UnitId; outcome: 'recover' | 'hold' | 'perish' }
-  | { type: 'ADJUST_HP'; unitId: UnitId; delta: number }
   /** Typed damage (negative) or healing (positive) that behaves like a real hit: floating number, defeat, dying. */
   | { type: 'APPLY_HP'; unitId: UnitId; delta: number }
   | { type: 'ADD_STATUS'; unitId: UnitId; status: StatusDef; source?: string }
@@ -407,8 +406,6 @@ export type Command =
   | { type: 'AUTO_FILL_AREA_ROLLS'; d20s?: number[] }
   | { type: 'CONFIRM_PENDING' }
   | { type: 'CANCEL_PENDING' };
-
-export type CommandType = Command['type'];
 
 // ---------- events ----------
 

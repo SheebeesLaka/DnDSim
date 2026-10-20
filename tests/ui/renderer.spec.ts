@@ -66,7 +66,6 @@ function boardVm(rows: number, cols: number, edit: (cells: CellVM[][]) => void =
     turnOrder: [],
     started: false,
     round: 0,
-    pendingKind: null,
   };
 }
 
@@ -86,7 +85,6 @@ const unit = (id: string, r: number, c: number, extra: Partial<UnitVM> = {}): Un
   showHpNumbers: true,
   ac: 10,
   mob: 3,
-  statuses: [],
   selected: false,
   active: false,
   inDarkness: false,

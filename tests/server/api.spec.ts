@@ -84,9 +84,10 @@ describe('server api', () => {
 
   it('refuses traversal and non-whitelisted paths', async () => {
     // Hono normalises dot segments before routing (404); the guard itself is tested below.
-    expect((await app.request('/api/files/%2E%2E/package.json')).status).toBeGreaterThanOrEqual(403);
+    const del = { method: 'DELETE' };
+    expect((await app.request('/api/files/%2E%2E/package.json', del)).status).toBeGreaterThanOrEqual(403);
     expect(
-      (await app.request('/api/files/entities/party/%2E%2E/%2E%2E/package.json')).status,
+      (await app.request('/api/files/entities/party/%2E%2E/%2E%2E/package.json', del)).status,
     ).toBeGreaterThanOrEqual(403);
     expect(() => resolveSavesPath('../package.json')).toThrow(/escapes/);
     expect(() => resolveSavesPath('entities/party/../../package.json')).toThrow(/escapes|whitelist/);
@@ -99,16 +100,9 @@ describe('server api', () => {
     expect(resolveSavesPath('entities/enemies/Dummy.json')).toMatch(
       /saves[\\/]entities[\\/]enemies[\\/]Dummy\.json$/,
     );
-    expect((await app.request('/api/files/secret/x.json')).status).toBe(403);
-    expect((await app.request('/api/files/entities/party/deep/x.json')).status).toBe(403);
-    expect((await app.request('/api/files/entities/party/x.txt')).status).toBe(400);
-  });
-
-  it('serves a whitelisted file and 404s a missing one', async () => {
-    const ok = await app.request('/api/files/entities/party/Henry_Keaton.json');
-    expect(ok.status).toBe(200);
-    expect(((await ok.json()) as { name: string }).name).toBe('Henry Keaton');
-    expect((await app.request('/api/files/entities/party/Nobody.json')).status).toBe(404);
+    expect((await app.request('/api/files/secret/x.json', del)).status).toBe(403);
+    expect((await app.request('/api/files/entities/party/deep/x.json', del)).status).toBe(403);
+    expect((await app.request('/api/files/entities/party/x.txt', del)).status).toBe(400);
   });
 
   it('seeds a new campaign folder from campaign.example without ever overwriting it', () => {

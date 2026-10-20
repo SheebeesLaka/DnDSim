@@ -25,12 +25,6 @@ export const adjustHandlers: HandlerMap = {
     setHp(u, cmd.hp, emit); // clamps to [0, max]; a unit at 0 is NOT removed (F-26)
     return undefined;
   },
-  ADJUST_HP(draft, cmd, _ctx, emit) {
-    const u = combatantById(draft, cmd.unitId);
-    if (!u) return err('unknownUnit', 'select an entity or enemy');
-    setHp(u, (u.kind === 'entity' ? u.sheet.currentHP : u.health) + Math.trunc(cmd.delta), emit);
-    return undefined;
-  },
   ADJUST_AC(draft, cmd) {
     const u = combatantById(draft, cmd.unitId);
     if (!u) return err('unknownUnit', 'select an entity or enemy');

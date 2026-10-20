@@ -93,9 +93,6 @@ export function heightRegions(cells: CellVM[][], labelCost: ReadonlyMap<string, 
   return out;
 }
 
-export const occupiedCells = (units: readonly { r: number; c: number }[]): Set<string> =>
-  new Set(units.map((u) => key(u.r, u.c)));
-
 /**
  * Neighbour offsets a unit's screen footprint spills into one cell along a
  * ground direction (x = columns, z = rows): the cell straight along it, plus

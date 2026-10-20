@@ -64,11 +64,6 @@ const registry: HandlerMap = {
   ...dmHandlers,
 };
 
-/** Later milestones register their handlers here (lifecycle, actions, spells…). */
-export function registerHandlers(handlers: HandlerMap): void {
-  Object.assign(registry, handlers);
-}
-
 export function reduce(state: BattleState, command: Command, ctx: EngineContext): ReduceResult {
   const handler = registry[command.type] as Handler | undefined;
   if (!handler)

@@ -15,15 +15,12 @@ import type {
   BoardRendererHandlers,
   CameraPose,
   FloatingText,
-  OverlayStyle,
 } from '../BoardRenderer.ts';
 import { TacticalCamera } from './camera.ts';
 import {
   BLOCK_HEIGHT,
   DEFAULT_VIEW_OPTIONS,
   HIGHLIGHT,
-  MAX_ZOOM,
-  MIN_ZOOM,
   STEP,
   ftLabel,
   type ViewOptions,
@@ -97,9 +94,6 @@ export class ThreeRenderer implements BoardRenderer {
   private resizeObs: ResizeObserver | null = null;
   private raycaster = new THREE.Raycaster();
   private wheel = new WheelZoom();
-  private zoomListeners = new Set<(level: number) => void>();
-  /** the zoom level the listeners last heard */
-  private shownZoom = -1;
   private hoverCell: Cell | null = null;
   /** the mouse button held on the board (pan / orbit / click candidate) */
   private press: { button: 0 | 2; pointerId: number } | null = null;
@@ -110,7 +104,6 @@ export class ThreeRenderer implements BoardRenderer {
   private lastY = 0;
   private unsubLibrary: (() => void) | null = null;
   private destroyed = false;
-  private overlayStyle: OverlayStyle = 'classic';
   private drawHooks = new Set<(p: BoardProjector) => void>();
   private panAnim: { dx: number; dy: number; doneX: number; doneY: number; start: number } | null = null;
   /** camera mirroring: listeners on the DM side, the pose to hold on the player side */
@@ -187,11 +180,6 @@ export class ThreeRenderer implements BoardRenderer {
   }
 
   // ---- BoardRenderer ----
-
-  setOverlayStyle(style: OverlayStyle): void {
-    this.overlayStyle = style;
-    this.invalidate();
-  }
 
   onDraw(fn: (p: BoardProjector) => void): () => void {
     this.drawHooks.add(fn);
@@ -361,23 +349,6 @@ export class ThreeRenderer implements BoardRenderer {
     this.invalidate();
   }
 
-  getZoom(): { level: number; min: number; max: number } {
-    return { level: this.cam.zoom, min: MIN_ZOOM, max: MAX_ZOOM };
-  }
-
-  /** Jump to a zoom level (whole steps), keeping the centre of the view in place. */
-  setZoom(level: number): void {
-    this.cam.zoomBy(Math.round(level) - this.cam.zoom);
-    this.invalidate();
-    this.notifyZoom();
-  }
-
-  /** Hear about every zoom change (wheel, slider, fit). Returns an unsubscribe. */
-  onZoomChange(fn: (level: number) => void): () => void {
-    this.zoomListeners.add(fn);
-    return () => this.zoomListeners.delete(fn);
-  }
-
   onCameraMove(fn: (pose: CameraPose) => void): () => void {
     this.cameraListeners.add(fn);
     fn(this.cam.pose);
@@ -400,20 +371,12 @@ export class ThreeRenderer implements BoardRenderer {
     if (!this.followed) return;
     this.cam.follow(this.followed);
     this.applyView();
-    this.notifyZoom();
     this.invalidate();
   }
 
-  /** Frame the whole board (largest whole zoom that fits); the zoom bar follows. */
+  /** Frame the whole board (largest whole zoom that fits). */
   private fitBoard(): void {
     this.cam.fit(this.tiles.bounds);
-    this.notifyZoom();
-  }
-
-  private notifyZoom(): void {
-    if (this.cam.zoom === this.shownZoom) return;
-    this.shownZoom = this.cam.zoom;
-    for (const fn of this.zoomListeners) fn(this.cam.zoom);
   }
 
   resetCamera(): void {
@@ -442,10 +405,6 @@ export class ThreeRenderer implements BoardRenderer {
   }
 
   // ---- view options (camera / effects) ----
-
-  getViewOptions(): ViewOptions {
-    return { ...this.view };
-  }
 
   setViewOptions(patch: Partial<ViewOptions>): void {
     const next = { ...this.view, ...patch };
@@ -662,8 +621,8 @@ export class ThreeRenderer implements BoardRenderer {
     const project = (p: THREE.Vector3) => this.cam.project(p);
     const fwd = this.cam.forward;
     // one height chip per contiguous raised/sunken region and per ramp run, at the back of a free cell
-    const spotlight = this.overlayStyle === 'spotlight';
-    const showHeights = !spotlight || (vm.view === 'dm' && vm.field?.on === true);
+    // height chips only on the DM board in Field mode; otherwise the board stays clean
+    const showHeights = vm.view === 'dm' && vm.field?.on === true;
     for (const reg of showHeights ? this.regions : []) {
       // players never learn the shape of ground they cannot see
       if (vm.view === 'player' && reg.cells.every((cell) => vm.cells[cell.r]?.[cell.c]?.light === 'dark'))
@@ -687,38 +646,6 @@ export class ThreeRenderer implements BoardRenderer {
           bg: reg.elevation > 0 ? 'rgba(255,255,255,0.88)' : 'rgba(20,30,50,0.9)',
           fg: reg.elevation > 0 ? '#111' : '#9fd0ff',
         });
-    }
-    for (const u of spotlight ? [] : vm.units) {
-      if (u.kind === 'terrain' || u.kind === 'pickup') continue;
-      const a = this.units.anchors(u.id);
-      if (!a) continue;
-      const head = project(a.head);
-      // labels sit just below the ground rings (under the shadow for fliers)
-      const ringFront = project(a.ground.clone().addScaledVector(fwd, 0.56));
-      const cellElev = vm.cells[u.r]?.[u.c]?.elevation ?? 0;
-      let below = ringFront.y + size * 0.85;
-      if (u.dying) {
-        this.overlay.chip(head.x, head.y - size * 1.4, 'Dying', {
-          size,
-          bg: 'rgba(200,40,40,0.92)',
-          fg: '#fff',
-        });
-      }
-      if (u.altitude > 0) {
-        this.overlay.chip(head.x, head.y - size, `▲ ${u.altitude * 5} ft`, {
-          size,
-          bg: 'rgba(120,200,255,0.92)',
-          fg: '#06182a',
-        });
-      } else if (cellElev !== 0) {
-        const chip = this.overlay.chip(ringFront.x, below, `on ${ftLabel(cellElev)}`, {
-          size: size - 2,
-          bold: false,
-        });
-        below += chip.h + 2;
-      }
-      if (u.showHpNumbers && u.maxHp > 0)
-        this.overlay.label(ringFront.x, below, `${u.hp}/${u.maxHp}`, size - 1);
     }
     // who lies under each tombstone
     for (const g of vm.graves ?? []) {
@@ -910,7 +837,6 @@ export class ThreeRenderer implements BoardRenderer {
         if (step === 0) return;
         const rect = canvas.getBoundingClientRect();
         this.cam.zoomBy(step, e.clientX - rect.left, e.clientY - rect.top);
-        this.notifyZoom();
         this.invalidate();
       },
       { passive: false },

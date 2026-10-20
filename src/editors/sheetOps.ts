@@ -13,7 +13,6 @@ import {
   type AccessoryDef,
   type CharSheetDef,
   type ItemDef,
-  type StatusDef,
   type WeaponDef,
 } from '../assets/types.ts';
 import { isCaster, castingStatIndex, tempAttributes, totalAttributes } from '../engine/selectors/stats.ts';
@@ -238,7 +237,3 @@ export function slotPips(sheet: CharSheetDef): { level: number; remaining: numbe
   }
   return out;
 }
-
-/** Statuses as written: a convenience for the sheet's battle-made statuses list. */
-export const otherStatuses = (sheet: CharSheetDef): StatusDef[] =>
-  sheet.status.filter((s) => !(SHEET_STATUS_FLAGS as readonly string[]).includes(s.name));

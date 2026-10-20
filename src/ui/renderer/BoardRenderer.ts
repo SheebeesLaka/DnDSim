@@ -42,9 +42,6 @@ export interface BoardProjector {
   height: number;
 }
 
-/** 'classic' draws HP numbers and height chips on the board; 'spotlight' leaves those to the DOM UI. */
-export type OverlayStyle = 'classic' | 'spotlight';
-
 export interface BoardRendererHandlers {
   onClick?: (ev: BoardPointerEvent) => void;
   onHover?: (cell: Cell | null) => void;
@@ -62,15 +59,8 @@ export interface BoardRenderer {
   addFloatingText(ft: FloatingText): void;
   resetCamera(): void;
   destroy(): void;
-  /** Camera mode and post-processing toggles (renderers without them ignore the call). */
-  getViewOptions?(): ViewOptions;
+  /** Camera mode and post-processing toggles. */
   setViewOptions?(patch: Partial<ViewOptions>): void;
-  /** Whole-step zoom (renderers without it have no zoom slider). */
-  getZoom?(): { level: number; min: number; max: number };
-  setZoom?(level: number): void;
-  onZoomChange?(fn: (level: number) => void): () => void;
-  /** Spotlight UI hooks (optional: renderers without them simply do not decorate). */
-  setOverlayStyle?(style: OverlayStyle): void;
   /** Called after every frame that drew, with fresh screen positions. */
   onDraw?(fn: (p: BoardProjector) => void): () => void;
   /** Ease the camera so these units sit inside `clear` (container pixels), e.g. clear of the roll panel. */

@@ -1,7 +1,6 @@
-/** Backtick-toggled dev tools: spawn, HP, elevation/altitude, lights, groups, ambient, reveal, compat, prefs, state copy, command log. */
+/** Backtick-toggled dev tools: spawn, HP, elevation/altitude, lights, groups, reveal, compat, read-only, state copy, command log. */
 import type { AssetBundle } from '../../assets/types.ts';
 import { COMPAT_FLAG_INFO, type CompatFlags } from '../../engine/compat.ts';
-import type { PrefsStore } from '../../app/prefs.ts';
 import type { Store } from '../../app/store.ts';
 import { combatants, unitName } from '../../engine/selectors/board.ts';
 import { button, h, numberInput, readInt, replaceChildren } from '../dom.ts';
@@ -9,7 +8,6 @@ import { button, h, numberInput, readInt, replaceChildren } from '../dom.ts';
 export function mountDebugPanel(
   store: Store,
   getBundle: () => AssetBundle,
-  prefs: PrefsStore,
   readOnly: { get: () => boolean; set: (v: boolean) => void },
 ): { render: (open: boolean) => void; destroy: () => void } {
   const el = h('div', { class: 'debug', dataset: { testid: 'debug' } });
@@ -80,50 +78,6 @@ export function mountDebugPanel(
             dataset: { testid: `compat-${k}` },
           }),
           ` ${k} (${COMPAT_FLAG_INFO[k].ref})`,
-        ),
-      ),
-    );
-    const d = prefs.display;
-    const prefRow = h(
-      'div',
-      { class: 'col small' },
-      h(
-        'label',
-        {},
-        'enemyHp ',
-        h(
-          'select',
-          {
-            onchange: (ev) =>
-              prefs.setDisplay({ enemyHp: (ev.target as HTMLSelectElement).value as typeof d.enemyHp }),
-            dataset: { testid: 'pref-enemyHp' },
-          },
-          ...(['EXACT', 'VAGUE', 'HIDDEN'] as const).map((v) =>
-            h('option', { value: v, selected: d.enemyHp === v }, v),
-          ),
-        ),
-      ),
-      ...(
-        [
-          'partyHpNumbers',
-          'combatNumbers',
-          'statusText',
-          'enemyInitiativeRolls',
-          'enemyNames',
-          'turnStrip',
-          'spellTemplates',
-        ] as const
-      ).map((k) =>
-        h(
-          'label',
-          {},
-          h('input', {
-            type: 'checkbox',
-            checked: d[k],
-            onchange: (ev) => prefs.setDisplay({ [k]: (ev.target as HTMLInputElement).checked }),
-            dataset: { testid: `pref-${k}` },
-          }),
-          ` ${k}`,
         ),
       ),
     );
@@ -253,13 +207,6 @@ export function mountDebugPanel(
       h(
         'div',
         { class: 'row' },
-        'Ambient',
-        ...(['bright', 'dim', 'dark'] as const).map((l) =>
-          button(l, () => dispatch({ type: 'SET_AMBIENT', level: l }), {
-            class: `toggle${b.board.ambient === l ? ' on' : ''}`,
-            dataset: { testid: `dbg-ambient-${l}` },
-          }),
-        ),
         h(
           'label',
           {},
@@ -275,8 +222,6 @@ export function mountDebugPanel(
       ),
       h('h4', {}, 'Compat flags (checked = legacy behaviour)'),
       compat,
-      h('h4', {}, 'Player display (display.player.*)'),
-      prefRow,
       h(
         'label',
         { class: 'small' },

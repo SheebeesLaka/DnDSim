@@ -24,7 +24,6 @@ export const ATTRIBUTE_NAMES = [
   'CHARISMA',
 ] as const;
 export const ATTRIBUTE_SHORT = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
-export type AttributeName = (typeof ATTRIBUTE_NAMES)[number];
 export type Attributes6 = [number, number, number, number, number, number];
 
 /** A single-die string such as "d6"; null = no die in that tier. */
@@ -41,7 +40,6 @@ export const StatusEffect = {
   AC_MODIFIER: 5,
   ATTACK_MODIFIER: 6,
 } as const;
-export type StatusEffectType = (typeof StatusEffect)[keyof typeof StatusEffect];
 export const STATUS_EFFECT_NAMES = [
   'None',
   'Damage over time',

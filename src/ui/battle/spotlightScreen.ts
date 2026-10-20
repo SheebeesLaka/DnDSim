@@ -159,7 +159,6 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
     onContextMenu: (e) => onBoardContext(e.cell, e.clientX, e.clientY),
     onCameraSettled: (a) => prefs.setMany(anglePrefs(a)),
   });
-  renderer.setOverlayStyle?.('spotlight');
   const decorLayer = h('div', { class: 'sp-decor' });
   board.append(decorLayer);
   const decor = new BoardDecor(decorLayer, {
@@ -168,7 +167,7 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
   const unsubDraw = renderer.onDraw?.((p) => decor.draw(p)) ?? (() => undefined);
   // camera angle, top-down and post effects follow the prefs (Field ▸ TV, [ ], right-drag)
   const unsubPrefs = prefs.subscribe(() => renderer.setViewOptions?.(viewOptionsFromPrefs(prefs.all, 'dm')));
-  const debug = mountDebugPanel(store, deps.getBundle, prefs, deps.persisterReadOnly);
+  const debug = mountDebugPanel(store, deps.getBundle, deps.persisterReadOnly);
 
   // ---- local UI state (not worth a session field) ----
   let sheet: Sheet = null;
@@ -2745,6 +2744,7 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
                   type: 'button',
                   class: d.enemyHp === v ? 'on' : '',
                   onclick: () => (prefs.setDisplay({ enemyHp: v }), renderUI()),
+                  dataset: { testid: `tv-enemyHp-${v}` },
                 },
                 v[0] + v.slice(1).toLowerCase(),
               ),

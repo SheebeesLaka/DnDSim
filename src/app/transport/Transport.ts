@@ -1,4 +1,4 @@
-/** One-way DM → player channel now; the same interface will carry the WebSocket relay later. */
+/** One-way DM → player channel (BroadcastChannel between two windows of one browser). */
 import type { BattleEvent } from '../../engine/types.ts';
 import type { BoardVM } from '../../engine/view/boardViewModel.ts';
 import type { CameraPose } from '../../ui/renderer/BoardRenderer.ts';

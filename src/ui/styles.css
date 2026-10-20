@@ -14,11 +14,8 @@
   --gold: #dcdcaa;
   --orange: #daa520;
   --success: #4caf50;
-  --warning: #ff9800;
   --danger: #d75f5f;
-  --info: #2196f3;
   --arcane: #7b68ee;
-  --earth: #8b4513;
 }
 * {
   box-sizing: border-box;
@@ -74,18 +71,6 @@ button.danger {
 button.success {
   background: #2f5a32;
   border-color: var(--success);
-}
-button.accent {
-  background: #6a5a1f;
-  border-color: var(--orange);
-}
-button.earth {
-  background: #5a3a1f;
-  border-color: var(--earth);
-}
-button.arcane {
-  background: #3f3680;
-  border-color: var(--arcane);
 }
 button.toggle.on {
   outline: 2px solid var(--gold);

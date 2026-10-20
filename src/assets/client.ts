@@ -36,12 +36,6 @@ export async function deleteFile(relPath: string, base = ''): Promise<void> {
   );
 }
 
-export async function getFile<T = unknown>(relPath: string, base = ''): Promise<T | null> {
-  const res = await fetch(`${base}/api/files/${relPath.split('/').map(encodeURIComponent).join('/')}`);
-  if (res.status === 404) return null;
-  return okJson<T>(res);
-}
-
 export async function listBattles(base = ''): Promise<string[]> {
   return (await okJson<{ names: string[] }>(await fetch(`${base}/api/battles`))).names;
 }

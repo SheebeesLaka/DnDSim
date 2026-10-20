@@ -38,8 +38,6 @@ export const PITCH_MAX = DEG * 60;
 export const SHADOW_STRETCH = 1 / Math.cos(PITCH_TACTICAL);
 /** Right-drag orbit speed (radians per CSS pixel). */
 export const ORBIT_PER_PX = DEG * 0.4;
-/** Three.js layer only the shadow cameras see (sprite shadow proxies). */
-export const SHADOW_LAYER = 1;
 /** Texels (side-texture height) of one 5 ft elevation step. */
 export const STEP_TEXELS = tx(12);
 /**
