@@ -157,7 +157,9 @@ export function mountTvScreen(root: HTMLElement, replica: ReplicaStore, renderer
     if (fx) fx.style.left = '18px';
 
     if (doc.victory && !victoryEl) {
-      victoryEl = victoryOverlay(doc.victory, null);
+      victoryEl = victoryOverlay(doc.victory, null, {
+        hpNumbers: displayOptionsFromPrefs(doc.prefs).partyHpNumbers,
+      });
       document.body.appendChild(victoryEl);
     } else if (!doc.victory && victoryEl) {
       victoryEl.remove();

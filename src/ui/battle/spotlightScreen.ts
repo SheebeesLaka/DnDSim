@@ -43,6 +43,7 @@ import { anglePrefs, resetView, turnView, viewOptionsFromPrefs, viewPrefKey } fr
 import { emblem, icon, portrait, type ICON } from './art.ts';
 import { BoardDecor } from './boardDecor.ts';
 import { renderEffectsPanel } from './effectsPanel.ts';
+import { dueReminders } from './reminders.ts';
 import { renderRollPanel } from './rollPanel.ts';
 import { renderTurnRail } from './turnRail.ts';
 
@@ -175,7 +176,9 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
   let ctxMenu: { unitId: UnitId; x: number; y: number } | null = null;
   let toasts: Toast[] = [];
   let toastN = 0;
-  const prompted = new Set<string>();
+  /** arrival/timer id → the round the DM was last asked about it, and the toast that asked */
+  const asked = new Map<string, number>();
+  const reminderToasts = new Map<string, number>();
   let hpEntry = { sign: -1 as 1 | -1, digits: '' };
   let statusPick = { index: 0, duration: STATUS_PRESETS[0]?.status.duration ?? 2, custom: '' };
   let readyNote = '';
@@ -192,7 +195,7 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
   let vm: BoardVM = buildBoardViewModel(battle(), session(), store.ctx.assets);
 
   // ---- toasts ----
-  function toast(t: Omit<Toast, 'id'>, ms = 3800): void {
+  function toast(t: Omit<Toast, 'id'>, ms = 3800): number {
     const id = ++toastN;
     toasts = [...toasts, { ...t, id, until: t.actions ? undefined : performance.now() + ms }].slice(-4);
     renderUI();
@@ -201,6 +204,7 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
         toasts = toasts.filter((x) => x.id !== id);
         renderUI();
       }, ms);
+    return id;
   }
   const dropToast = (id: number) => {
     toasts = toasts.filter((x) => x.id !== id);
@@ -2716,6 +2720,7 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
             type: 'button',
             class: `sp-toggle${d[key] ? ' on' : ''}`,
             onclick: () => (prefs.setDisplay({ [key]: !d[key] }), renderUI()),
+            dataset: { testid: `tv-${key}` },
           }),
         );
       body.append(
@@ -2944,9 +2949,15 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
         // the acting creature is selected and framed, so the DM can act at once
         store.dispatchSession({ type: 'select', id: ev.unitId });
         renderer.frameUnits?.([ev.unitId], clearRect(false));
-        if (ev.round !== prev.turn.round) promptDue(ev.round);
       }
     }
+    // a new round, or an arrival/timer queued for a round that has already come
+    if (
+      b.turn.round !== prev.turn.round ||
+      b.turn.arrivals !== prev.turn.arrivals ||
+      b.turn.timers !== prev.turn.timers
+    )
+      promptDue();
     // a roll just opened: bring attacker and target clear of the roll panel
     if (!prev.pending && b.pending && 'flow' in b.pending) {
       const f = b.pending.flow;
@@ -2964,14 +2975,19 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
     }
   }
 
-  /** Arrivals and timers whose round has come: ask the DM what to do. */
-  function promptDue(round: number): void {
+  /** Arrivals and timers whose round has come: ask the DM what to do (once per round until handled). */
+  function promptDue(): void {
     const b = battle();
-    for (const a of b.turn.arrivals ?? []) {
-      if (a.round > round || prompted.has(a.id)) continue;
-      prompted.add(a.id);
+    const due = dueReminders(b.turn, asked);
+    const ask = (id: string, t: Omit<Toast, 'id'>) => {
+      asked.set(id, b.turn.round);
+      const old = reminderToasts.get(id);
+      if (old !== undefined) dropToast(old); // still unanswered from last round: replace it
+      reminderToasts.set(id, toast(t));
+    };
+    for (const a of due.arrivals) {
       const name = store.ctx.assets.enemies[a.templateStem]?.name ?? a.templateStem;
-      toast({
+      ask(a.id, {
         text: `${name} ×${a.count} arrive`,
         sub: a.note ?? `round ${a.round}`,
         actions: [
@@ -2992,16 +3008,15 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
               toast({ text: `Place ${a.count}× ${name}`, sub: 'click tiles' });
             },
           },
+          // stays queued: the next round start asks again
           { label: 'Later', run: () => undefined },
           { label: 'Cancel them', run: () => dispatch({ type: 'REMOVE_ARRIVAL', id: a.id }) },
         ],
       });
     }
-    for (const t of b.turn.timers ?? []) {
-      if (t.round > round || prompted.has(t.id)) continue;
-      prompted.add(t.id);
+    for (const t of due.timers) {
       const group = t.lightGroupId ? b.board.lightGroups.find((g) => g.id === t.lightGroupId) : undefined;
-      toast({
+      ask(t.id, {
         text: t.name,
         sub: t.note ?? `round ${t.round}`,
         actions: group

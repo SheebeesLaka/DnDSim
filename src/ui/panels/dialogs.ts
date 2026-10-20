@@ -46,10 +46,11 @@ const QUOTES = [
   'Amor vincit omnia.',
 ];
 
-/** VictoryView */
+/** VictoryView. `hpNumbers: false` keeps the bars but hides "hp / max" (the TV's party HP numbers option). */
 export function victoryOverlay(
   party: { name: string; hp: number; maxHp: number; statuses: string[] }[],
   onContinue: (() => void) | null,
+  { hpNumbers = true }: { hpNumbers?: boolean } = {},
 ): HTMLElement {
   const rows = party.map((p) => {
     const pct = p.maxHp > 0 ? p.hp / p.maxHp : 0;
@@ -64,7 +65,7 @@ export function victoryOverlay(
           style: `width:${Math.max(0, Math.min(100, pct * 100))}%;background:${pct > 0.5 ? '#4caf50' : pct > 0.25 ? '#e0a030' : '#d75f5f'}`,
         }),
       ),
-      h('span', {}, `${p.hp} / ${p.maxHp}`),
+      hpNumbers ? h('span', { dataset: { testid: 'victory-hp' } }, `${p.hp} / ${p.maxHp}`) : null,
       h(
         'span',
         { class: 'small', style: p.statuses.length ? 'color:#d75f5f' : 'color:#4caf50' },

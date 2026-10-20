@@ -4,17 +4,6 @@ Inventory taken after the Spotlight redesign (2026-10-20). Each entry says what 
 doesn't. Code with no use at all was removed in that cleanup; what's listed here is partly built, or
 fully built but not reachable from the UI. Line numbers are as of this inventory.
 
-## Bugs found during the inventory
-
-- **"Later" on a reinforcement toast drops the arrival for good.** Its handler does nothing
-  (`src/ui/battle/spotlightScreen.ts:2995`). The arrival id was already added to `prompted` (`:2972`),
-  so the prompt never comes back, and the Active effects row only offers ✕.
-- **An arrival or timer due in the current round never prompts.** `promptDue` only runs when the
-  round changes (`spotlightScreen.ts:2947`).
-- **The TV victory screen always shows party HP numbers,** even with Field → TV → Party HP numbers
-  off. `tvScreen.ts:160` calls `victoryOverlay`, which always renders `hp / maxHp`
-  (`src/ui/panels/dialogs.ts:67`).
-
 ## Partly built features
 
 | Feature | What exists | What's missing |

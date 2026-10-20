@@ -83,3 +83,42 @@ test('the player window mirrors the DM board and honours display options', async
     )
     .toEqual(dmTarget);
 });
+
+test('the TV victory screen hides party HP numbers when that option is off', async ({ context }) => {
+  test.setTimeout(90_000);
+  const dm = await context.newPage();
+  await beginTestBattle(dm);
+  const player = await context.newPage();
+  await player.goto('/player.html');
+  await expect(player.locator('[data-testid=turn-rail]')).toBeVisible({ timeout: 30_000 });
+  await dm.bringToFront();
+  type Win = {
+    dndsim: {
+      prefs: { display: { partyHpNumbers: boolean } };
+      store: {
+        battle: { units: { id: string; kind: string }[] };
+        dispatch: (cmd: { type: 'REMOVE_UNIT'; unitId: string }) => unknown;
+      };
+    };
+  };
+  // Field > TV > Party HP numbers off
+  await dm.click('[data-testid=dock-tv]');
+  if (await dm.evaluate(() => (window as unknown as Win).dndsim.prefs.display.partyHpNumbers))
+    await dm.click('[data-testid=tv-partyHpNumbers]');
+  expect(await dm.evaluate(() => (window as unknown as Win).dndsim.prefs.display.partyHpNumbers)).toBe(false);
+  await dm.click('[data-testid=field-toggle]');
+  // no enemies left, then End battle: a victory
+  await dm.evaluate(() => {
+    const store = (window as unknown as Win).dndsim.store;
+    for (const u of store.battle.units.filter((x) => x.kind === 'enemy'))
+      store.dispatch({ type: 'REMOVE_UNIT', unitId: u.id });
+  });
+  await dm.click('[data-testid=menu]');
+  await dm.getByText('End battle…').click();
+  await dm.click('[data-testid=confirm-ok]');
+  // the DM still sees the numbers; the TV shows the bars without them
+  await expect(dm.locator('[data-testid=victory-hp]').first()).toBeVisible();
+  await expect(player.locator('[data-testid=victory]')).toBeVisible();
+  await expect(player.locator('[data-testid=victory] .hpbar').first()).toBeVisible();
+  await expect(player.locator('[data-testid=victory-hp]')).toHaveCount(0);
+});
