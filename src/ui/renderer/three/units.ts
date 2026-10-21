@@ -4,7 +4,7 @@
  * shadow. Rings live in flat decals at the feet (or under a flier's shadow);
  * fliers get a tether with 5 ft ticks. Terrain without art is a textured
  * block that follows the board theme (bulkhead, hedge, rock); pickups are a
- * small item icon.
+ * small item icon. A creature that moves walks to its new tile (walk.ts).
  */
 import * as THREE from 'three';
 import type { Cell } from '../../../engine/types.ts';
@@ -21,6 +21,7 @@ import { UnitDecals } from './marks.ts';
 import { faceShade } from './tiles.ts';
 import { makeBlockTextures, themedBlocks } from './tileThemes.ts';
 import { makePickupTexture, makeSlabTexture, makeTokenTexture, pixelTexture } from './textures.ts';
+import { MAX_WALK_STEPS, walkPath, walkPoint } from './walk.ts';
 
 interface AtlasMaterials {
   texture: THREE.Texture;
@@ -171,6 +172,12 @@ interface Node {
   flatH: number;
   u: UnitVM;
   cell: Cell;
+  /** walking from its old tile to `cell` (performance.now() clock, so paused idle frames don't stop it) */
+  walk: { path: Cell[]; tops: number[]; start: number } | null;
+  /** where the walk has the unit now, relative to its tile (zero when standing) */
+  offset: THREE.Vector3;
+  /** the decals' matrix on the unit's own tile */
+  decalBase: THREE.Matrix4;
 }
 
 const _v = new THREE.Vector3();
@@ -264,6 +271,9 @@ export class UnitLayer {
       flatH: 0,
       u,
       cell: { r: u.r, c: u.c },
+      walk: null,
+      offset: new THREE.Vector3(),
+      decalBase: new THREE.Matrix4(),
     };
   }
 
@@ -289,6 +299,7 @@ export class UnitLayer {
 
   private apply(n: Node, u: UnitVM, ctx: UnitContext): void {
     n.u = u;
+    if (n.cell.r !== u.r || n.cell.c !== u.c) this.startWalk(n, u, ctx);
     n.cell = { r: u.r, c: u.c };
     const top = ctx.topY(u.r, u.c);
     const flying = u.altitude > 0;
@@ -302,7 +313,8 @@ export class UnitLayer {
     // decals: at the feet, or on the ground under a flier
     n.decals.group.matrixAutoUpdate = false;
     // top-down: sprites lie flat, so the rings go on top of them
-    n.decals.group.matrix.copy(ctx.surface(n.cell, ctx.mode === 'top' ? 0.035 : 0.012));
+    n.decalBase.copy(ctx.surface(n.cell, ctx.mode === 'top' ? 0.035 : 0.012));
+    n.decals.group.matrix.copy(n.decalBase);
     n.decals.group.matrixWorldNeedsUpdate = true;
     n.decals.group.visible = u.kind === 'entity' || u.kind === 'enemy';
     n.decals.update({
@@ -333,6 +345,64 @@ export class UnitLayer {
         n.tether.add(tick);
       }
     }
+    this.placeWalker(n, performance.now());
+  }
+
+  /** A creature changed tiles: walk it there from wherever it stands now (mid-walk included). */
+  private startWalk(n: Node, u: UnitVM, ctx: UnitContext): void {
+    // a page in the background (a TV tab behind others) draws no frames: just arrive
+    if ((u.kind !== 'entity' && u.kind !== 'enemy') || document.hidden) {
+      n.walk = null;
+      return;
+    }
+    const from = n.walk
+      ? { r: Math.round(n.cell.r + n.offset.z), c: Math.round(n.cell.c + n.offset.x) }
+      : n.cell;
+    const path = walkPath(from, { r: u.r, c: u.c });
+    if (path.length < 2 || path.length - 1 > MAX_WALK_STEPS) {
+      n.walk = null;
+      return;
+    }
+    n.walk = { path, tops: path.map((p) => ctx.topY(p.r, p.c)), start: performance.now() };
+  }
+
+  /** Put a walker where its walk has it at `now`; standing units get a zero offset. */
+  private placeWalker(n: Node, now: number): void {
+    const feetY = (n.root.userData.baseY as number | undefined) ?? 0;
+    if (n.walk) {
+      const p = walkPoint(n.walk.path, n.walk.tops, now - n.walk.start);
+      if (p.done) n.walk = null;
+      else n.offset.set(p.x - (n.cell.c + 0.5), p.y + n.u.altitude * STEP - feetY, p.z - (n.cell.r + 0.5));
+    }
+    if (!n.walk) n.offset.set(0, 0, 0);
+    n.root.position.set(n.cell.c + 0.5, feetY, n.cell.r + 0.5).add(n.offset);
+    n.decals.group.matrix.makeTranslation(n.offset).multiply(n.decalBase);
+    n.decals.group.matrixWorldNeedsUpdate = true;
+    n.tether.position.copy(n.offset);
+  }
+
+  /** Advance walks. Returns true while any creature is walking (and on the frame one arrives). */
+  tickWalks(now: number): boolean {
+    let any = false;
+    for (const n of this.nodes.values()) {
+      if (!n.walk) continue;
+      this.placeWalker(n, now);
+      any = true;
+    }
+    return any;
+  }
+
+  /** Tiles the current walks cross (to refresh the shadow maps that reach them). */
+  walkCells(): Cell[] {
+    const out: Cell[] = [];
+    for (const n of this.nodes.values()) if (n.walk) out.push(...n.walk.path);
+    return out;
+  }
+
+  /** How far a walking creature is from its tile (null when it stands there). */
+  walkOffset(id: string): THREE.Vector3 | null {
+    const n = this.nodes.get(id);
+    return n?.walk ? n.offset : null;
   }
 
   private blockTexturesFor(theme: string): { side: THREE.Texture; top: THREE.Texture } {
@@ -626,13 +696,13 @@ export class UnitLayer {
     if (!n) return null;
     const feet = n.root.position.clone();
     const head = feet.clone().add(_v.set(0, n.h, 0));
-    const ground = new THREE.Vector3(n.u.c + 0.5, feet.y - n.u.altitude * STEP, n.u.r + 0.5);
+    const ground = new THREE.Vector3(feet.x, feet.y - n.u.altitude * STEP, feet.z);
     return { feet, head, ground, node: n.u };
   }
 
-  get(id: string): { u: UnitVM; w: number; h: number; root: THREE.Group } | null {
+  get(id: string): { u: UnitVM; w: number; h: number; root: THREE.Group; offset: THREE.Vector3 } | null {
     const n = this.nodes.get(id);
-    return n ? { u: n.u, w: n.w, h: n.h, root: n.root } : null;
+    return n ? { u: n.u, w: n.w, h: n.h, root: n.root, offset: n.offset } : null;
   }
 
   ids(): string[] {

@@ -29,6 +29,10 @@ interface PointEntry {
   flicker: boolean;
   /** 1 for steady lights; the waver multiplier otherwise */
   waver: number;
+  /** the unit carrying it, if any */
+  attachedTo: string | null;
+  /** its position on its tile; a carried light rides along while its unit walks */
+  base: THREE.Vector3;
 }
 
 export type LightTween = 'fade-in' | 'fade-out' | 'power-on';
@@ -167,6 +171,8 @@ export class LightLayer {
           tween: null,
           flicker: false,
           waver: 1,
+          attachedTo: null,
+          base: new THREE.Vector3(),
         };
         this.points.set(l.id, e);
       }
@@ -176,6 +182,7 @@ export class LightLayer {
         const delay = kind === 'power-on' ? stagger(l.id) * POWER_ON_STAGGER_MS : 0;
         e.tween = { kind, from: e.level, start: now, delay };
       }
+      e.attachedTo = l.attachedTo ?? null;
       if (e.key !== key) {
         e.key = key;
         this.applyPoint(e, l, y, ground);
@@ -219,6 +226,7 @@ export class LightLayer {
     e.light.decay = 0;
     e.color = l.color;
     this.applyLevel(e);
+    e.base.copy(e.light.position);
     e.bulb.position.copy(e.light.position);
     e.cord.geometry.dispose();
     e.cord.geometry = new THREE.BufferGeometry().setFromPoints([
@@ -347,6 +355,27 @@ export class LightLayer {
     if (heading === this.heading) return;
     this.heading = heading;
     this.placeSun();
+  }
+
+  /**
+   * Carried lights follow their unit while it walks (`offsetOf` gives how far it is from its
+   * tile, or null when it stands there). Returns true when any light moved.
+   */
+  carry(offsetOf: (unitId: string) => THREE.Vector3 | null): boolean {
+    let moved = false;
+    for (const e of this.points.values()) {
+      if (!e.attachedTo) continue;
+      const off = offsetOf(e.attachedTo);
+      const x = e.base.x + (off?.x ?? 0),
+        y = e.base.y + (off?.y ?? 0),
+        z = e.base.z + (off?.z ?? 0);
+      if (e.light.position.x === x && e.light.position.y === y && e.light.position.z === z) continue;
+      e.light.position.set(x, y, z);
+      e.bulb.position.copy(e.light.position);
+      if (e.light.castShadow) e.light.shadow.needsUpdate = true;
+      moved = true;
+    }
+    return moved;
   }
 
   /** Something that casts shadows moved: refresh every shadow map on the next frame. */

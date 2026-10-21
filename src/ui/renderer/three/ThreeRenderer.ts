@@ -59,6 +59,8 @@ export interface ThreeRendererOptions {
 }
 
 const FLOAT_MS = 900;
+/** a walking creature refreshes the shadow maps at most this often (and once when it arrives) */
+const WALK_SHADOW_MS = 100;
 const DEG = Math.PI / 180;
 /** Movement (CSS px) before a press becomes a drag (pan or orbit) instead of a click. */
 const DRAG_PX = 5;
@@ -109,6 +111,9 @@ export class ThreeRenderer implements BoardRenderer {
   /** camera mirroring: listeners on the DM side, the pose to hold on the player side */
   private cameraListeners = new Set<(pose: CameraPose) => void>();
   private lastPoseKey = '';
+  /** when a walk last refreshed the shadow maps, and the tiles it covered (for the arrival refresh) */
+  private lastWalkShadow = 0;
+  private walkCellsShown: Cell[] = [];
   private followed: CameraPose | null = null;
   private followSettle = 0;
   private readonly projector: Omit<BoardProjector, 'width' | 'height'> = {
@@ -267,6 +272,7 @@ export class ThreeRenderer implements BoardRenderer {
       (r, c) => this.tiles.topY(r, c),
       (id) => vm.units.find((u) => u.id === id)?.altitude ?? 0,
     );
+    this.lights.carry((id) => this.units.walkOffset(id));
     this.regions = heightRegions(
       vm.cells,
       labelCellCosts(vm.units, this.view.camera === 'tactical', this.cam.forward),
@@ -503,6 +509,18 @@ export class ThreeRenderer implements BoardRenderer {
     // idle frames only swap UVs; walk-frame silhouettes differ by a texel or two, so the
     // (expensive) shadow maps are refreshed on board changes only
     if (!this.animationPaused && this.units.tick(this.animNow())) this.dirty = true;
+    // a creature walking to its new tile: its shadow and any light it carries go with it. Shadow
+    // maps are expensive, so a walk refreshes them every WALK_SHADOW_MS and once on arrival.
+    if (this.units.tickWalks(now)) {
+      const cells = this.units.walkCells();
+      this.lights.carry((id) => this.units.walkOffset(id));
+      if (cells.length === 0 || now - this.lastWalkShadow >= WALK_SHADOW_MS) {
+        this.lastWalkShadow = now;
+        this.lights.markShadowsDirtyNear(cells.length ? cells : this.walkCellsShown);
+      }
+      this.walkCellsShown = cells;
+      this.dirty = true;
+    }
     if (this.benchmark) {
       this.dirty = true;
       this.benchFrames.push(now);
@@ -559,7 +577,7 @@ export class ThreeRenderer implements BoardRenderer {
       if (!g) continue;
       const base = g.root.userData.baseY as number | undefined;
       if (base === undefined) continue;
-      g.root.position.set(g.u.c + 0.5, base, g.u.r + 0.5);
+      g.root.position.set(g.u.c + 0.5, base, g.u.r + 0.5).add(g.offset);
       if (g.u.kind === 'terrain' && !g.u.spritePath) continue; // 3D block, nothing to sample 1:1
       _corner.copy(g.root.position).addScaledVector(right, -g.w / 2);
       g.root.position.add(this.cam.pixelSnap(_corner, _snap));
