@@ -29,7 +29,8 @@ browser.
     up), set `DNDSIM_CAMPAIGN_DIR` before starting, e.g. in PowerShell:
     `$env:DNDSIM_CAMPAIGN_DIR = "$HOME\OneDrive\DnDSim campaign"; npm start`. An empty folder is
     seeded the same way; files already there are never overwritten.
-- It opens on a menu: **Battle** (grid setup), **Character Sheets** and **Asset Editor**.
+- It opens on a menu: **Battle** (grid setup), **Character Sheets**, **Asset Editor** and **Rules**
+  (how combat is worked out: `docs/RULES.md`, also in the battle menu).
 
 ## Develop
 
@@ -84,6 +85,7 @@ src/ui         panels (plain DOM) + the board behind the BoardRenderer interface
                  renderer/three/ HD-2D board, sprites/ sheet slicer,
                  editors/ Character Sheets, Asset Editor, Spell Editor
 docs/visual-directions   Phase 3 proposals and mockups · docs/PHASE-4.md the HD-2D board ·
-docs/EDITORS.md the editors · docs/UNFINISHED.md partly built features, known gaps and bugs
+docs/EDITORS.md the editors · docs/RULES.md the combat rules (the in-app Rules screen) ·
+docs/UNFINISHED.md partly built features, known gaps and bugs
 tests/, e2e/   Vitest rule/golden/app tests and Playwright suites
 ```

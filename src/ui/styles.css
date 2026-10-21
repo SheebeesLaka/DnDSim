@@ -818,3 +818,76 @@ span.tag-chip.small {
 .sheet-section .col > button {
   align-self: flex-start;
 }
+
+/* ---------- Rules screen (docs/RULES.md) ---------- */
+.rules-jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+.rules-jump button {
+  font-size: 12px;
+  padding: 3px 10px;
+}
+.rules-doc {
+  max-width: 920px;
+  line-height: 1.55;
+  font-size: 14px;
+}
+.rules-doc .rules-intro {
+  color: var(--muted);
+}
+.rules-doc h2 {
+  margin: 28px 0 8px;
+  color: var(--blue);
+  font-size: 18px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 4px;
+  scroll-margin-top: 8px;
+}
+.rules-doc h3 {
+  margin: 18px 0 6px;
+  color: var(--teal);
+  font-size: 15px;
+}
+.rules-doc p,
+.rules-doc ul,
+.rules-doc ol {
+  margin: 8px 0;
+}
+.rules-doc li {
+  margin: 3px 0;
+}
+.rules-doc strong {
+  color: var(--gold);
+}
+.rules-doc code {
+  font-family: Consolas, monospace;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+.rules-doc .md-table {
+  overflow-x: auto;
+  margin: 10px 0;
+}
+.rules-doc table {
+  border-collapse: collapse;
+}
+.rules-doc th,
+.rules-doc td {
+  border: 1px solid var(--line);
+  padding: 5px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.rules-doc th {
+  background: var(--bg2);
+  color: var(--text);
+  white-space: nowrap;
+}
+.rules-doc tbody tr:nth-child(even) td {
+  background: var(--bg1);
+}

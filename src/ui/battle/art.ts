@@ -46,6 +46,9 @@ export const ICON = {
     '<path d="M12 5C6 5 2 12 2 12s4 7 10 7 10-7 10-7-4-7-10-7zm0 11a4 4 0 110-8 4 4 0 010 8z" fill="currentColor" stroke="none"/>',
   ),
   x: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
+  book: svg(
+    '<path d="M4 4.5A2.5 2.5 0 016.5 2H20v17H6.5A2.5 2.5 0 004 21.5z"/><path d="M4 21.5A2.5 2.5 0 016.5 19H20v3H6.5M8 7h8M8 11h6"/>',
+  ),
   sheet: svg(
     '<path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
   ),

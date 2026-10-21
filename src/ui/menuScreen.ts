@@ -1,10 +1,11 @@
-/** MainMenuView: title, the three big buttons, and the player-window shortcut. */
+/** MainMenuView: title, the big buttons, and the player-window shortcut. */
 import { button, h, replaceChildren } from './dom.ts';
 
 export interface MenuDeps {
   onBattle: () => void;
   onSheets: () => void;
   onAssets: () => void;
+  onRules: () => void;
   /** true when assets come from a fixture scenario: edits are not saved */
   readOnly: boolean;
 }
@@ -28,6 +29,7 @@ export function mountMenuScreen(root: HTMLElement, deps: MenuDeps): () => void {
         big('Start Battle System', 'set up a board and fight', deps.onBattle, 'menu-battle'),
         big('Character Sheets', 'party, characters and enemies', deps.onSheets, 'menu-sheets'),
         big('Asset Editor', 'items, terrain and spells', deps.onAssets, 'menu-assets'),
+        big('Rules', 'how combat is worked out', deps.onRules, 'menu-rules'),
       ),
       h(
         'div',

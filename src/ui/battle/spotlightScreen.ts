@@ -128,6 +128,8 @@ export interface BattleScreenDeps {
   getBundle: () => AssetBundle;
   /** menu → Character sheets (R1.3); Back returns to this battle */
   onOpenSheets: () => void;
+  /** menu → Rules (docs/RULES.md); Back returns to this battle */
+  onOpenRules?: () => void;
   /** opens the shared Spell Editor; `onSaved` runs after a save */
   editSpell?: (name: string, onSaved: () => void) => void;
   prefs: PrefsStore;
@@ -1012,6 +1014,7 @@ export function mountSpotlightScreen(root: HTMLElement, deps: BattleScreenDeps):
       'div',
       { class: 'sp-panel sp-menu' },
       item('sheet', 'Character sheets', () => deps.onOpenSheets()),
+      deps.onOpenRules ? item('book', 'Rules', () => deps.onOpenRules?.()) : null,
       item('moon', 'Long rest (spell slots)', () => dispatch({ type: 'LONG_REST' })),
       h('hr'),
       item('save', 'Save battle…', () => ((saveName = ''), (sheet = { kind: 'save' }))),

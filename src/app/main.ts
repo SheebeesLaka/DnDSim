@@ -5,7 +5,7 @@
  * Character Sheets screen is open over it, and sheet edits reach it at once.
  *
  * URL options: ?scenario=<name> (fixture: nothing is written), ?battle=<name>,
- * ?view=menu|setup|sheets|assets, ?readonly=1, ?seed=, ?bench=1.
+ * ?view=menu|setup|sheets|assets|rules, ?readonly=1, ?seed=, ?bench=1.
  */
 import '../ui/styles.css';
 import { SAVE_PATHS } from '../assets/filenames.ts';
@@ -21,6 +21,7 @@ import { openSpellEditor } from '../ui/editors/spellEditor.ts';
 import { mountSheetsScreen } from '../ui/editors/sheetsScreen.ts';
 import { mountSpotlightScreen } from '../ui/battle/spotlightScreen.ts';
 import { mountMenuScreen } from '../ui/menuScreen.ts';
+import { mountRulesScreen } from '../ui/rulesScreen.ts';
 import { alertDialog } from '../ui/panels/dialogs.ts';
 import { createBoardRenderer, NO_WEBGL_MESSAGE, webglAvailable } from '../ui/renderer/createBoardRenderer.ts';
 import { viewOptionsFromPrefs } from '../ui/viewPrefs.ts';
@@ -127,6 +128,7 @@ async function boot(): Promise<void> {
           onBattle: () => go.setup(),
           onSheets: () => go.sheets(),
           onAssets: () => go.assets(),
+          onRules: () => go.rules(),
           readOnly,
         }),
       ),
@@ -165,6 +167,13 @@ async function boot(): Promise<void> {
       );
     },
     assets: () => showPage((el) => mountAssetEditor(el, { assets, onBack: () => go.menu() })),
+    rules: () =>
+      showPage((el) =>
+        mountRulesScreen(el, {
+          onBack: () => (battle ? showBattle() : go.menu()),
+          backLabel: battle ? '← Back to battle' : '← Back',
+        }),
+      ),
   };
 
   const startBattle = (state: BattleState) => {
@@ -205,6 +214,7 @@ async function boot(): Promise<void> {
       renderer,
       onVictoryShown: (party) => pub.publishVictory(party),
       onOpenSheets: () => go.sheets(),
+      onOpenRules: () => go.rules(),
       editSpell: (name, onSaved) => {
         const spell = assets.bundle.spells[name];
         if (spell) openSpellEditor(assets, spell, onSaved);
@@ -251,6 +261,7 @@ async function boot(): Promise<void> {
   const view = params.get('view');
   if (view === 'sheets') go.sheets();
   else if (view === 'assets') go.assets();
+  else if (view === 'rules') go.rules();
   else if (view === 'menu') go.menu();
   else if (view === 'setup') go.setup();
   else if (initial) startBattle(initial);
