@@ -1,15 +1,13 @@
 /**
  * Compact sprite picker (Java's sprite pickers on the sheet, enemy and terrain
- * dialogs): a 64 px preview, Choose… (every image the server knows, with a row
- * per sheet line), Upload… (copied into resources/sprites/<folder>/, never
+ * dialogs): a 64 px preview, Choose… (the sheet picker: see the image, click the
+ * frames to use), Upload… (copied into resources/sprites/<folder>/, never
  * replacing existing art) and ✕ to clear.
  */
-import { SpriteLibrary } from '../sprites/library.ts';
-import { button, h, replaceChildren } from '../dom.ts';
-import { alertDialog, modal } from '../panels/dialogs.ts';
-
-let shared: SpriteLibrary | null = null;
-export const spriteLibrary = (): SpriteLibrary => (shared ??= new SpriteLibrary());
+import { button, h } from '../dom.ts';
+import { alertDialog } from '../panels/dialogs.ts';
+import { openSheetPicker } from './sheetPicker.ts';
+import { spriteLibrary, uploadSprite, type SpriteFolder } from './spriteStore.ts';
 
 /** Draw frame 0 of a spritePath into a square canvas, integer-scaled and crisp. */
 export function drawSpritePreview(canvas: HTMLCanvasElement, spritePath: string | null, size = 64): boolean {
@@ -30,22 +28,6 @@ export function drawSpritePreview(canvas: HTMLCanvasElement, spritePath: string 
   return true;
 }
 
-async function listSprites(): Promise<string[]> {
-  const res = await fetch('/api/sprites');
-  if (!res.ok) return [];
-  return ((await res.json()) as { paths: string[] }).paths;
-}
-
-async function uploadSprite(folder: string, file: File): Promise<string> {
-  const res = await fetch(`/api/sprites/${folder}/${encodeURIComponent(file.name)}`, {
-    method: 'PUT',
-    body: file,
-  });
-  const body = (await res.json()) as { path?: string; error?: string };
-  if (!res.ok || !body.path) throw new Error(body.error ?? `${res.status}`);
-  return body.path;
-}
-
 export interface SpritePicker {
   el: HTMLElement;
   get(): string | null;
@@ -54,7 +36,7 @@ export interface SpritePicker {
 
 export function spritePicker(
   initial: string | null,
-  folder: 'party' | 'enemies' | 'terrain',
+  folder: SpriteFolder,
   onChange?: (p: string | null) => void,
 ): SpritePicker {
   let value = initial;
@@ -95,7 +77,9 @@ export function spritePicker(
       h(
         'div',
         { class: 'row' },
-        button('Choose…', () => void chooseSprite(value, set), { dataset: { testid: 'sprite-choose' } }),
+        button('Choose…', () => openSheetPicker({ current: value, folder, onPick: set }), {
+          dataset: { testid: 'sprite-choose' },
+        }),
         button('Upload…', () => fileInput.click(), { title: `Copied into resources/sprites/${folder}/` }),
         button('✕', () => set(null), { title: 'No sprite', dataset: { testid: 'sprite-clear' } }),
       ),
@@ -112,54 +96,4 @@ export function spritePicker(
   queueMicrotask(() => obs.observe(document.body, { childList: true, subtree: true }));
   render();
   return { el, get: () => value, set };
-}
-
-/** Choose dialog: every image; sheets expand into one choice per row ("party/x.png#3"). */
-async function chooseSprite(current: string | null, onPick: (p: string) => void): Promise<void> {
-  const paths = await listSprites();
-  const grid = h('div', { class: 'sprite-grid', dataset: { testid: 'sprite-grid' } });
-  const lib = spriteLibrary();
-  const tile = (path: string, caption: string) => {
-    const c = h('canvas', { width: 48, height: 48 });
-    drawSpritePreview(c, path, 48);
-    const t = h(
-      'button',
-      {
-        type: 'button',
-        class: `sprite-tile${path === current ? ' on' : ''}`,
-        title: path,
-        onclick: () => {
-          m.close();
-          unsub();
-          onPick(path);
-        },
-        dataset: { testid: `sprite-option-${path}` },
-      },
-      c,
-      h('span', {}, caption),
-    );
-    return t;
-  };
-  const render = () => {
-    const tiles: HTMLElement[] = [];
-    for (const p of paths) {
-      tiles.push(tile(p, p.split('/').pop() ?? p));
-      lib.get(p); // start loading
-      const status = lib.status(p);
-      if (status !== 'ready') continue;
-      // a sliced sheet (a single image gives no rows) offers each row too
-      let row = 0;
-      while (lib.get(`${p}#${row}`)) {
-        tiles.push(tile(`${p}#${row}`, `#${row}`));
-        row++;
-        if (row > 63) break;
-      }
-    }
-    replaceChildren(grid, tiles.length ? tiles : h('div', { class: 'muted' }, 'No sprites yet: upload one.'));
-  };
-  const unsub = lib.onChange(render);
-  render();
-  const m = modal('Choose Sprite', grid, [button('Cancel', () => (m.close(), unsub()))]);
-  m.el.classList.add('editor-dialog');
-  m.el.style.width = '640px';
 }

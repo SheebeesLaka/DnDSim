@@ -4,6 +4,8 @@ import { rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 test('save a battle to the campaign battles folder and load it back', async ({ page, request }) => {
+  // a whole round of turns on the software-rendered board runs close to the default 30 s
+  test.setTimeout(60_000);
   const name = 'e2e-roundtrip';
   // wherever the server keeps the campaign (a reused dev server may use the real one)
   const { campaignDir } = (await (await request.get('/api/health')).json()) as { campaignDir: string };

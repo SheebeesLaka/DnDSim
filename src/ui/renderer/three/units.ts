@@ -497,7 +497,7 @@ export class UnitLayer {
     n.frames = frames;
     if (frames) {
       mats = this.materialsFor(frames.atlas);
-      n.frameIdx = frames.animated ? idleFrameIndex(ctx.now, frames.frames.length) : 0;
+      n.frameIdx = frames.animated ? idleFrameIndex(ctx.now, frames.frames.length, frames.idleFrames) : 0;
       const f = frames.frames[n.frameIdx] ?? frames.frames[0];
       if (!f) return;
       rect = f;
@@ -631,7 +631,7 @@ export class UnitLayer {
     let changed = false;
     for (const n of this.nodes.values()) {
       if (!n.frames?.animated || !n.body) continue;
-      const idx = idleFrameIndex(now, n.frames.frames.length);
+      const idx = idleFrameIndex(now, n.frames.frames.length, n.frames.idleFrames);
       if (idx === n.frameIdx) continue;
       n.frameIdx = idx;
       const f = n.frames.frames[idx];

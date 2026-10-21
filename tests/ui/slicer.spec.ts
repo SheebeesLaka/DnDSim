@@ -3,11 +3,15 @@ import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
 import {
   contentRuns,
+  findFrames,
+  formatSpriteRef,
   idleFrameIndex,
   parseSpriteRef,
+  rectFrames,
   renderFrame,
   rowContentWidth,
   sliceSheet,
+  trimRect,
   type RgbaImage,
 } from '../../src/ui/sprites/slicer.ts';
 
@@ -20,12 +24,38 @@ const SHEET = 'resources/sprites/party/testsprites.png';
 
 describe('sprite ref parsing', () => {
   it('splits sheet refs and keeps single images', () => {
-    expect(parseSpriteRef('party/testsprites.png#3')).toEqual({ path: 'party/testsprites.png', row: 3 });
-    expect(parseSpriteRef('terrain/tree.png')).toEqual({ path: 'terrain/tree.png', row: null });
-    expect(parseSpriteRef('party/x.png# 7 ')).toEqual({ path: 'party/x.png', row: 7 });
+    expect(parseSpriteRef('party/testsprites.png#3')).toEqual({
+      path: 'party/testsprites.png',
+      row: 3,
+      rects: null,
+    });
+    expect(parseSpriteRef('terrain/tree.png')).toEqual({ path: 'terrain/tree.png', row: null, rects: null });
+    expect(parseSpriteRef('party/x.png# 7 ')).toEqual({ path: 'party/x.png', row: 7, rects: null });
     expect(parseSpriteRef('party/x.png#abc')).toBeNull();
     expect(parseSpriteRef(null)).toBeNull();
     expect(parseSpriteRef('')).toBeNull();
+  });
+
+  it('reads and writes frames picked by rectangle, in play order', () => {
+    const rects = [
+      { x: 1, y: 1, w: 32, h: 32 },
+      { x: 34, y: 1, w: 32, h: 32 },
+    ];
+    const ref = formatSpriteRef('party/thrain_sheet.png', rects);
+    expect(ref).toBe('party/thrain_sheet.png@1,1,32,32;34,1,32,32');
+    expect(parseSpriteRef(ref)).toEqual({ path: 'party/thrain_sheet.png', row: null, rects });
+    expect(formatSpriteRef('party/x.png', [])).toBe('party/x.png');
+    // not a rectangle list: the @ belongs to the file name
+    expect(parseSpriteRef('party/hero@2x.png')).toEqual({
+      path: 'party/hero@2x.png',
+      row: null,
+      rects: null,
+    });
+    expect(parseSpriteRef('party/x.png@1,1,0,32')).toEqual({
+      path: 'party/x.png@1,1,0,32',
+      row: null,
+      rects: null,
+    });
   });
 });
 
@@ -167,5 +197,63 @@ describe('idle animation', () => {
     expect(idleFrameIndex(600, 11)).toBe(0);
     expect(idleFrameIndex(900, 1)).toBe(0);
     expect(idleFrameIndex(900, 0)).toBe(0);
+  });
+
+  it('cycles every picked frame when told to', () => {
+    expect([0, 300, 600, 900, 1200].map((ms) => idleFrameIndex(ms, 4, 4))).toEqual([0, 1, 2, 3, 0]);
+    expect(idleFrameIndex(300, 1, 4)).toBe(0);
+  });
+});
+
+describe('frames picked on a sheet (thrain_sheet.png)', () => {
+  const img = loadPng('resources/sprites/party/thrain_sheet.png');
+  const key = 0xffff00ff; // magenta, the top-left pixel
+
+  it('finds every walled-off cell, in reading order, and no label specks', () => {
+    const frames = findFrames(img);
+    expect(frames.slice(0, 3)).toEqual([
+      { x: 1, y: 1, w: 32, h: 32 },
+      { x: 34, y: 1, w: 32, h: 32 },
+      { x: 67, y: 1, w: 32, h: 32 },
+    ]);
+    // the 16 px mini sprites on the right are frames too
+    expect(frames).toContainEqual({ x: 312, y: 1, w: 16, h: 16 });
+    // the "BATTLE SHADOW" letters are only 6 px tall
+    expect(frames.every((f) => f.w >= 8 && f.h >= 8)).toBe(true);
+    for (let i = 1; i < frames.length; i++) {
+      const a = frames[i - 1]!,
+        b = frames[i]!;
+      expect(a.y < b.y || (a.y === b.y && a.x < b.x)).toBe(true);
+    }
+  });
+
+  it('trims a cell to its content, treating transparent pixels as background', () => {
+    expect(trimRect(img, key, { x: 1, y: 1, w: 32, h: 32 })).toEqual({ x: 9, y: 9, w: 17, h: 24 });
+    expect(trimRect(img, key, { x: 0, y: 0, w: 1, h: 1 })).toBeNull();
+  });
+
+  it('crops equal cells with one shared box, so the sprite keeps its place between frames', () => {
+    const row = rectFrames(img, key, [
+      { x: 1, y: 1, w: 32, h: 32 },
+      { x: 34, y: 1, w: 32, h: 32 },
+    ]);
+    // union of (8,8)+17x24 and (8,9)+17x23 in cell coordinates
+    expect(row.frameW).toBe(18);
+    expect(row.frameH).toBe(24);
+    expect(row.frames.map((f) => [f.srcX, f.srcY, f.srcW, f.srcH])).toEqual([
+      [9, 9, 17, 24],
+      [42, 9, 17, 24],
+    ]);
+  });
+
+  it('bottom-centres hand-drawn boxes of different sizes', () => {
+    const row = rectFrames(img, key, [
+      { x: 1, y: 1, w: 32, h: 32 },
+      { x: 67, y: 1, w: 40, h: 32 },
+    ]);
+    expect(row.frameH).toBe(24);
+    const small = row.frames[1]!;
+    expect(small.dy).toBe(24 - small.srcH);
+    expect(small.dx).toBe(Math.trunc((row.frameW - small.srcW) / 2));
   });
 });

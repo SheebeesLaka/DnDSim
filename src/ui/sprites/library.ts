@@ -1,10 +1,20 @@
 /**
  * Browser-side sprite store: fetches `/api/sprites/<path>`, slices sheets with
  * the pure slicer, and bakes each sheet (or single image) into one atlas canvas
- * so a unit's frames are UV rectangles on a shared texture. three.js specifics
- * live in the renderer; this module only deals in canvases and rectangles.
+ * so a unit's frames are UV rectangles on a shared texture. Frames picked by
+ * rectangle (`sheet.png@x,y,w,h;…`) get a small atlas of their own, baked on
+ * first use. three.js specifics live in the renderer; this module only deals in
+ * canvases and rectangles.
  */
-import { parseSpriteRef, rowContentWidth, sliceSheet, type SheetRow, type SlicedSheet } from './slicer.ts';
+import {
+  keyColor,
+  parseSpriteRef,
+  rectFrames,
+  rowContentWidth,
+  sliceSheet,
+  type Rect,
+  type SheetRow,
+} from './slicer.ts';
 
 export interface AtlasRect {
   /** texel rectangle on the atlas canvas (y down) */
@@ -19,8 +29,10 @@ export interface SpriteFrames {
   atlas: SpriteAtlas;
   /** one rect per animation frame, all the same size (bottom-centred content) */
   frames: AtlasRect[];
-  /** true for sheet rows: idle-animate the first two frames */
+  /** true when there is more than one frame to idle through */
   animated: boolean;
+  /** how many frames the idle animation cycles: the first two of a sheet row, every picked frame */
+  idleFrames: number;
   /** true for single images (terrain art): scaled to fit a cell, not texel-exact */
   single: boolean;
 }
@@ -39,7 +51,17 @@ export interface SpriteAtlas {
 type Entry =
   | { state: 'loading' }
   | { state: 'missing' }
-  | { state: 'ready'; atlas: SpriteAtlas; rows: SpriteFrames[]; single: SpriteFrames };
+  | {
+      state: 'ready';
+      atlas: SpriteAtlas;
+      rows: SpriteFrames[];
+      single: SpriteFrames;
+      /** the decoded image and its key colour, for frames picked by rectangle */
+      src: ImageData;
+      key: number;
+      /** picked-frame sprites baked so far, by full ref (null: nothing drawable in those boxes) */
+      picked: Map<string, SpriteFrames | null>;
+    };
 
 export type SpriteFetcher = (path: string) => Promise<HTMLImageElement | ImageBitmap | null>;
 
@@ -83,6 +105,15 @@ export class SpriteLibrary {
       return null;
     }
     if (entry.state !== 'ready') return null;
+    if (ref.rects) {
+      const key = `${ref.path}@${ref.rects.map((r) => `${r.x},${r.y},${r.w},${r.h}`).join(';')}`;
+      let f = entry.picked.get(key);
+      if (f === undefined) {
+        f = bakePicked(ref.path, entry.src, entry.key, ref.rects);
+        entry.picked.set(key, f);
+      }
+      return f;
+    }
     if (ref.row === null) return entry.single;
     return entry.rows[ref.row] ?? null;
   }
@@ -136,6 +167,8 @@ function bake(path: string, img: HTMLImageElement | ImageBitmap): Entry {
   sctx.drawImage(img, 0, 0);
   const pixels = sctx.getImageData(0, 0, img.width, img.height);
   const sliced = sliceSheet({ width: pixels.width, height: pixels.height, data: pixels.data });
+  const key = keyColor({ width: pixels.width, height: pixels.height, data: pixels.data });
+  const base = { src: pixels, key, picked: new Map<string, SpriteFrames | null>() };
 
   // Single-image view (whole picture, alpha as authored).
   const singleAtlas = (): SpriteAtlas => ({
@@ -153,9 +186,10 @@ function bake(path: string, img: HTMLImageElement | ImageBitmap): Entry {
       atlas,
       frames: [{ x: 0, y: 0, w: atlas.width, h: atlas.height }],
       animated: false,
+      idleFrames: 1,
       single: true,
     };
-    return { state: 'ready', atlas, rows: [], single };
+    return { state: 'ready', atlas, rows: [], single, ...base };
   }
 
   // Sheet atlas: rows stacked vertically, frames side by side.
@@ -178,7 +212,7 @@ function bake(path: string, img: HTMLImageElement | ImageBitmap): Entry {
       if (!f.empty)
         blitKeyed(
           pixels,
-          sliced,
+          sliced.key,
           ctx,
           f.srcX,
           f.srcY,
@@ -190,7 +224,13 @@ function bake(path: string, img: HTMLImageElement | ImageBitmap): Entry {
       frames.push({ x, y, w, h: row.frameH });
       x += w + PAD;
     }
-    rowsOut.push({ atlas, frames, animated: frames.length > 1, single: false });
+    rowsOut.push({
+      atlas,
+      frames,
+      animated: frames.length > 1,
+      idleFrames: Math.min(2, frames.length),
+      single: false,
+    });
     y += row.frameH + PAD;
   }
   atlas.pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -198,15 +238,40 @@ function bake(path: string, img: HTMLImageElement | ImageBitmap): Entry {
     atlas: singleAtlas(),
     frames: [{ x: 0, y: 0, w: src.width, h: src.height }],
     animated: false,
+    idleFrames: 1,
     single: true,
   };
-  return { state: 'ready', atlas, rows: rowsOut, single };
+  return { state: 'ready', atlas, rows: rowsOut, single, ...base };
+}
+
+/** Bake frames picked by rectangle into a strip of their own (see rectFrames for the layout). */
+function bakePicked(path: string, src: ImageData, key: number, rects: readonly Rect[]): SpriteFrames | null {
+  const row = rectFrames({ width: src.width, height: src.height, data: src.data }, key, rects);
+  if (row.frames.every((f) => f.empty)) return null;
+  const n = row.frames.length;
+  const [canvas, ctx] = canvas2d(PAD + n * (row.frameW + PAD), row.frameH + 2 * PAD);
+  const frames: AtlasRect[] = [];
+  let x = PAD;
+  for (const f of row.frames) {
+    if (!f.empty) blitKeyed(src, key, ctx, f.srcX, f.srcY, f.srcW, f.srcH, x + f.dx, PAD + f.dy);
+    frames.push({ x, y: PAD, w: row.frameW, h: row.frameH });
+    x += row.frameW + PAD;
+  }
+  const atlas: SpriteAtlas = {
+    path,
+    canvas,
+    width: canvas.width,
+    height: canvas.height,
+    pixels: ctx.getImageData(0, 0, canvas.width, canvas.height),
+    version: 1,
+  };
+  return { atlas, frames, animated: n > 1, idleFrames: n, single: false };
 }
 
 /** Copy a source rectangle, turning key-coloured pixels transparent. */
 function blitKeyed(
   src: ImageData,
-  sheet: SlicedSheet,
+  key: number,
   ctx: CanvasRenderingContext2D,
   sx: number,
   sy: number,
@@ -216,10 +281,10 @@ function blitKeyed(
   dy: number,
 ): void {
   const out = ctx.createImageData(sw, sh);
-  const kA = (sheet.key >>> 24) & 0xff,
-    kR = (sheet.key >>> 16) & 0xff,
-    kG = (sheet.key >>> 8) & 0xff,
-    kB = sheet.key & 0xff;
+  const kA = (key >>> 24) & 0xff,
+    kR = (key >>> 16) & 0xff,
+    kG = (key >>> 8) & 0xff,
+    kB = key & 0xff;
   for (let y = 0; y < sh; y++) {
     for (let x = 0; x < sw; x++) {
       const si = ((sy + y) * src.width + (sx + x)) * 4;
@@ -227,7 +292,7 @@ function blitKeyed(
         g = src.data[si + 1] ?? 0,
         b = src.data[si + 2] ?? 0,
         a = src.data[si + 3] ?? 0;
-      if (r === kR && g === kG && b === kB && a === kA) continue;
+      if (a === 0 || (r === kR && g === kG && b === kB && a === kA)) continue;
       const di = (y * sw + x) * 4;
       out.data[di] = r;
       out.data[di + 1] = g;

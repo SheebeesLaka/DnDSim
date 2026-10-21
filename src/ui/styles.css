@@ -472,32 +472,115 @@ label.check {
 .sprite-path {
   word-break: break-all;
 }
-.sprite-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
-  gap: 8px;
-  max-height: 60vh;
-  overflow: auto;
+.sheet-dialog {
+  width: min(1180px, 96vw);
 }
-.sprite-tile {
+.sheet-picker {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr) 190px;
+  gap: 12px;
+  height: min(640px, 72vh);
+}
+.sheet-col,
+.sheet-main,
+.sheet-side {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  padding: 6px 4px;
+  gap: 8px;
+  min-height: 0;
 }
-.sprite-tile canvas {
+.sheet-list {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+.sheet-item canvas {
+  flex: none;
   image-rendering: pixelated;
 }
-.sprite-tile span {
-  max-width: 80px;
+.sheet-item span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.sprite-tile.on {
+.sheet-item.on {
   border-color: var(--gold);
+}
+.sheet-zoom {
+  min-width: 28px;
+  text-align: center;
+}
+.sheet-viewport {
+  flex: 1;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--line2);
+  border-radius: 4px;
+  background: repeating-conic-gradient(#3a3a3e 0% 25%, #2d2d30 0% 50%) 50% / 16px 16px;
+}
+.sheet-stage {
+  position: relative;
+  cursor: crosshair;
+  user-select: none;
+}
+.sheet-canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+.sheet-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  cursor: pointer;
+}
+.sheet-box:hover {
+  border-color: var(--teal);
+  background: rgba(78, 201, 176, 0.12);
+}
+.sheet-box.custom {
+  border-style: dashed;
+}
+.sheet-box.on {
+  border: 2px solid var(--gold);
+  background: rgba(220, 220, 170, 0.14);
+}
+.sheet-order {
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  min-width: 16px;
+  padding: 0 3px;
+  background: var(--gold);
+  color: #1e1e20;
+  font:
+    700 11px/16px Consolas,
+    monospace;
+  text-align: center;
+}
+.sheet-band {
+  position: absolute;
+  border: 1px dashed var(--gold);
+  background: rgba(220, 220, 170, 0.12);
+  pointer-events: none;
+}
+.sheet-preview {
+  width: 160px;
+  height: 160px;
+  align-self: center;
+  border: 1px solid var(--line2);
+  border-radius: 4px;
+  background: repeating-conic-gradient(#3a3a3e 0% 25%, #2d2d30 0% 50%) 50% / 16px 16px;
+  image-rendering: pixelated;
 }
 /* character sheets */
 .grow {
