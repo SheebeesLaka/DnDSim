@@ -3,6 +3,7 @@ import { err } from '../errors.ts';
 import { applyTieResolution, calculateInitiativeOrder } from '../rules/initiative.ts';
 import { processEquippedAbilities } from '../rules/statuses.ts';
 import { runTurnStart } from '../rules/turnStart.ts';
+import { beginTurn, defeatIfDown } from '../rules/apply.ts';
 import { combatantById, enemies, entities, partyOnField, unitName } from '../selectors/board.ts';
 import { isCaster } from '../selectors/stats.ts';
 import { log, type HandlerMap } from './_shared.ts';
@@ -74,7 +75,7 @@ export const lifecycleHandlers: HandlerMap = {
     return undefined;
   },
 
-  NEXT_TURN(draft, _cmd, _ctx, emit) {
+  NEXT_TURN(draft, _cmd, ctx, emit) {
     if (!draft.turn.started) return err('notStarted', 'begin the battle first');
     const order = draft.turn.order;
     if (order.length === 0) return undefined;
@@ -86,10 +87,7 @@ export const lifecycleHandlers: HandlerMap = {
         draft.pending = { kind: 'tieOrder', groups: draft.turn.pendingTies.map((g) => [...g]) };
     }
     const current = combatantById(draft, order[draft.turn.currentIndex] as string);
-    if (current) {
-      runTurnStart(draft, current, emit);
-      emit({ type: 'turnChanged', unitId: current.id, round: draft.turn.round });
-    }
+    if (current) beginTurn(draft, current, ctx, emit);
     return undefined;
   },
 
@@ -160,5 +158,6 @@ function commitBegin(draft: Draft, rolls: Record<string, number>, ctx: Ctx, emit
   emit({ type: 'battleStarted' });
   emit({ type: 'turnChanged', unitId: first?.id ?? null, round: 1 });
   log(draft, `Battle begins (${draft.turn.roundStartMode.toLowerCase()})`);
+  if (first) defeatIfDown(draft, first.id, ctx, emit);
   return undefined;
 }

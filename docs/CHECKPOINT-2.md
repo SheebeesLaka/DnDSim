@@ -82,6 +82,7 @@ per battle in the debug panel; each is tested both ways.
 | `halfRequiresTier1Die` | F-18 | save-for-half needs a tier-1 die | any tier die | **fix** |
 | `ammoCompatIgnoresLegacyField` | F-16 | legacy `compatibleWeaponType` ammo never matches | honoured | **fix** |
 | `entityNegativeHpPersists` | F-14 | party HP goes negative and is saved | clamps at 0 | your call |
+| `dotCannotKill` | F-4 | damage over time stops at 1 HP | can drop a creature to 0 (defeat / dying) | **fixed 2026-10-21** (your call) |
 | `rangeZeroResolvesOnCaster` | F-13 | range-0 single-target spells always hit the caster | only SELF spells | keep |
 | `preBattleEnemyPlacementResorts` | R8.2 | preview d20 at enemy placement | no roll until Begin | keep |
 

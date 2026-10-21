@@ -98,16 +98,17 @@ export function processEquippedAbilities(sheet: CharSheetDef, trigger: string): 
 }
 
 /**
- * CharSheet.procStatus: DOT (floor 1), HOT (cap max), tick & expire, then
+ * CharSheet.procStatus: DOT (floor 1, or 0 with F-4 fixed), HOT (cap max), tick & expire, then
  * updateAttributes and ON_TURN_START abilities. Returns early on an empty list
  * (which is what makes F-1 a double fire only when a status is present).
  */
 export function procEntityStatus(sheet: CharSheetDef, compat: CompatFlags, expired?: string[]): string[] {
   if (sheet.status.length === 0) return [];
   const kept: StatusDef[] = [];
+  const floor = compat.dotCannotKill ? 1 : 0;
   for (const s of sheet.status) {
     if (s.effectType === StatusEffect.DAMAGE_OVER_TIME)
-      sheet.currentHP = Math.max(1, sheet.currentHP - s.magnitude);
+      sheet.currentHP = Math.max(floor, sheet.currentHP - s.magnitude);
     else if (s.effectType === StatusEffect.HEAL_OVER_TIME)
       sheet.currentHP = Math.min(sheet.totalHP, sheet.currentHP + s.magnitude);
     if (!tickStatus(s, compat)) kept.push(s);
@@ -118,11 +119,12 @@ export function procEntityStatus(sheet: CharSheetDef, compat: CompatFlags, expir
   return processEquippedAbilities(sheet, 'ON_TURN_START');
 }
 
-/** Enemy.procStatus: DOT/HOT then tick; no abilities. */
+/** Enemy.procStatus: DOT/HOT then tick; no abilities. DOT floors at 1 unless F-4 is fixed. */
 export function procEnemyStatus(en: EnemyUnit, compat: CompatFlags, expired?: string[]): void {
   const kept: StatusDef[] = [];
+  const floor = compat.dotCannotKill ? 1 : 0;
   for (const s of en.statuses) {
-    if (s.effectType === StatusEffect.DAMAGE_OVER_TIME) en.health = Math.max(1, en.health - s.magnitude);
+    if (s.effectType === StatusEffect.DAMAGE_OVER_TIME) en.health = Math.max(floor, en.health - s.magnitude);
     else if (s.effectType === StatusEffect.HEAL_OVER_TIME)
       en.health = Math.min(en.maxHealth, en.health + s.magnitude);
     if (!tickStatus(s, compat)) kept.push(s);

@@ -4,13 +4,12 @@
  * reinforcements and round timers. None of these ever block an action.
  */
 import { err } from '../errors.ts';
-import { applyDamage, applyHealing, isTargetDead, removeDefeated } from '../rules/apply.ts';
+import { applyDamage, applyHealing, beginTurn, isTargetDead, removeDefeated } from '../rules/apply.ts';
 import { applyStatus, stampStatus, syncSheetAttributes } from '../rules/statuses.ts';
 import { settleTotalAtIndex } from '../rules/turnOrder.ts';
-import { runTurnStart } from '../rules/turnStart.ts';
 import { combatantById, unitName } from '../selectors/board.ts';
 import { health } from '../selectors/stats.ts';
-import type { Combatant, UnitId } from '../types.ts';
+import type { Combatant, EngineContext, UnitId } from '../types.ts';
 import { log, nextId, type Emit, type HandlerMap } from './_shared.ts';
 
 const statusList = (u: Combatant) => (u.kind === 'entity' ? u.sheet.status : u.statuses);
@@ -24,7 +23,7 @@ const sheetChanged = (u: Combatant, emit: Emit) => {
 type Draft = Parameters<NonNullable<HandlerMap['NEXT_TURN']>>[0];
 
 /** Start the turn of whoever now sits at currentIndex (after the previous one left the order). */
-function advanceToCurrent(draft: Draft, emit: Emit): void {
+function advanceToCurrent(draft: Draft, ctx: EngineContext, emit: Emit): void {
   const order = draft.turn.order;
   if (order.length === 0) return;
   if (draft.turn.currentIndex >= order.length) {
@@ -34,9 +33,7 @@ function advanceToCurrent(draft: Draft, emit: Emit): void {
       draft.pending = { kind: 'tieOrder', groups: draft.turn.pendingTies.map((g) => [...g]) };
   }
   const cur = combatantById(draft, order[draft.turn.currentIndex] as UnitId);
-  if (!cur) return;
-  runTurnStart(draft, cur, emit);
-  emit({ type: 'turnChanged', unitId: cur.id, round: draft.turn.round });
+  if (cur) beginTurn(draft, cur, ctx, emit);
 }
 
 export const dmHandlers: HandlerMap = {
@@ -121,7 +118,7 @@ export const dmHandlers: HandlerMap = {
     return undefined;
   },
 
-  DELAY_TURN(draft, cmd, _ctx, emit) {
+  DELAY_TURN(draft, cmd, ctx, emit) {
     if (!draft.turn.started) return err('notStarted', 'begin the battle first');
     const order = draft.turn.order;
     const idx = order.indexOf(cmd.unitId);
@@ -132,11 +129,11 @@ export const dmHandlers: HandlerMap = {
     if (idx < draft.turn.currentIndex) draft.turn.currentIndex--;
     const u = combatantById(draft, cmd.unitId);
     log(draft, `${u ? unitName(u) : cmd.unitId} delays`);
-    if (wasCurrent) advanceToCurrent(draft, emit);
+    if (wasCurrent) advanceToCurrent(draft, ctx, emit);
     return undefined;
   },
 
-  RETURN_FROM_HOLD(draft, cmd, _ctx, emit) {
+  RETURN_FROM_HOLD(draft, cmd, ctx, emit) {
     const held = draft.turn.held ?? [];
     if (!held.includes(cmd.unitId)) return err('notHeld', 'that combatant is not delaying');
     draft.turn.held = held.filter((x) => x !== cmd.unitId);
@@ -148,10 +145,7 @@ export const dmHandlers: HandlerMap = {
       order.splice(at, 0, cmd.unitId);
       draft.turn.currentIndex = at;
       settleTotalAtIndex(draft, cmd.unitId);
-      if (u) {
-        runTurnStart(draft, u, emit);
-        emit({ type: 'turnChanged', unitId: u.id, round: draft.turn.round });
-      }
+      if (u) beginTurn(draft, u, ctx, emit);
     } else {
       const to = Math.max(0, Math.min(order.length, Math.trunc(cmd.index)));
       order.splice(to, 0, cmd.unitId);

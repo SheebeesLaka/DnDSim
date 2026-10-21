@@ -9,6 +9,8 @@ export interface CompatFlags {
   turnStartAbilitiesDoubleFire: boolean;
   /** F-3: Begin fires abilities for the first combatant but never ticks its statuses. */
   beginSkipsFirstStatusTick: boolean;
+  /** F-4: damage over time stops at 1 HP (and lifts 0 HP to 1), so it can never defeat anyone. */
+  dotCannotKill: boolean;
   /** F-8: a status with duration 0 never expires (behaves like permanent). */
   durationZeroNeverExpires: boolean;
   /** F-7: non-party entities count as enemy-side for Ambush/ties but party-side for hostility. */
@@ -40,6 +42,7 @@ export interface CompatFlags {
 export const LEGACY_COMPAT: Readonly<CompatFlags> = Object.freeze({
   turnStartAbilitiesDoubleFire: true,
   beginSkipsFirstStatusTick: true,
+  dotCannotKill: true,
   durationZeroNeverExpires: true,
   npcEntitiesLegacySide: true,
   victoryOnAnyDefeat: true,
@@ -55,8 +58,8 @@ export const LEGACY_COMPAT: Readonly<CompatFlags> = Object.freeze({
 
 /**
  * Applied after Phase 4: F-1, F-3, both F-5 flags, F-18 and F-16 fixed; then (DM's call,
- * 2026-10-11) F-2, F-15 and F-14. The rest keep the Java behaviour by recommendation
- * (F-8, F-7, F-13, R8.2).
+ * 2026-10-11) F-2, F-15 and F-14, and (2026-10-21) F-4. The rest keep the Java behaviour by
+ * recommendation (F-8, F-7, F-13, R8.2).
  */
 export const RECOMMENDED_COMPAT: Readonly<CompatFlags> = Object.freeze({
   ...LEGACY_COMPAT,
@@ -69,6 +72,7 @@ export const RECOMMENDED_COMPAT: Readonly<CompatFlags> = Object.freeze({
   victoryOnAnyDefeat: false,
   pickupsBlockStanding: false,
   entityNegativeHpPersists: false,
+  dotCannotKill: false,
 });
 
 /** What a new battle starts with. */
@@ -84,6 +88,11 @@ export const COMPAT_FLAG_INFO: Record<keyof CompatFlags, { ref: string; legacy: 
     ref: 'F-3',
     legacy: 'first combatant gets abilities but no status tick at Begin',
     fixed: 'full turn-start processing at Begin',
+  },
+  dotCannotKill: {
+    ref: 'F-4',
+    legacy: 'damage over time stops at 1 HP and never defeats anyone',
+    fixed: 'damage over time can drop a creature to 0 HP (enemies are defeated, heroes start dying)',
   },
   durationZeroNeverExpires: {
     ref: 'F-8',

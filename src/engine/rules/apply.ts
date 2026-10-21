@@ -74,11 +74,31 @@ export function removeCombatant(
   log(draft, `${unitName(unit)} ${reason === 'defeated' ? 'defeated' : 'removed'}`);
   if (wasCurrent && !draft.rules.compat.removeCurrentSkipsNext && draft.turn.order.length > 0) {
     const next = combatantById(draft, draft.turn.order[draft.turn.currentIndex] as UnitId);
-    if (next) {
-      runTurnStart(draft, next, emit);
-      emit({ type: 'turnChanged', unitId: next.id, round: draft.turn.round });
-    }
+    if (next) beginTurn(draft, next, ctx, emit);
   }
+}
+
+/**
+ * Start `u`'s turn (statuses tick) and announce it. If damage over time drops it to 0 HP, it is
+ * defeated like any other 0 HP (a party member starts dying), and removing the acting creature
+ * starts the next turn.
+ */
+export function beginTurn(
+  draft: Draft<BattleState>,
+  u: Draft<Combatant>,
+  ctx: EngineContext,
+  emit: Emit,
+): void {
+  runTurnStart(draft, u, emit);
+  emit({ type: 'turnChanged', unitId: u.id, round: draft.turn.round });
+  defeatIfDown(draft, u.id, ctx, emit);
+}
+
+/** A creature at 0 HP after its statuses ticked is defeated (a dying hero stays dying). */
+export function defeatIfDown(draft: Draft<BattleState>, id: UnitId, ctx: EngineContext, emit: Emit): void {
+  const u = unitById(draft, id);
+  if (u && (u.kind === 'entity' || u.kind === 'enemy') && isTargetDead(u))
+    removeDefeated(draft, u, ctx, emit);
 }
 
 /** BattleGridCanvas.removeDefeated: entities/enemies leave; destroyed terrain is swept. */

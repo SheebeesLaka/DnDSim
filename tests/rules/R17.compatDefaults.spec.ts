@@ -20,10 +20,11 @@ const FIXED: (keyof CompatFlags)[] = [
   'victoryOnAnyDefeat',
   'pickupsBlockStanding',
   'entityNegativeHpPersists',
+  'dotCannotKill',
 ];
 
 describe('recommended compat defaults (applied after Phase 4)', () => {
-  it('fix exactly F-1, F-3, both F-5 flags, F-18, F-16, F-2, F-15 and F-14; the rest keep the Java behaviour', () => {
+  it('fix exactly F-1, F-3, both F-5 flags, F-18, F-16, F-2, F-15, F-14 and F-4; the rest keep the Java behaviour', () => {
     for (const k of Object.keys(LEGACY_COMPAT) as (keyof CompatFlags)[]) {
       expect(RECOMMENDED_COMPAT[k], `${k} (${COMPAT_FLAG_INFO[k].ref})`).toBe(!FIXED.includes(k));
     }
